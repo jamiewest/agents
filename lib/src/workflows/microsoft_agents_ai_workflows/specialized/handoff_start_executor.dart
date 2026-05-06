@@ -44,15 +44,15 @@ class HandoffStartExecutor extends ChatProtocolExecutor implements ResettableExe
     List<ChatMessage> messages,
     WorkflowContext context,
     bool? emitEvents,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return context.invokeWithState(
             async (
               HandoffSharedState? sharedState,
               IWorkflowContext context,
               CancellationToken cancellationToken,
-            ) =>
-            {
+            ) {
+            
                 sharedState ??= handoffSharedState();
                 sharedState.conversation.addMessages(messages);
 
@@ -69,7 +69,7 @@ class HandoffStartExecutor extends ChatProtocolExecutor implements ResettableExe
                 await context.sendMessage(turnState, cancellationToken);
 
                 return sharedState;
-            },
+            }
             HandoffConstants.handoffSharedStateKey,
             HandoffConstants.handoffSharedStateScope,
             cancellationToken);

@@ -11,7 +11,9 @@ import 'workflow_event.dart';
 /// workflow events, and providing a mechanism to send responses back to the
 /// workflow.
 class StreamingRun extends CheckpointableRunBase implements AsyncDisposable {
-  StreamingRun(AsyncRunHandle runHandle) : _runHandle = runHandle {
+  StreamingRun(AsyncRunHandle runHandle)
+      : _runHandle = runHandle,
+        super(runHandle) {
   }
 
   final AsyncRunHandle _runHandle;
@@ -59,7 +61,7 @@ class StreamingRun extends CheckpointableRunBase implements AsyncDisposable {
     return this._runHandle.enqueueMessageUntypedAsync(message, declaredType);
   }
 
-  (bool, String??) tryGetResponsePortExecutorId(String portId) {
+  (bool, String?) tryGetResponsePortExecutorId(String portId) {
     // TODO(transpiler): implement out-param body
     throw UnimplementedError();
   }
@@ -103,7 +105,7 @@ extension StreamingRunExtensions on StreamingRun {
 ///
 /// [cancellationToken] The [CancellationToken] to monitor for cancellation
 /// requests. The default is [None].
-Future runToCompletion({Func<WorkflowEvent, ExternalResponse?>? eventCallback, CancellationToken? cancellationToken, }) async  {
+Future runToCompletion({Func<WorkflowEvent, ExternalResponse?>? eventCallback, CancellationToken? cancellationToken, }) async {
 for (final @event in handle.watchStreamAsync(cancellationToken)) {
   var maybeResponse = eventCallback?.invoke(@event);
   if (maybeResponse != null) {

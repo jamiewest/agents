@@ -32,8 +32,8 @@ extension OpenTelemetryAgentBuilderExtensions on AIAgentBuilder {
 /// the [OpenTelemetryAgent] instance. This allows for fine-tuning telemetry
 /// behavior such as enabling sensitive data collection.
 AIAgentBuilder useOpenTelemetry({String? sourceName, Action<OpenTelemetryAgent>? configure, }) {
-return builder.use((innerAgent, services) =>
-        {
+return builder.use((innerAgent, services) {
+        
             var agent = openTelemetryAgent(innerAgent, sourceName);
             configure?.invoke(agent);
 

@@ -63,7 +63,7 @@ class InMemoryAgentFileStore extends AgentFileStore {
   Future<List<FileSearchResult>> searchFiles(
     String directory,
     String regexPattern,
-    {String? filePattern, CancellationToken? cancellationToken, },
+    {String? filePattern, CancellationToken? cancellationToken, }
   ) {
     var prefix = StorePaths.normalizeRelativePath(directory, isDirectory: true);
     if (prefix.length > 0 && !prefix.endsWith("/")) {

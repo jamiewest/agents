@@ -14,7 +14,7 @@ class ExecutorIdentity {
   }
 
   @override
-  int getHashCode() {
+  int hashCode {
     return this.id == null
         ? 0
         : .getHashCode(this.id);

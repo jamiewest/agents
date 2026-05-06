@@ -22,7 +22,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
   /// [rootDirectory] The root directory under which all files are stored.
   /// Created if it does not exist.
   FileSystemAgentFileStore(String rootDirectory) {
-    _ = rootDirectory;
+    rootDirectory;
     var fullRoot = p.canonicalize(rootDirectory);
     if (!fullRoot.endsWith(p.separator.toString()) &&
             !fullRoot.endsWith(
@@ -40,7 +40,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
   late final String _rootPath;
 
   @override
-  Future writeFile(String path, String content, {CancellationToken? cancellationToken, }) async  {
+  Future writeFile(String path, String content, {CancellationToken? cancellationToken, }) async {
     var fullPath = this.resolveSafePath(path);
     var parentDir = p.dirname(fullPath);
     if (parentDir != null) {
@@ -51,7 +51,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
   }
 
   @override
-  Future<String?> readFile(String path, {CancellationToken? cancellationToken, }) async  {
+  Future<String?> readFile(String path, {CancellationToken? cancellationToken, }) async {
     var fullPath = this.resolveSafePath(path);
     if (!File.exists(fullPath)) {
       return null;
@@ -93,8 +93,8 @@ class FileSystemAgentFileStore extends AgentFileStore {
   Future<List<FileSearchResult>> searchFiles(
     String directory,
     String regexPattern,
-    {String? filePattern, CancellationToken? cancellationToken, },
-  ) async  {
+    {String? filePattern, CancellationToken? cancellationToken, }
+  ) async {
     var fullDir = this.resolveSafeDirectoryPath(directory);
     if (!Directory.exists(fullDir)) {
       return [];
@@ -111,20 +111,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
         continue;
       }
       // Read file content.
-      #if NET8_0_OR_GREATER
-            String fileContent = await File.ReadAllTextAsync(
-              filePath,
-              const Utf8Codec(),
-              cancellationToken,
-            ) ;
-      #else
-            String fileContent;
-      final reader = streamReader(filePath, const Utf8Codec());
-      try {
-        fileContent = await reader.readToEndAsync();
-      } finally {
-        reader.dispose();
-      }
+      final fileContent = await File(filePath).readAsString();
       var lines = fileContent.split('\n');
       var matchingLines = List<FileSearchMatch>();
       var firstSnippet = null;

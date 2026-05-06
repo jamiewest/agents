@@ -5,16 +5,16 @@ class SuperStepCompletionInfo {
   /// Debug information about the SuperStep that finished running.
   SuperStepCompletionInfo(
     Iterable<String> activatedExecutors,
-    {Iterable<String>? instantiatedExecutors = null, },
+    {Iterable<String>? instantiatedExecutors = null, }
   ) : activatedExecutors = activatedExecutors;
 
   /// The unique identifiers of [Executor] instances that processed messages
   /// during this SuperStep
-  final Set<String> activatedExecutors = [.. activatedExecutors];
+  final Set<String> activatedExecutors = [...activatedExecutors];
 
   /// The unique identifiers of [Executor] instances newly created during this
   /// SuperStep
-  final Set<String> instantiatedExecutors = [.. instantiatedExecutors ?? []];
+  final Set<String> instantiatedExecutors = [...instantiatedExecutors ?? []];
 
   /// A flag indicating whether the managed state was written to during this
   /// SuperStep. If the run was started with checkpointing, any updated during

@@ -27,7 +27,7 @@ class CheckpointInfo {
   }
 
   @override
-  int getHashCode() {
+  int hashCode {
     return HashCode.combine(this.sessionId, this.checkpointId);
   }
 

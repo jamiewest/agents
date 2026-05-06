@@ -67,8 +67,8 @@ class EvalItem {
   bool get hasImageContent {
     return this.conversation.any((m) =>
             m.contents.any((c) =>
-                (c is DataContent dc && dc.hasTopLevelMediaType("image"))
-                || (c is UriContent uc && uc.hasTopLevelMediaType("image"))));
+                (c is DataContent && dc.hasTopLevelMediaType("image"))
+                || (c is UriContent && uc.hasTopLevelMediaType("image"))));
   }
 
   /// Splits the conversation into query messages and response messages.
@@ -98,7 +98,7 @@ class EvalItem {
   /// [context] Optional grounding context.
   static List<EvalItem> perTurnItems(
     List<ChatMessage> conversation,
-    {List<AITool>? tools, String? context, },
+    {List<AITool>? tools, String? context, }
   ) {
     var items = List<EvalItem>();
     var userIndices = List<int>();

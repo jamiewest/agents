@@ -21,13 +21,13 @@ class RequestPortInfo {
       portId = PortId;
 
   ///
-  TypeId requestType;
+  final TypeId requestType;
 
   ///
-  TypeId responseType;
+  final TypeId responseType;
 
   ///
-  String portId;
+  final String portId;
 
   @override
   bool operator ==(Object other) {

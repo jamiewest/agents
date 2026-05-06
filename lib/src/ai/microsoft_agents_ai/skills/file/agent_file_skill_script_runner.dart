@@ -1,4 +1,4 @@
-/// Delegate for running file-based skill scripts.
+/// Function for running file-based skill scripts.
 ///
 /// Remarks: Implementations determine the execution strategy (e.g., local
 /// subprocess, hosted code execution environment). The `arguments` parameter

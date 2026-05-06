@@ -1,4 +1,4 @@
-/// Delegate for a synchronous evaluation check on a single item.
+/// Function for a synchronous evaluation check on a single item.
 ///
 /// Returns: The check result.
 ///

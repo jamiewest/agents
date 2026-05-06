@@ -31,14 +31,14 @@ class HandoffEndExecutor extends Executor implements ResettableExecutor {
     HandoffState handoff,
     WorkflowContext context,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     await this._sharedStateRef.invokeWithState(
             async (
               HandoffSharedState? sharedState,
               IWorkflowContext context,
               CancellationToken cancellationToken,
-            ) =>
-            {
+            ) {
+            
                 if (sharedState == null)
                 {
                     throw StateError("Handoff Orchestration shared state was not properly initialized.");

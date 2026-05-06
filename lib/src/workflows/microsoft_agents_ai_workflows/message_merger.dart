@@ -26,10 +26,10 @@ class MessageMerger {
     if (left.createdAt == right.createdAt) {
       return EQ;
     }
-    if (!left.createdAt.hasValue) {
+    if (!left.createdAt != null) {
       return GREATER;
     }
-    if (!right.createdAt.hasValue) {
+    if (!right.createdAt != null) {
       return LESS;
     }
     return left.createdAt.value.compareTo(right.createdAt.value);
@@ -37,7 +37,7 @@ class MessageMerger {
 
   AgentResponse computeMerged(
     String primaryResponseId,
-    {String? primaryAgentId, String? primaryAgentName, },
+    {String? primaryAgentId, String? primaryAgentName, }
   ) {
     var messages = [];
     var responses = [];
@@ -60,10 +60,10 @@ class MessageMerger {
       if (response.agentId != null) {
         agentIds.add(response.agentId);
       }
-      if (response.createdAt.hasValue) {
+      if (response.createdAt != null) {
         createdTimes.add(response.createdAt.value);
       }
-      if (response.finishReason.hasValue) {
+      if (response.finishReason != null) {
         finishReasons.add(response.finishReason.value);
       }
       usage = mergeUsage(usage, response.usage);
@@ -72,7 +72,7 @@ class MessageMerger {
     messages.addAll(this._danglingState.computeFlattened());
     for (final m in messages) {
       for (var i = m.contents.length - 1; i >= 0; i--) {
-        if (m.contents[i] is TextContent textContent &&
+        if (m.contents[i] is TextContent &&
                     (textContent.text == null || textContent.text.trim().isEmpty)) {
           m.contents.removeAt(i);
         }
@@ -147,7 +147,7 @@ class MessageMerger {
         //             }
       //
       //             AdditionalPropertiesDictionary merged = new(current);
-      //             foreach (String key in incoming.Keys)
+      //             for (final key in incoming.Keys)
       //             {
         //                 merged[key] = incoming[key];
         //             }
@@ -174,7 +174,7 @@ class MessageMerger {
         //             }
       //             else if (incoming.AdditionalCounts is not null)
       //             {
-        //                 foreach (String key in incoming.AdditionalCounts.Keys)
+        //                 for (final key in incoming.AdditionalCounts.Keys)
         //                 {
           //                     additionalCounts[key] = incoming.AdditionalCounts[key] +
           //                                             (additionalCounts.TryGetValue(key, existingCount) ? existingCount.Value : 0);
@@ -217,7 +217,7 @@ class ResponseMergeState {
     if (this.updatesByMessageId.containsKey(messageId)) {
       return updates.toAgentResponse();
     }
-    throw StateError("No updates found for message ID ${messageId} in response "${this.responseId}'.');
+    throw StateError('No updates found for message ID ${messageId} in response "${this.responseId}".');
   }
 
   AgentResponse computeDangling() {
@@ -234,7 +234,7 @@ class ResponseMergeState {
     }
     return result;
     /* TODO: unsupported node kind "unknown" */
-    // IList<ChatMessage> AggregateUpdatesToMessage(String messageId)
+    // List<ChatMessage> AggregateUpdatesToMessage(String messageId)
     //             {
       //                 List<AgentResponseUpdate> updates = this.UpdatesByMessageId[messageId];
       //                 if (updates.Count == 0)

@@ -19,7 +19,7 @@ class EdgeMap {
   EdgeMap(
     RunnerContext runContext,
     StepTracer? stepTracer,
-    {Workflow? workflow = null, Map<String, Set<Edge>>? workflowEdges = null, Iterable<RequestPort>? workflowPorts = null, String? startExecutorId = null, },
+    {Workflow? workflow = null, Map<String, Set<Edge>>? workflowEdges = null, Iterable<RequestPort>? workflowPorts = null, String? startExecutorId = null, }
   ) : _stepTracer = stepTracer;
 
   final Map<EdgeId, EdgeRunner> _edgeRunners = {};
@@ -35,7 +35,7 @@ class EdgeMap {
   Future<DeliveryMapping?> prepareDeliveryForEdge(
     Edge edge,
     MessageEnvelope message,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     var id = edge.data.id;
     EdgeRunner? edgeRunner;
@@ -54,14 +54,14 @@ class EdgeMap {
 
   Future<DeliveryMapping?> prepareDeliveryForInput(
     MessageEnvelope message,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return this._inputRunner.chaseEdgeAsync(message, this._stepTracer, cancellationToken);
   }
 
   Future<DeliveryMapping?> prepareDeliveryForResponse(
     ExternalResponse response,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     ResponseEdgeRunner portRunner;
     if (!this._portEdgeRunners.containsKey(response.portInfo.portId)) {
@@ -74,14 +74,14 @@ class EdgeMap {
     );
   }
 
-  (bool, String??) tryGetResponsePortExecutorId(String portId) {
+  (bool, String?) tryGetResponsePortExecutorId(String portId) {
     if (this._portEdgeRunners.tryGetValue(portId)) {
       return (true, portRunner.executorId);
     }
     return (false, null);
   }
 
-  Future<Map<EdgeId, PortableValue>> exportState() async  {
+  Future<Map<EdgeId, PortableValue>> exportState() async {
     var exportedStates = [];
     for (final id in this._statefulRunners.keys) {
       exportedStates[id] = await this._statefulRunners[id].exportStateAsync();
@@ -89,7 +89,7 @@ class EdgeMap {
     return exportedStates;
   }
 
-  Future importState(Checkpoint checkpoint) async  {
+  Future importState(Checkpoint checkpoint) async {
     var importedState = checkpoint.edgeStateData;
     for (final id in importedState.keys) {
       var exportedState = importedState[id];

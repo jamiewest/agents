@@ -24,7 +24,7 @@ class OutputMessagesExecutor extends ChatProtocolExecutor implements ResettableE
     List<ChatMessage> messages,
     WorkflowContext context,
     bool? emitEvents,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return context.yieldOutput(messages, cancellationToken);
   }

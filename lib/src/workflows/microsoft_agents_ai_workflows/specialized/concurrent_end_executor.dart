@@ -32,8 +32,8 @@ class ConcurrentEndExecutor extends Executor implements ResettableExecutor {
 
   @override
   ProtocolBuilder configureProtocol(ProtocolBuilder protocolBuilder) {
-    protocolBuilder.routeBuilder.addHandler<List<ChatMessage>>(async (messages, context, cancellationToken) =>
-        {
+    protocolBuilder.routeBuilder.addHandler<List<ChatMessage>>(async (messages, context, cancellationToken) {
+        
             // TODO: https://github.com/microsoft/agent-framework/issues/784
             // This locking should not be necessary.
             bool done;

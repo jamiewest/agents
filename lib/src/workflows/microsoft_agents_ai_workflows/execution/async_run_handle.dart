@@ -61,15 +61,15 @@ class AsyncRunHandle implements AsyncDisposable,CheckpointingHandle {
     return this._eventStream.getStatusAsync(cancellationToken);
   }
 
-  (bool, String??) tryGetResponsePortExecutorId(String portId) {
+  (bool, String?) tryGetResponsePortExecutorId(String portId) {
     // TODO(transpiler): implement out-param body
     throw UnimplementedError();
   }
 
   Stream<WorkflowEvent> takeEventStream(
     bool blockOnPendingRequest,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async* {
     if ((() { final _old = this._isEventStreamTaken; if (_old == 0) this._isEventStreamTaken = 1; return _old; })() != 0) {
       throw StateError("The event stream has already been taken. Only one enumerator is allowed at a time.");
     }
@@ -97,7 +97,7 @@ class AsyncRunHandle implements AsyncDisposable,CheckpointingHandle {
     return this._stepRunner.isValidInputTypeAsync<T>(cancellationToken);
   }
 
-  Future<bool> enqueueMessage<T>(T message, {CancellationToken? cancellationToken, }) async  {
+  Future<bool> enqueueMessage<T>(T message, {CancellationToken? cancellationToken, }) async {
     if (message is ExternalResponse) {
       final response = message as ExternalResponse;
       // EnqueueResponseAsync handles signaling
@@ -114,8 +114,8 @@ class AsyncRunHandle implements AsyncDisposable,CheckpointingHandle {
 
   Future<bool> enqueueMessageUntyped(
     Object message,
-    {Type? declaredType, CancellationToken? cancellationToken, },
-  ) async  {
+    {Type? declaredType, CancellationToken? cancellationToken, }
+  ) async {
     if (declaredType?.isInstanceOfType(message) == false) {
       throw ArgumentError(
         'Message is! of the declared type ${declaredType}. Actual type: ${message.runtimeType}',
@@ -147,8 +147,8 @@ class AsyncRunHandle implements AsyncDisposable,CheckpointingHandle {
 
   Future enqueueResponse(
     ExternalResponse response,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     await this._stepRunner.enqueueResponseAsync(response, cancellationToken);
     // Signal the run loop that new input is available
         this.signalInputToRunLoop();
@@ -158,13 +158,13 @@ class AsyncRunHandle implements AsyncDisposable,CheckpointingHandle {
     this._eventStream.signalInput();
   }
 
-  Future cancelRun() async  {
+  Future cancelRun() async {
     this._endRunSource.cancel();
     await this._eventStream.stopAsync();
   }
 
   @override
-  Future dispose() async  {
+  Future dispose() async {
     if ((() { final _old = this._isDisposed; this._isDisposed = 1; return _old; })() == 0) {
       // Cancel the run if it is still running
             await this.cancelRunAsync();
@@ -178,8 +178,8 @@ class AsyncRunHandle implements AsyncDisposable,CheckpointingHandle {
   @override
   Future restoreCheckpoint(
     CheckpointInfo checkpointInfo,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     if (this._eventStream is StreamingRunEventStream) {
       final streamingEventStream = this._eventStream as StreamingRunEventStream;
       streamingEventStream.clearBufferedEvents();

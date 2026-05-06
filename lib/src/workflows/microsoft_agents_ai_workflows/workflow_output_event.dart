@@ -25,8 +25,8 @@ class WorkflowOutputEvent extends WorkflowEvent {
   /// false.
   ///
   /// [T] The type to compare with the type of the underlying data.
-  (bool, T??) isValue<T>() {
-    if (this.data is T value) {
+  (bool, T?) isValue<T>() {
+    if (this.data is T) {
       return (true, value);
     }
     return (false, default);
@@ -40,7 +40,7 @@ class WorkflowOutputEvent extends WorkflowEvent {
   ///
   /// [type] The type to compare with the type of the underlying data.
   bool isType(Type type) {
-    return this.data is { } data && type.isInstanceOfType(data);
+    return (this.data) != null && type.isInstanceOfType(data);
   }
 
   /// Attempts to retrieve the underlying data as the specified type.
@@ -49,7 +49,7 @@ class WorkflowOutputEvent extends WorkflowEvent {
   ///
   /// [T] The type to which to cast.
   T? as<T>() {
-    return this.data is T value ? value : default;
+    return this.data is T ? value : default;
   }
 
   /// Attempts to retrieve the underlying data as the specified type.

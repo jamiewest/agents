@@ -35,7 +35,7 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
   InProcessRunner(
     Workflow workflow,
     CheckpointManager? checkpointManager,
-    {String? sessionId = null, Object? existingOwnerSignoff = null, bool? subworkflow = null, bool? enableConcurrentRuns = null, Iterable<Type>? knownValidInputTypes = null, },
+    {String? sessionId = null, Object? existingOwnerSignoff = null, bool? subworkflow = null, bool? enableConcurrentRuns = null, Iterable<Type>? knownValidInputTypes = null, }
   ) :
       workflow = workflow,
       checkpointManager = checkpointManager {
@@ -57,7 +57,7 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
       enableConcurrentRuns,
     );
     this._knownValidInputTypes = knownValidInputTypes != null
-                                   ? [.. knownValidInputTypes]
+                                   ? [...knownValidInputTypes]
                                    : [];
     // Initialize the runners for each of the edges, along with the state for edges that need it.
         this.edgeMap = edgeMap(
@@ -111,7 +111,7 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
   static InProcessRunner createTopLevelRunner(
     Workflow workflow,
     CheckpointManager? checkpointManager,
-    {String? sessionId, bool? enableConcurrentRuns, Iterable<Type>? knownValidInputTypes, },
+    {String? sessionId, bool? enableConcurrentRuns, Iterable<Type>? knownValidInputTypes, }
   ) {
     return inProcessRunner(workflow,
                                    checkpointManager,
@@ -123,7 +123,7 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
   static InProcessRunner createSubworkflowRunner(
     Workflow workflow,
     CheckpointManager? checkpointManager,
-    {String? sessionId, Object? existingOwnerSignoff, bool? enableConcurrentRuns, Iterable<Type>? knownValidInputTypes, },
+    {String? sessionId, Object? existingOwnerSignoff, bool? enableConcurrentRuns, Iterable<Type>? knownValidInputTypes, }
   ) {
     return inProcessRunner(workflow,
                                    checkpointManager,
@@ -139,7 +139,7 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
   }
 
   @override
-  Future<bool> isValidInputType({Type? messageType, CancellationToken? cancellationToken, }) async  {
+  Future<bool> isValidInputType({Type? messageType, CancellationToken? cancellationToken, }) async {
     if (this._knownValidInputTypes.contains(messageType)) {
       return true;
     }
@@ -158,8 +158,8 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
   @override
   Future<bool> enqueueMessageUntyped(
     Object message,
-    {Type? declaredType, CancellationToken? cancellationToken, },
-  ) async  {
+    {Type? declaredType, CancellationToken? cancellationToken, }
+  ) async {
     this.runContext.checkEnded();
     if (message is ExternalResponse) {
       final response = message as ExternalResponse;
@@ -193,8 +193,8 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
   Future<AsyncRunHandle> resumeStream(
     ExecutionMode mode,
     CheckpointInfo fromCheckpoint,
-    {bool? republishPendingEvents, CancellationToken? cancellationToken, },
-  ) async  {
+    {bool? republishPendingEvents, CancellationToken? cancellationToken, }
+  ) async {
     this.runContext.checkEnded();
     if (this.checkpointManager == null) {
       throw StateError(
@@ -225,7 +225,7 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
     return this.runContext.nextStepHasActions;
   }
 
-  (bool, String??) tryGetResponsePortExecutorId(String portId) {
+  (bool, String?) tryGetResponsePortExecutorId(String portId) {
     // TODO(transpiler): implement out-param body
     throw UnimplementedError();
   }
@@ -245,7 +245,7 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
     return this._checkpoints;
   }
 
-  Future<bool> runSuperStep(CancellationToken cancellationToken) async  {
+  Future<bool> runSuperStep(CancellationToken cancellationToken) async {
     this.runContext.checkEnded();
     if (cancellationToken.isCancellationRequested) {
       return false;
@@ -278,7 +278,7 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
     String receiverId,
     Queue<MessageEnvelope> envelopes,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     var executor = await this.runContext.ensureExecutor(
       receiverId,
       this.stepTracer,
@@ -335,7 +335,7 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
       //         }
   }
 
-  Future runSuperstep(StepContext currentStep, CancellationToken cancellationToken, ) async  {
+  Future runSuperstep(StepContext currentStep, CancellationToken cancellationToken, ) async {
     await this.raiseWorkflowEventAsync(this.stepTracer.advance(currentStep));
     var receiverTasks = currentStep.queuedMessages.keys
                        .map((receiverId) => this.deliverMessagesAsync(receiverId, currentStep.messagesFor(receiverId), cancellationToken).future)
@@ -354,7 +354,7 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
                   ;
   }
 
-  Future checkpoint({CancellationToken? cancellationToken}) async  {
+  Future checkpoint({CancellationToken? cancellationToken}) async {
     this.runContext.checkEnded();
     if (this.checkpointManager == null) {
       // Always publish the state updates, even in the absence of a checkpointManager.
@@ -395,8 +395,8 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
   @override
   Future restoreCheckpoint(
     CheckpointInfo checkpointInfo,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     await this.restoreCheckpointCoreAsync(checkpointInfo, cancellationToken);
     // Republish pending request events. This is safe for runtime restores where
         // the event stream is already subscribed. For initial resumes the event stream
@@ -410,8 +410,8 @@ class InProcessRunner implements CheckpointingHandle,SuperStepRunner {
   /// is attached.
   Future restoreCheckpointCore(
     CheckpointInfo checkpointInfo,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     this.runContext.checkEnded();
     if (this.checkpointManager == null) {
       throw StateError(

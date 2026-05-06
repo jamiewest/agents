@@ -25,7 +25,8 @@ class AIContextProviderChatClient extends DelegatingChatClient {
   AIContextProviderChatClient(
     ChatClient innerClient,
     List<AIContextProvider> providers,
-  ) : _providers = providers {
+  ) : _providers = providers,
+      super(innerClient) {
     if (providers.isEmpty) {
       throw ArgumentError('At least one AIContextProvider must be provided.', 'providers');
     }
@@ -36,8 +37,8 @@ class AIContextProviderChatClient extends DelegatingChatClient {
   @override
   Future<ChatResponse> getResponse(
     Iterable<ChatMessage> messages,
-    {ChatOptions? options, CancellationToken? cancellationToken, },
-  ) async  {
+    {ChatOptions? options, CancellationToken? cancellationToken, }
+  ) async {
     var runContext = getRequiredRunContext();
     var (
       enrichedMessages,
@@ -78,8 +79,8 @@ class AIContextProviderChatClient extends DelegatingChatClient {
   @override
   Stream<ChatResponseUpdate> getStreamingResponse(
     Iterable<ChatMessage> messages,
-    {ChatOptions? options, CancellationToken? cancellationToken, },
-  ) async  {
+    {ChatOptions? options, CancellationToken? cancellationToken, }
+  ) async* {
     var runContext = getRequiredRunContext();
     var (
       enrichedMessages,
@@ -175,7 +176,7 @@ class AIContextProviderChatClient extends DelegatingChatClient {
     Iterable<ChatMessage> messages,
     ChatOptions? options,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     var aiContext = AIContext();
     for (final provider in this._providers) {
       var invokingContext = invokingContext(runContext.agent, runContext.session, aiContext);
@@ -188,13 +189,13 @@ class AIContextProviderChatClient extends DelegatingChatClient {
         // Clone options to avoid mutating the caller's instance across calls.
         options = options?.clone();
     var enrichedMessages = aiContext.messages ?? [];
-    var tools = aiContext.tools as IList<AITool> ?? aiContext.tools?.toList();
+    var tools = aiContext.tools is List<AITool> ? aiContext.tools as List<AITool> : aiContext.tools?.toList();
     if (options?.tools ?.isNotEmpty == true || tools ?.isNotEmpty == true) {
-      options ??= new();
+      options ??= ChatOptions();
       options.tools = tools;
     }
     if (options?.instructions != null|| aiContext.instructions != null) {
-      options ??= new();
+      options ??= ChatOptions();
       options.instructions = aiContext.instructions;
     }
     return (enrichedMessages, options);
@@ -206,7 +207,7 @@ class AIContextProviderChatClient extends DelegatingChatClient {
     Iterable<ChatMessage> requestMessages,
     Iterable<ChatMessage> responseMessages,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     var invokedContext = invokedContext(
       runContext.agent,
       runContext.session,
@@ -224,7 +225,7 @@ class AIContextProviderChatClient extends DelegatingChatClient {
     Iterable<ChatMessage> requestMessages,
     Exception exception,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     var invokedContext = invokedContext(
       runContext.agent,
       runContext.session,

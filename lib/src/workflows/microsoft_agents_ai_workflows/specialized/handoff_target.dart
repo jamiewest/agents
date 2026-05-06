@@ -15,8 +15,8 @@ class HandoffTarget extends ValueType {
   }
 
   @override
-  int getHashCode() {
-    return this.target.id.getHashCode();
+  int hashCode {
+    return this.target.id.hashCode;
   }
 
   @override

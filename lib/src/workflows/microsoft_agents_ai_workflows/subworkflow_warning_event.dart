@@ -16,7 +16,8 @@ class SubworkflowWarningEvent extends WorkflowWarningEvent {
   /// [subWorkflowId] The unique identifier of the sub-workflow that triggered
   /// the warning. Cannot be null or empty.
   const SubworkflowWarningEvent(String message, String subWorkflowId)
-    : subWorkflowId = subWorkflowId;
+    : subWorkflowId = subWorkflowId,
+      super(message);
 
   /// The unique identifier of the sub-workflow that triggered the warning.
   final String subWorkflowId = subWorkflowId;

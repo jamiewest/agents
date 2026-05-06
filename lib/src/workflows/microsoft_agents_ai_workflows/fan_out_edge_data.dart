@@ -11,10 +11,11 @@ class FanOutEdgeData extends EdgeData {
     String sourceId,
     List<String> sinkIds,
     EdgeId edgeId,
-    {Func2<Object?, int, Iterable<int>>? assigner = null, String? label = null, },
+    {Func2<Object?, int, Iterable<int>>? assigner = null, String? label = null, }
   ) :
       sourceId = sourceId,
-      sinkIds = sinkIds {
+      sinkIds = sinkIds,
+      super(edgeId, label: label) {
     this.edgeAssigner = assigner;
     this.connection = new([sourceId], sinkIds);
   }

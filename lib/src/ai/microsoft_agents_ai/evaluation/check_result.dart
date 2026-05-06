@@ -19,13 +19,13 @@ class EvalCheckResult {
       checkName = CheckName;
 
   /// Whether the check passed.
-  bool passed;
+  final bool passed;
 
   /// Human-readable explanation.
-  String reason;
+  final String reason;
 
   /// Name of the check that produced this result.
-  String checkName;
+  final String checkName;
 
   @override
   bool operator ==(Object other) {

@@ -11,13 +11,13 @@ abstract class SuperStepRunner {
   bool get hasUnservicedRequests;
   bool get hasUnprocessedMessages;
   Future enqueueResponse(ExternalResponse response, {CancellationToken? cancellationToken, });
-  (bool, String??) tryGetResponsePortExecutorId(String portId);
+  (bool, String?) tryGetResponsePortExecutorId(String portId);
   Future<bool> isValidInputType<T>({CancellationToken? cancellationToken});
   Future<bool> enqueueMessage<T>(T message, {CancellationToken? cancellationToken, });
   Future<bool> enqueueMessageUntyped(
     Object message,
     Type declaredType,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   );
   ConcurrentEventSink get outgoingEvents;
   /// Re-emits [RequestInfoEvent]s for any pending external requests. Called by

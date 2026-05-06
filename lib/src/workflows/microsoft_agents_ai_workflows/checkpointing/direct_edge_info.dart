@@ -7,7 +7,8 @@ import 'edge_info.dart';
 
 /// Represents a direct [Edge] in the [Workflow].
 class DirectEdgeInfo extends EdgeInfo {
-  DirectEdgeInfo({DirectEdgeData? data = null, bool? hasCondition = null, EdgeConnection? connection = null, });
+  DirectEdgeInfo({DirectEdgeData? data, bool? hasCondition, EdgeConnection? connection})
+      : super(EdgeKind.direct, connection ?? EdgeConnection([], []));
 
   /// Gets a value indicating whether this direct edge has a condition
   /// associated with it.
@@ -15,7 +16,7 @@ class DirectEdgeInfo extends EdgeInfo {
 
   @override
   bool isMatchInternal(EdgeData edgeData) {
-    return edgeData is DirectEdgeData directEdge
-            && this.hasCondition == (directEdge.condition != null);
+    return edgeData is DirectEdgeData
+            && this.hasCondition == (edgeData.condition != null);
   }
 }

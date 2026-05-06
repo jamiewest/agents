@@ -17,7 +17,7 @@ abstract class AgentSkill {
   ///
   /// Remarks: Contains the L1 discovery metadata (name, description, license,
   /// compatibility, etc.) as defined by the Agent Skills specification .
-  final AgentSkillFrontmatter frontmatter;
+  AgentSkillFrontmatter get frontmatter;
 
   /// Gets the full skill content.
   ///
@@ -25,7 +25,7 @@ abstract class AgentSkill {
   /// optionally augmented with a synthesized scripts block when scripts are
   /// present. For code-defined skills this is a synthesized XML document
   /// containing name, description, and body (instructions, resources, scripts).
-  final String content;
+  String get content;
 
   /// Gets the resources associated with this skill, or `null` if none.
   ///

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:extensions/system.dart';
+import 'package:extensions/ai.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/ai_context.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/ai_context_provider.dart';
 import '../../agent_json_utilities.dart';
@@ -36,7 +37,7 @@ class FileAccessProvider extends AIContextProvider {
   /// defaults are used.
   FileAccessProvider(
     AgentFileStore fileStore,
-    {FileAccessProviderOptions? options = null, },
+    {FileAccessProviderOptions? options = null, }
   ) : _fileStore = fileStore {
     this._instructions = options?.instructions ?? DefaultInstructions;
   }
@@ -54,7 +55,7 @@ class FileAccessProvider extends AIContextProvider {
   @override
   Future<AIContext> provideAIContext(
     InvokingContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return Future<AIContext>(AIContext());
   }
@@ -74,8 +75,8 @@ class FileAccessProvider extends AIContextProvider {
   Future<String> saveFile(
     String fileName,
     String content,
-    {bool? overwrite, CancellationToken? cancellationToken, },
-  ) async  {
+    {bool? overwrite, CancellationToken? cancellationToken, }
+  ) async {
     var path = StorePaths.normalizeRelativePath(fileName);
     if (!overwrite && await this._fileStore.fileExistsAsync(path, cancellationToken)) {
       return "File ${fileName} already exists. To replace it, save again with overwrite set to true.";
@@ -92,7 +93,7 @@ class FileAccessProvider extends AIContextProvider {
   /// [fileName] The name of the file to read.
   ///
   /// [cancellationToken] A token to cancel the operation.
-  Future<String> readFile(String fileName, {CancellationToken? cancellationToken, }) async  {
+  Future<String> readFile(String fileName, {CancellationToken? cancellationToken, }) async {
     var path = StorePaths.normalizeRelativePath(fileName);
     var content = await this._fileStore.readFileAsync(
       path,
@@ -108,7 +109,7 @@ class FileAccessProvider extends AIContextProvider {
   /// [fileName] The name of the file to delete.
   ///
   /// [cancellationToken] A token to cancel the operation.
-  Future<String> deleteFile(String fileName, {CancellationToken? cancellationToken, }) async  {
+  Future<String> deleteFile(String fileName, {CancellationToken? cancellationToken, }) async {
     var path = StorePaths.normalizeRelativePath(fileName);
     var deleted = await this._fileStore.deleteFileAsync(
       path,
@@ -122,7 +123,7 @@ class FileAccessProvider extends AIContextProvider {
   /// Returns: A list of file names.
   ///
   /// [cancellationToken] A token to cancel the operation.
-  Future<List<String>> listFiles({CancellationToken? cancellationToken}) async  {
+  Future<List<String>> listFiles({CancellationToken? cancellationToken}) async {
     var fileNames = await this._fileStore.listFilesAsync(
       '',
       cancellationToken,
@@ -146,8 +147,8 @@ class FileAccessProvider extends AIContextProvider {
   /// [cancellationToken] A token to cancel the operation.
   Future<List<FileSearchResult>> searchFiles(
     String regexPattern,
-    {String? filePattern, CancellationToken? cancellationToken, },
-  ) async  {
+    {String? filePattern, CancellationToken? cancellationToken, }
+  ) async {
     var pattern = (filePattern == null || filePattern.trim().isEmpty) ? null : filePattern;
     var results = await this._fileStore.searchFilesAsync(
       '',

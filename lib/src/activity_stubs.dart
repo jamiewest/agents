@@ -30,6 +30,7 @@ class Activity {
   Activity(this.operationName);
 
   final String operationName;
+  String? displayName;
   static Activity? current;
 
   void addEvent(ActivityEvent event) {}

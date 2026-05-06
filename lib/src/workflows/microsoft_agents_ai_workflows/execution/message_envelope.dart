@@ -7,7 +7,7 @@ class MessageEnvelope {
     ExecutorIdentity source,
     String? targetId,
     Map<String, String>? traceContext,
-    {TypeId? declaredType = null, },
+    {TypeId? declaredType = null, }
   ) :
       message = message,
       source = source,

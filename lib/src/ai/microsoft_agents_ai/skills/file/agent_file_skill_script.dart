@@ -22,8 +22,9 @@ class AgentFileSkillScript extends AgentSkillScript {
   AgentFileSkillScript(
     String name,
     String fullPath,
-    {AgentFileSkillScriptRunner? runner = null, },
-  ) : fullPath = fullPath {
+    {AgentFileSkillScriptRunner? runner = null, }
+  ) : fullPath = fullPath,
+      super(name) {
     this._runner = runner;
   }
 
@@ -50,9 +51,9 @@ class AgentFileSkillScript extends AgentSkillScript {
     AgentSkill skill,
     JsonElement? arguments,
     ServiceProvider? serviceProvider,
-    {CancellationToken? cancellationToken, },
-  ) async  {
-    if (skill is! AgentFileSkill fileSkill) {
+    {CancellationToken? cancellationToken, }
+  ) async {
+    if (skill is! AgentFileSkill) {
       throw StateError("File-based script ${this.name} requires an ${"AgentFileSkill"} but received ${skill.runtimeType.toString()}.");
     }
     if (this._runner == null) {

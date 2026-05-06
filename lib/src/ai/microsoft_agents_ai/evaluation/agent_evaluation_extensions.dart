@@ -1,3 +1,4 @@
+import '../../../abstractions/microsoft_agents_ai_abstractions/agent_response.dart';
 import '../../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
 import 'package:extensions/system.dart';
 import 'package:extensions/ai.dart';
@@ -59,8 +60,6 @@ extension AgentEvaluationExtensions on AIAgent {
       numRepetitions,
       cancellationToken,
     );
-    return await evaluator
-        .evaluateAsync(items, evalName, cancellationToken)
-        ;
+    return await evaluator.evaluateAsync(items, evalName, cancellationToken);
   }
 }

@@ -60,7 +60,7 @@ class UpdateKey {
   }
 
   @override
-  int getHashCode() {
+  int hashCode {
     return HashCode.combine(
       this.scopeId.executorId,
       this.scopeId.scopeName,

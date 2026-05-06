@@ -11,7 +11,8 @@ import 'runner_context.dart';
 import 'step_tracer.dart';
 
 class FanInEdgeRunner extends EdgeRunner<FanInEdgeData> implements StatefulEdgeRunner {
-  FanInEdgeRunner(RunnerContext runContext, FanInEdgeData edgeData, );
+  FanInEdgeRunner(RunnerContext runContext, FanInEdgeData edgeData)
+      : super(runContext, edgeData);
 
   FanInEdgeState _state = new(edgeData);
 
@@ -20,7 +21,7 @@ class FanInEdgeRunner extends EdgeRunner<FanInEdgeData> implements StatefulEdgeR
     MessageEnvelope envelope,
     StepTracer? stepTracer,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     assert(
       !envelope.isExternal,
       "FanIn edges should never be chased from external input",

@@ -10,7 +10,9 @@ import 'workflow_event.dart';
 /// workflow events, supporting resumption with responses to
 /// [RequestInfoEvent].
 class Run extends CheckpointableRunBase implements AsyncDisposable {
-  Run(AsyncRunHandle runHandle) : _runHandle = runHandle {
+  Run(AsyncRunHandle runHandle)
+      : _runHandle = runHandle,
+        super(runHandle) {
   }
 
   final List<WorkflowEvent> _eventSink = [];

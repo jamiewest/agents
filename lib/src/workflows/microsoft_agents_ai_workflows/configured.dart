@@ -18,7 +18,7 @@ class Configured {
   /// [raw] The raw representation of the subject instance.
   static Configured<TSubject> fromInstance<TSubject>(
     TSubject subject,
-    {String? id, Object? raw, },
+    {String? id, Object? raw, }
   ) {
     if (subject is Identified) {
       final identified = subject as Identified;
@@ -73,7 +73,7 @@ class Configured<TSubject,TOptions> {
   Configured(
     Func2<ExecutorConfig<TOptions>, String, Future<TSubject>> factoryAsync,
     String id,
-    {TOptions? options = null, Object? raw = null, },
+    {TOptions? options = null, Object? raw = null, }
   ) :
       factoryAsync = factoryAsync,
       id = id;
@@ -123,7 +123,7 @@ class Configured<TSubject,TOptions> {
       //
       //             TSubject subject = await this.FactoryAsync(this.Configuration, sessionId);
       //
-      //             if (this.Id is not null && subject is IIdentified identified && identified.Id != this.Id)
+      //             if (this.Id is not null && subject is IIdentified && identified.Id != this.Id)
       //             {
         //                 throw new InvalidOperationException($"Created instance ID '{identified.Id}' does not match configured ID '{this.Id}'.");
         //             }
@@ -161,7 +161,7 @@ class Configured<TSubject> {
   Configured(
     Func2<ExecutorConfig, String, Future<TSubject>> factoryAsync,
     String id,
-    {Object? raw = null, },
+    {Object? raw = null, }
   ) :
       factoryAsync = factoryAsync,
       id = id;

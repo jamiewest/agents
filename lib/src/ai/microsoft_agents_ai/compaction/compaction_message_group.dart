@@ -31,18 +31,13 @@ class CompactionMessageGroup {
   ///
   /// [turnIndex] The user turn this group belongs to, or `null` for [System].
   CompactionMessageGroup(
-    CompactionGroupKind kind,
-    List<ChatMessage> messages,
-    int byteCount,
-    int tokenCount, {
-    int? turnIndex = null,
-  }) : kind = kind,
-       messages = messages,
-       byteCount = byteCount,
-       tokenCount = tokenCount {
-    this.messageCount = messages.length;
-    this.turnIndex = turnIndex;
-  }
+    this.kind,
+    this.messages,
+    int messageCount,
+    this.byteCount,
+    this.tokenCount, {
+    this.turnIndex,
+  }) : messageCount = messages.length;
 
   /// The [AdditionalProperties] key used to identify a message as a compaction
   /// summary.
@@ -58,7 +53,7 @@ class CompactionMessageGroup {
   final List<ChatMessage> messages;
 
   /// Gets the number of messages in this group.
-  late final int messageCount;
+  final int messageCount;
 
   /// Gets the total UTF-8 byte count of the text content in this group's
   /// messages.
@@ -85,7 +80,7 @@ class CompactionMessageGroup {
   /// Remarks: Excluded groups are preserved in the collection for diagnostics
   /// or storage purposes but are not included when calling
   /// [GetIncludedMessages].
-  bool isExcluded;
+  bool isExcluded = false;
 
   /// Gets or sets an optional reason explaining why this group was excluded.
   String? excludeReason;

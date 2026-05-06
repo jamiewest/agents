@@ -22,9 +22,10 @@ class SubworkflowBinding extends ExecutorBinding {
   /// [ExecutorOptions]
   SubworkflowBinding(
     Workflow WorkflowInstance,
-    String Id,
-    {ExecutorOptions? ExecutorOptions = null, },
-  ) : workflowInstance = WorkflowInstance;
+    String Id, {
+    ExecutorOptions? executorOptions,
+  })  : workflowInstance = WorkflowInstance,
+        super(Id, null, Workflow, RawValue: WorkflowInstance);
 
   ///
   Workflow workflowInstance;

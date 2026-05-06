@@ -35,8 +35,8 @@ class SlidingWindowCompactionStrategy extends CompactionStrategy {
   /// as soon as the trigger would no longer fire.
   SlidingWindowCompactionStrategy(
     CompactionTrigger trigger,
-    {int? minimumPreservedTurns = null, CompactionTrigger? target = null, },
-  ) {
+    {int? minimumPreservedTurns = null, CompactionTrigger? target = null, }
+  ) : super(trigger, target: target) {
     this.minimumPreservedTurns = ensureNonNegative(minimumPreservedTurns);
   }
 

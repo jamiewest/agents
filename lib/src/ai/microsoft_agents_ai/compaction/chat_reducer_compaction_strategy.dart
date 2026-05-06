@@ -28,7 +28,7 @@ class ChatReducerCompactionStrategy extends CompactionStrategy {
   ChatReducerCompactionStrategy(
     ChatReducer chatReducer,
     CompactionTrigger trigger,
-  ) : chatReducer = chatReducer {
+  ) : chatReducer = chatReducer, super(trigger) {
   }
 
   /// Gets the chat reducer used to reduce messages.
@@ -39,13 +39,13 @@ class ChatReducerCompactionStrategy extends CompactionStrategy {
     CompactionMessageIndex index,
     Logger logger,
     CancellationToken cancellationToken,
-  ) async  {
-    var includedMessages = [.. index.getIncludedMessages()];
+  ) async {
+    var includedMessages = [...index.getIncludedMessages()];
     var reduced = await this.chatReducer.reduceAsync(
       includedMessages,
       cancellationToken,
     ) ;
-    var reducedMessages = reduced as IList<ChatMessage> ?? [.. reduced];
+    var reducedMessages = [...reduced];
     if (reducedMessages.length >= includedMessages.length) {
       return false;
     }

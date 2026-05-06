@@ -57,7 +57,7 @@ class AgentSkillsProviderBuilder {
   /// overrides the builder-level runner set via [AgentFileSkillScriptRunner)].
   AgentSkillsProviderBuilder useFileSkill(
     String skillPath,
-    {AgentFileSkillsSourceOptions? options, AgentFileSkillScriptRunner? scriptRunner, },
+    {AgentFileSkillsSourceOptions? options, AgentFileSkillScriptRunner? scriptRunner, }
   ) {
     return this.useFileSkills([skillPath], options, scriptRunner);
   }
@@ -75,10 +75,10 @@ class AgentSkillsProviderBuilder {
   /// overrides the builder-level runner set via [AgentFileSkillScriptRunner)].
   AgentSkillsProviderBuilder useFileSkills(
     Iterable<String> skillPaths,
-    {AgentFileSkillsSourceOptions? options, AgentFileSkillScriptRunner? scriptRunner, },
+    {AgentFileSkillsSourceOptions? options, AgentFileSkillScriptRunner? scriptRunner, }
   ) {
-    this._sourceFactories.add((builderScriptRunner, loggerFactory) =>
-        {
+    this._sourceFactories.add((builderScriptRunner, loggerFactory) {
+        
             var resolvedRunner = scriptRunner
                 ?? builderScriptRunner
                 ?? throw StateError('File-based skill sources require a script runner. Call ${'useFileScriptRunner'} or pass a runner to ${'useFileSkill'}/${'useFileSkills'}.');
@@ -113,7 +113,7 @@ class AgentSkillsProviderBuilder {
   ///
   /// [source] The custom skill source.
   AgentSkillsProviderBuilder useSource(AgentSkillsSource source) {
-    _ = source;
+    source;
     this._sourceFactories.add((_, _) => source);
     return this;
   }
@@ -170,7 +170,7 @@ class AgentSkillsProviderBuilder {
   ///
   /// [predicate] A predicate that determines which skills to include.
   AgentSkillsProviderBuilder useFilter(Func<AgentSkill, bool> predicate) {
-    _ = predicate;
+    predicate;
     this._filter = predicate;
     return this;
   }
@@ -181,7 +181,7 @@ class AgentSkillsProviderBuilder {
   ///
   /// [configure] A delegate to configure the options.
   AgentSkillsProviderBuilder useOptions(Action<AgentSkillsProviderOptions> configure) {
-    _ = configure;
+    configure;
     configure(this.getOrCreateOptions());
     return this;
   }

@@ -49,8 +49,8 @@ class LockstepRunEventStream implements RunEventStream {
   @override
   Stream<WorkflowEvent> takeEventStream(
     bool blockOnPendingRequest,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async* {
     if (Volatile.read(_isDisposed) == 1) {
       throw objectDisposedException('LockstepRunEventStream');
     }
@@ -100,7 +100,7 @@ class LockstepRunEventStream implements RunEventStream {
               final ex = e as Exception;
               {
                 runActivity.addEvent(activityEvent(EventNames.workflowError, tags: new(),
-                             { Tags.errorMessage, ex.message },
+                             { Tags.errorMessage, ex.message }
                         }));
               runActivity.captureException(ex);
               rethrow;

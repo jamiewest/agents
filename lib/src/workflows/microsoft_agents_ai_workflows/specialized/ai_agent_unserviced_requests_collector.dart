@@ -73,7 +73,7 @@ class AIAgentUnservicedRequestsCollector {
       } else if (content is ToolApprovalResponseContent) {
         final userInputResponse = content as ToolApprovalResponseContent;
         // If the set of messages somehow already has a corresponding user input response, remove it.
-        _ = this._userInputRequests.remove(userInputResponse.requestId);
+        this._userInputRequests.remove(userInputResponse.requestId);
       } else if (content is FunctionCallContent) {
         final functionCall = content as FunctionCallContent;
         if (functionCallFilter == null || functionCallFilter(functionCall)) {
@@ -86,7 +86,7 @@ class AIAgentUnservicedRequestsCollector {
         }
       } else if (content is FunctionResultContent) {
         final functionResult = content as FunctionResultContent;
-        _ = this._functionCalls.remove(functionResult.callId);
+        this._functionCalls.remove(functionResult.callId);
       }
     }
   }

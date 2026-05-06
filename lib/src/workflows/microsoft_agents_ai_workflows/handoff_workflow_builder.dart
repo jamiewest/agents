@@ -13,8 +13,7 @@ class DiagnosticConstants {
 
 }
 class HandoffWorkflowBuilder extends HandoffWorkflowBuilderCore<HandoffWorkflowBuilder> {
-  const HandoffWorkflowBuilder(AIAgent initialAgent);
-
+  HandoffWorkflowBuilder(AIAgent initialAgent) : super(initialAgent);
 }
 /// Provides a builder for specifying the handoff relationships between agents
 /// and building the resulting workflow.
@@ -61,7 +60,7 @@ class HandoffWorkflowBuilderCore<TBuilder> {
   /// default instructions.
   TBuilder withHandoffInstructions(String? instructions) {
     this.handoffInstructions = instructions ?? DefaultHandoffInstructions;
-    return (TBuilder)this;
+    return this as TBuilder;
   }
 
   /// Sets a value indicating whether agent streaming update events should be
@@ -73,7 +72,7 @@ class HandoffWorkflowBuilderCore<TBuilder> {
   /// [emitAgentResponseUpdateEvents]
   TBuilder emitAgentResponseUpdateEvents({bool? emitAgentResponseUpdateEvents}) {
     this._emitAgentResponseUpdateEvents = emitAgentResponseUpdateEvents;
-    return (TBuilder)this;
+    return this as TBuilder;
   }
 
   /// Sets a value indicating whether aggregated agent response events should be
@@ -84,7 +83,7 @@ class HandoffWorkflowBuilderCore<TBuilder> {
   /// [emitAgentResponseEvents]
   TBuilder emitAgentResponseEvents({bool? emitAgentResponseEvents}) {
     this._emitAgentResponseEvents = emitAgentResponseEvents;
-    return (TBuilder)this;
+    return this as TBuilder;
   }
 
   /// Sets the behavior for filtering [FunctionCallContent] and [Tool] contents
@@ -94,7 +93,7 @@ class HandoffWorkflowBuilderCore<TBuilder> {
   /// [behavior] The filtering behavior to apply.
   TBuilder withToolCallFilteringBehavior(HandoffToolCallFilteringBehavior behavior) {
     this._toolCallFilteringBehavior = behavior;
-    return (TBuilder)this;
+    return this as TBuilder;
   }
 
   /// Configures the workflow so that subsequent user turns route directly back
@@ -104,7 +103,7 @@ class HandoffWorkflowBuilderCore<TBuilder> {
   /// Returns: The updated [HandoffsWorkflowBuilder] instance.
   TBuilder enableReturnToPrevious() {
     this._returnToPrevious = true;
-    return (TBuilder)this;
+    return this as TBuilder;
   }
 
   /// Adds handoff relationships from a source agent to one or more target
@@ -125,7 +124,7 @@ class HandoffWorkflowBuilderCore<TBuilder> {
       }
       this.withHandoff(from, target);
     }
-    return (TBuilder)this;
+    return this as TBuilder;
   }
 
   /// Adds a handoff relationship from a source agent to a target agent with a
@@ -163,7 +162,7 @@ class HandoffWorkflowBuilderCore<TBuilder> {
     if (!handoffs.add(HandoffEntry(to, handoffReason))) {
       throw StateError('A handoff from agent "${from.name ?? from.id}" to agent "${to.name ?? to.id}" has already been registered.');
     }
-    return (TBuilder)this;
+    return this as TBuilder;
   }
 
   Map<String, ExecutorBinding> createExecutorBindings(WorkflowBuilder builder) {
@@ -186,7 +185,7 @@ class HandoffWorkflowBuilderCore<TBuilder> {
       //             // Use the ExecutorId as the placeholder id for a (possibly) future-bound factory
       //             builder.AddSwitch(HandoffAgentExecutor.IdFor(agent), (SwitchBuilder sb) =>
       //             {
-        //                 foreach (HandoffTarget handoff in handoffs)
+        //                 for (final handoff in handoffs)
         //                 {
           //                     sb.AddCase<HandoffState>(state => state?.RequestedHandoffTargetAgentId == handoff.Target.Id, // Use AgentId for target matching
           //                                              HandoffAgentExecutor.IdFor(handoff.Target)); // Use ExecutorId in for routing at the workflow level
@@ -221,9 +220,9 @@ class HandoffWorkflowBuilderCore<TBuilder> {
     var executors = this.createExecutorBindings(builder);
     if (this._returnToPrevious) {
       var initialAgentId = this._initialAgent.id;
-      builder.addSwitch(start, (sb) =>
-            {
-                foreach (var agent in this._allAgents)
+      builder.addSwitch(start, (sb) {
+            
+                for (final agent in this._allAgents)
                 {
                     if (agent.id != initialAgentId)
                     {
@@ -244,6 +243,5 @@ class HandoffWorkflowBuilderCore<TBuilder> {
   }
 }
 class HandoffsWorkflowBuilder extends HandoffWorkflowBuilderCore<HandoffsWorkflowBuilder> {
-  const HandoffsWorkflowBuilder(AIAgent initialAgent);
-
+  HandoffsWorkflowBuilder(AIAgent initialAgent) : super(initialAgent);
 }

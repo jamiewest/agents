@@ -24,15 +24,15 @@ class CompactionMessageIndex {
   /// adding new groups.
   CompactionMessageIndex(
     List<CompactionMessageGroup> groups,
-    {Tokenizer? tokenizer = null, },
+    {Tokenizer? tokenizer = null, }
   ) : groups = groups {
     this.tokenizer = tokenizer;
     for (var index = groups.length - 1; index >= 0; --index) {
       if (this._lastProcessedMessage == null && this.groups[index].kind != CompactionGroupKind.summary) {
         var groupMessages = this.groups[index].messages;
-        this._lastProcessedMessage = groupMessages[^1];
+        this._lastProcessedMessage = groupMessages.last;
       }
-      if (this.groups[index].turnIndex.hasValue) {
+      if (this.groups[index].turnIndex != null) {
         this._currentTurn = this.groups[index].turnIndex!.value;
         if (this._lastProcessedMessage != null) {
           break;
@@ -182,7 +182,7 @@ class CompactionMessageIndex {
       }
     }
     if (messages.length > 0) {
-      this._lastProcessedMessage = messages[^1];
+      this._lastProcessedMessage = messages.last;
     }
   }
 
@@ -203,7 +203,7 @@ class CompactionMessageIndex {
     int index,
     CompactionGroupKind kind,
     List<ChatMessage> messages,
-    {int? turnIndex, },
+    {int? turnIndex, }
   ) {
     var group = createGroup(kind, messages, this.tokenizer, turnIndex);
     this.groups.insert(index, group);
@@ -224,7 +224,7 @@ class CompactionMessageIndex {
   CompactionMessageGroup addGroup(
     CompactionGroupKind kind,
     List<ChatMessage> messages,
-    {int? turnIndex, },
+    {int? turnIndex, }
   ) {
     var group = createGroup(kind, messages, this.tokenizer, turnIndex);
     this.groups.add(group);
@@ -383,7 +383,7 @@ class CompactionMessageIndex {
       case DataContent data:
       return data.data.length + getStringByteCount(data.mediaType) + getStringByteCount(data.name);
       case UriContent uri:
-      return (uri.uri is Uri uriValue ? getStringByteCount(uriValue.originalString) : 0) + getStringByteCount(uri.mediaType);
+      return (uri.uri is Uri ? getStringByteCount(uriValue.originalString) : 0) + getStringByteCount(uri.mediaType);
       case FunctionCallContent call:
       var callBytes = getStringByteCount(call.callId) + getStringByteCount(call.name);
       if (call.arguments != null) {
@@ -405,7 +405,7 @@ class CompactionMessageIndex {
   }
 
   static int getStringByteCount(String? value) {
-    return value is { Length: > 0 } ? utf8.encode(value).length : 0;
+    return value.isNotEmpty ? utf8.encode(value).length : 0;
   }
 
   static CompactionMessageGroup createGroup(

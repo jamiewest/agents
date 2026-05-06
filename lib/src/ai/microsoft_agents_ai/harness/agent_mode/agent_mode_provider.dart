@@ -56,7 +56,7 @@ class AgentModeProvider extends AIContextProvider {
       }
       modeNamesList.add(mode.name);
     }
-    this._modeNamesDisplay = \"", modeNamesList.join("\");
+    _modeNamesDisplay = '"${modeNamesList.join('", "')}"';
     this._defaultMode = options?.defaultMode ?? modeNamesList[0];
     if (!this._validModeNames.contains(this._defaultMode)) {
       throw ArgumentError(
@@ -118,7 +118,7 @@ class AgentModeProvider extends AIContextProvider {
   @override
   Future<AIContext> provideAIContext(
     InvokingContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     var state = this._sessionState.getOrInitializeState(context.session);
     var instructions = this.buildInstructions(state.currentMode);
@@ -159,8 +159,8 @@ class AgentModeProvider extends AIContextProvider {
     var serializerOptions = AgentJsonUtilities.defaultOptions;
     return [
             AIFunctionFactory.create(
-                (String mode) =>
-                {
+                (String mode) {
+                
                     this.validateMode(mode);
 
                     state.currentMode = mode;

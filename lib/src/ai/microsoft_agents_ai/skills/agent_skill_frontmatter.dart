@@ -16,7 +16,7 @@ class AgentSkillFrontmatter {
   AgentSkillFrontmatter(
     String name,
     String description,
-    {String? compatibility = null, },
+    {String? compatibility = null, }
   ) :
       name = name,
       description = description {
@@ -64,7 +64,7 @@ class AgentSkillFrontmatter {
   ///
   /// [reason] When validation fails, contains a human-readable description of
   /// the failure.
-  static (bool, String??) validateName(String? name) {
+  static (bool, String?) validateName(String? name) {
     if ((name == null || name.trim().isEmpty)) {
       return (false, "Skill name is required.");
     }
@@ -89,7 +89,7 @@ class AgentSkillFrontmatter {
   ///
   /// [reason] When validation fails, contains a human-readable description of
   /// the failure.
-  static (bool, String??) validateDescription(String? description) {
+  static (bool, String?) validateDescription(String? description) {
     if ((description == null || description.trim().isEmpty)) {
       return (false, "Skill description is required.");
     }
@@ -109,7 +109,7 @@ class AgentSkillFrontmatter {
   ///
   /// [reason] When validation fails, contains a human-readable description of
   /// the failure.
-  static (bool, String??) validateCompatibility(String? compatibility) {
+  static (bool, String?) validateCompatibility(String? compatibility) {
     if (compatibility?.length > MaxCompatibilityLength) {
       return (false, 'Skill compatibility must be ${MaxCompatibilityLength} characters or fewer.');
     }

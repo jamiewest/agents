@@ -18,7 +18,7 @@ import '../../../activity_stubs.dart';
 class StreamingRunEventStream implements RunEventStream {
   StreamingRunEventStream(
     SuperStepRunner stepRunner,
-    {bool? disableRunLoop = null, },
+    {bool? disableRunLoop = null, }
   ) : _stepRunner = stepRunner {
     this._runLoopCancellation = cancellationTokenSource();
     this._inputWaiter = new();
@@ -51,7 +51,7 @@ class StreamingRunEventStream implements RunEventStream {
     }
   }
 
-  Future runLoop(CancellationToken cancellationToken) async  {
+  Future runLoop(CancellationToken cancellationToken) async {
     var errorSource = new();
     var linkedSource = CancellationTokenSource.createLinkedTokenSource(
       errorSource.token,
@@ -125,13 +125,13 @@ class StreamingRunEventStream implements RunEventStream {
         {
           if (runActivity != null) {
             runActivity.addEvent(activityEvent(EventNames.workflowError, tags: new(),
-                             { Tags.errorMessage, ex.message },
+                             { Tags.errorMessage, ex.message }
                         }));
           runActivity.captureException(ex);
         }
         if (sessionActivity != null) {
           sessionActivity.addEvent(activityEvent(EventNames.sessionError, tags: new(),
-                             { Tags.errorMessage, ex.message },
+                             { Tags.errorMessage, ex.message }
                         }));
         sessionActivity.captureException(ex);
       }
@@ -167,7 +167,7 @@ class StreamingRunEventStream implements RunEventStream {
 //             // Events flow immediately to consumers rather than being batched
 //             await this._eventChannel.Writer.WriteAsync(e, linkedSource.Token);
 //
-//             if (e is WorkflowErrorEvent error)
+//             if (e is WorkflowErrorEvent)
 //             {
 //                 errorSource.Cancel();
 //             }
@@ -183,8 +183,8 @@ this._inputWaiter.signalInput();
 @override
 Stream<WorkflowEvent> takeEventStream(
   bool blockOnPendingRequest,
-  {CancellationToken? cancellationToken, },
-) async  {
+  {CancellationToken? cancellationToken, }
+) async* {
 var currentEpoch = Volatile.read(_completionEpoch);
 var expectingFreshWork = this._stepRunner.hasUnprocessedMessages || this._runStatus == RunStatus.running;
 var myEpoch = expectingFreshWork ? currentEpoch + 1 : currentEpoch;
@@ -198,7 +198,7 @@ for (final evt in eventStream.withCancellation(cancellationToken)) {
       if (cancellationToken.isCancellationRequested) {
         return;
       }
-      if (completionSignal.status is RunStatus.idle or RunStatus.ended) {
+      if (completionSignal.status == RunStatus.idle || completionSignal.status == RunStatus.ended) {
         return;
       }
       if (!blockOnPendingRequest && completionSignal.status is RunStatus.pendingRequests) {
@@ -227,7 +227,7 @@ void clearBufferedEvents() {
 while (this._eventChannel.reader.tryRead(_)) {}
  }
 @override
-Future stop() async  {
+Future stop() async {
 // Cancel the run loop
         this._runLoopCancellation.cancel();
 // Release the event waiter, if any
@@ -246,7 +246,7 @@ if (this._runLoopTask != null) {
 }
  }
 @override
-Future dispose() async  {
+Future dispose() async {
 await this.stopAsync();
 // Dispose resources
         this._runLoopCancellation.dispose();

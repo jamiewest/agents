@@ -34,7 +34,7 @@ class Enumerator implements AsyncEnumerator<T> {
   ///
   /// Returns: If successful, returns `true`, otherwise `false`.
   @override
-  Future<bool> moveNext() async  {
+  Future<bool> moveNext() async {
     try {
       var hasData = await reader.waitToReadAsync(cancellationToken);
       if (hasData) {

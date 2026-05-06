@@ -91,8 +91,8 @@ class CompactionTriggers {
   ///
   /// [triggers] The triggers to combine with logical AND.
   static CompactionTrigger all(List<CompactionTrigger> triggers) {
-    return (index) =>
-        {
+    return (index) {
+        
             for (int i = 0; i < triggers.length; i++)
             {
                 if (!triggers[i](index))
@@ -113,8 +113,8 @@ class CompactionTriggers {
   ///
   /// [triggers] The triggers to combine with logical OR.
   static CompactionTrigger any(List<CompactionTrigger> triggers) {
-    return (index) =>
-        {
+    return (index) {
+        
             for (int i = 0; i < triggers.length; i++)
             {
                 if (triggers[i](index))

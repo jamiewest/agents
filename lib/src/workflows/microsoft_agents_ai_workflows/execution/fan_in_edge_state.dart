@@ -6,7 +6,7 @@ import 'message_envelope.dart';
 class FanInEdgeState {
   FanInEdgeState({FanInEdgeData? fanInEdge = null, List<String>? sourceIds = null, Set<String>? unseen = null, List<PortableMessageEnvelope>? pendingMessages = null, }) {
     this.sourceIds = fanInEdge.sourceIds.toList();
-    this.unseen = [.. this.sourceIds];
+    this.unseen = [...this.sourceIds];
     this.pendingMessages = [];
   }
 
@@ -35,7 +35,7 @@ class FanInEdgeState {
       //             {
         //                 takenMessages = this.PendingMessages;
         //                 this.PendingMessages = [];
-        //                 this.Unseen = [.. this.SourceIds];
+        //                 this.Unseen = [...this.SourceIds];
         //             }
       //         }
     if (takenMessages == null || takenMessages.length == 0) {

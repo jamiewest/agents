@@ -1,4 +1,5 @@
 import 'package:extensions/ai.dart';
+
 /// Content-based equality comparison for [ChatMessage] instances.
 extension ChatMessageContentEquality on ChatMessage? {
   /// Determines whether two [ChatMessage] instances represent the same message
@@ -8,6 +9,7 @@ extension ChatMessageContentEquality on ChatMessage? {
   /// solely by that identifier. Otherwise, the comparison falls through to
   /// [Role], [AuthorName], and each item in [Contents].
   bool contentEquals(ChatMessage? other) {
+    final message = this;
     if (identical(message, other)) {
       return true;
     }
@@ -15,16 +17,29 @@ extension ChatMessageContentEquality on ChatMessage? {
       return false;
     }
     if (message.messageId != null && other.messageId != null) {
-      return (message.messageId == other.messageId,
-        ,);
+      return message.messageId == other.messageId;
     }
     if (message.role != other.role) {
       return false;
     }
-    if (!(message.authorName == other.authorName,
-      ,)) {
+    if (message.authorName != other.authorName) {
       return false;
     }
     return contentsEqual(message.contents, other.contents);
+  }
+
+  static bool contentsEqual(
+    Iterable<AIContent>? a,
+    Iterable<AIContent>? b,
+  ) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    final listA = a.toList();
+    final listB = b.toList();
+    if (listA.length != listB.length) return false;
+    for (var i = 0; i < listA.length; i++) {
+      if (listA[i] != listB[i]) return false;
+    }
+    return true;
   }
 }

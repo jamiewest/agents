@@ -83,7 +83,8 @@ class RequestPort<TRequest,TResponse> extends RequestPort {
   /// [Response]
   ///
   /// [AllowWrapped]
-  RequestPort(String Id, Type Request, Type Response, {bool? AllowWrapped = null, });
+  RequestPort(String Id, Type Request, Type Response, {bool? allowWrapped})
+      : super(Id, Request, Response);
 
   ///
   bool allowWrapped;

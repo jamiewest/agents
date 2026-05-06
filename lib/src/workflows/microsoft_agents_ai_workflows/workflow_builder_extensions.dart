@@ -25,7 +25,7 @@ extension WorkflowBuilderExtensions on WorkflowBuilder {
 /// [TMessage] The type of message to forward.
 WorkflowBuilder forwardMessage<TMessage>(
   ExecutorBinding source,
-  {ExecutorBinding? target, Iterable<ExecutorBinding>? targets, Func<TMessage, bool>? condition, },
+  {ExecutorBinding? target, Iterable<ExecutorBinding>? targets, Func<TMessage, bool>? condition, }
 ) {
 return builder.forwardMessage<TMessage>(source, [target], condition: null);
  }
@@ -45,7 +45,7 @@ return builder.forwardMessage<TMessage>(source, [target], condition: null);
 /// executors.
 WorkflowBuilder forwardExcept<TMessage>(
   ExecutorBinding source,
-  {ExecutorBinding? target, Iterable<ExecutorBinding>? targets, },
+  {ExecutorBinding? target, Iterable<ExecutorBinding>? targets, }
 ) {
 return builder.forwardExcept<TMessage>(source, [target]);
  }
@@ -70,7 +70,7 @@ return builder.forwardExcept<TMessage>(source, [target]);
 WorkflowBuilder addChain(
   ExecutorBinding source,
   List<ExecutorBinding> executors,
-  {bool? allowRepetition, },
+  {bool? allowRepetition, }
 ) {
 var seenExecutors = [source.id];
 for (final executor in executors) {

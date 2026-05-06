@@ -41,14 +41,14 @@ import 'text_search_provider_options.dart';
 class TextSearchProvider extends MessageAIContextProvider {
   /// Initializes a new instance of the [TextSearchProvider] class.
   ///
-  /// [searchAsync] Delegate that executes the search logic. Must not be `null`.
+  /// [searchAsync] Function that executes the search logic. Must not be `null`.
   ///
   /// [options] Optional configuration options.
   ///
   /// [loggerFactory] Optional logger factory.
   TextSearchProvider(
     Func2<String, CancellationToken, Future<Iterable<TextSearchResult>>> searchAsync,
-    {TextSearchProviderOptions? options = null, LoggerFactory? loggerFactory = null, },
+    {TextSearchProviderOptions? options = null, LoggerFactory? loggerFactory = null, }
   ) : _searchAsync = searchAsync {
     this._sessionState = ProviderSessionState<TextSearchProviderState>(
             (_) => textSearchProviderState(),
@@ -104,8 +104,8 @@ class TextSearchProvider extends MessageAIContextProvider {
   @override
   Future<AIContext> provideAIContext(
     InvokingContext context,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     if (this._searchTime != TextSearchProviderOptions.textSearchBehavior.beforeAIInvoke) {
       return AIContext();
     }
@@ -115,7 +115,7 @@ class TextSearchProvider extends MessageAIContextProvider {
   @override
   Future<Iterable<ChatMessage>> invokingCore(
     InvokingContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     if (this._searchTime != TextSearchProviderOptions.textSearchBehavior.beforeAIInvoke) {
       throw StateError('Using the ${'TextSearchProvider'} as a ${'MessageAIContextProvider'} is! supported when ${'searchTime'} is set to ${TextSearchProviderOptions.textSearchBehavior.onDemandFunctionCalling}.');
@@ -126,8 +126,8 @@ class TextSearchProvider extends MessageAIContextProvider {
   @override
   Future<Iterable<ChatMessage>> provideMessages(
     InvokingContext context,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     var recentMessagesText = this._sessionState.getOrInitializeState(context.session).recentMessagesText
             ?? [];
     var sbInput = StringBuffer();
@@ -142,7 +142,7 @@ class TextSearchProvider extends MessageAIContextProvider {
     var input = sbInput.toString();
     try {
       var results = await this._searchAsync(input, cancellationToken);
-      var materialized = results as IList<TextSearchResult> ?? results.toList();
+      var materialized = results is List<TextSearchResult> ? results as List<TextSearchResult> : results.toList();
       if (this._logger?.isEnabled(LogLevel.information) is true) {
         this._logger?.logInformation(
           "TextSearchProvider: Retrieved {Count} search results.",
@@ -210,9 +210,9 @@ class TextSearchProvider extends MessageAIContextProvider {
   /// [userQuestion] The query text.
   ///
   /// [cancellationToken] Cancellation token.
-  Future<String> search(String userQuestion, {CancellationToken? cancellationToken, }) async  {
+  Future<String> search(String userQuestion, {CancellationToken? cancellationToken, }) async {
     var results = await this._searchAsync(userQuestion, cancellationToken);
-    var materialized = results as IList<TextSearchResult> ?? results.toList();
+    var materialized = results is List<TextSearchResult> ? results as List<TextSearchResult> : results.toList();
     var outputText = this.formatResults(materialized);
     if (this._logger?.isEnabled(LogLevel.information) is true) {
       this._logger.logInformation(

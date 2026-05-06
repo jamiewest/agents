@@ -38,29 +38,38 @@ class ContextWindowCompactionStrategy extends CompactionStrategy {
   /// be greater than or equal to `toolEvictionThreshold`.
   ContextWindowCompactionStrategy(
     int maxContextWindowTokens,
-    int maxOutputTokens,
-    {double? toolEvictionThreshold = null, double? truncationThreshold = null, },
-  ) :
-      maxContextWindowTokens = maxContextWindowTokens,
-      maxOutputTokens = maxOutputTokens {
+    int maxOutputTokens, {
+    double? this.toolEvictionThreshold = null,
+    double? this.truncationThreshold = null,
+  }) : maxContextWindowTokens = maxContextWindowTokens,
+       maxOutputTokens = maxOutputTokens,
+       super(
+         CompactionTriggers.tokensExceed(
+           maxContextWindowTokens - maxOutputTokens,
+         ),
+       ) {
     validateThreshold(toolEvictionThreshold, 'toolEvictionThreshold');
     validateThreshold(truncationThreshold, 'truncationThreshold');
     if (truncationThreshold < toolEvictionThreshold) {
-      throw ArgumentError.value('truncationThreshold', truncationThreshold,
-                'Truncation threshold (${truncationThreshold}) must be greater than or equal to tool eviction threshold (${toolEvictionThreshold}).');
+      throw ArgumentError.value(
+        'truncationThreshold',
+        truncationThreshold,
+        'Truncation threshold (${truncationThreshold}) must be greater than or equal to tool eviction threshold (${toolEvictionThreshold}).',
+      );
     }
-    this.inputBudgetTokens = maxContextWindowTokens - maxOutputTokens;
-    this.toolEvictionThreshold = toolEvictionThreshold;
-    this.truncationThreshold = truncationThreshold;
-    var toolEvictionTokens = (int)(this.inputBudgetTokens * toolEvictionThreshold);
-    var truncationTokens = (int)(this.inputBudgetTokens * truncationThreshold);
-    this._pipeline = pipelineCompactionStrategy(
-            toolResultCompactionStrategy(
-                trigger: CompactionTriggers.tokensExceed(toolEvictionTokens),
-                minimumPreservedGroups: 2),
-            truncationCompactionStrategy(
-                trigger: CompactionTriggers.tokensExceed(truncationTokens),
-                minimumPreservedGroups: 2));
+    inputBudgetTokens = maxContextWindowTokens - maxOutputTokens;
+    var toolEvictionTokens = (int)(inputBudgetTokens * toolEvictionThreshold);
+    var truncationTokens = (int)(inputBudgetTokens * truncationThreshold);
+    _pipeline = pipelineCompactionStrategy(
+      toolResultCompactionStrategy(
+        trigger: CompactionTriggers.tokensExceed(toolEvictionTokens),
+        minimumPreservedGroups: 2,
+      ),
+      truncationCompactionStrategy(
+        trigger: CompactionTriggers.tokensExceed(truncationTokens),
+        minimumPreservedGroups: 2,
+      ),
+    );
   }
 
   late final PipelineCompactionStrategy _pipeline;
@@ -87,16 +96,12 @@ class ContextWindowCompactionStrategy extends CompactionStrategy {
     CompactionMessageIndex index,
     Logger logger,
     CancellationToken cancellationToken,
-  ) async  {
-    return await this._pipeline.compactAsync(
-      index,
-      logger,
-      cancellationToken,
-    ) ;
+  ) async {
+    return await _pipeline.compactAsync(index, logger, cancellationToken);
   }
 
-  static void validateThreshold(double value, String paramName, ) {
-    if (value is <= 0.0 or > 1.0) {
+  static void validateThreshold(double value, String paramName) {
+    if (value <= 0.0 || value > 1.0) {
       throw ArgumentError.value(
         paramName,
         value,

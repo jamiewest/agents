@@ -19,7 +19,7 @@ class MessageRouter {
       }
     }
     this._interfaceHandlers = interfaceHandlers.toList();
-    this.incomingTypes = [.. handlers.keys];
+    this.incomingTypes = [...handlers.keys];
     this.defaultOutputTypes = outputTypes;
   }
 
@@ -70,8 +70,8 @@ class MessageRouter {
   Future<CallResult?> routeMessage(
     Object message,
     WorkflowContext context,
-    {bool? requireRoute, CancellationToken? cancellationToken, },
-  ) async  {
+    {bool? requireRoute, CancellationToken? cancellationToken, }
+  ) async {
     var result = null;
     var PortableValue = message as PortableValue;
     TypeHandlingInfo handlingInfo;

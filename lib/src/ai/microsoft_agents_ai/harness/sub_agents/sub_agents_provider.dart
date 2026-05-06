@@ -37,9 +37,9 @@ class SubAgentsProvider extends AIContextProvider {
   /// [options] Optional settings controlling the provider behavior.
   SubAgentsProvider(
     Iterable<AIAgent> agents,
-    {SubAgentsProviderOptions? options = null, },
+    {SubAgentsProviderOptions? options = null, }
   ) : _agents = agents {
-    _ = agents;
+    agents;
     this._agents = validateAndBuildAgentDictionary(agents);
     var baseInstructions = options?.instructions ?? DefaultInstructions;
     var agentListText = options?.agentListBuilder != null
@@ -73,7 +73,7 @@ class SubAgentsProvider extends AIContextProvider {
   @override
   Future<AIContext> provideAIContext(
     InvokingContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     var state = this._sessionState.getOrInitializeState(context.session);
     var runtimeState = this._runtimeSessionState.getOrInitializeState(context.session);
@@ -155,7 +155,6 @@ class SubAgentsProvider extends AIContextProvider {
   ) {
     if (completedTask.status == TaskStatus.ranToCompletion) {
       taskInfo.status = SubTaskStatus.completed;
-      #pragma warning disable VSTHRD002 // Avoid problematic synchronous waits — task is already completed
             taskInfo.resultText = completedTask.result.text;
     } else if (completedTask.isFaulted) {
       taskInfo.status = SubTaskStatus.failed;
@@ -178,8 +177,8 @@ class SubAgentsProvider extends AIContextProvider {
                 async (
                     [description("The name of the sub agent to delegate the task to.")] String agentName,
                     [description("The request to pass to the sub agent.")] String input,
-                    [description("A description of the task used to identify the task later.")] String description) =>
-                {
+                    [description("A description of the task used to identify the task later.")] String description) {
+                
                     if (!this._agents.tryGetValue(agentName))
                     {
                         return "Error: No sub-agent found with name $agentName. Available agents: ${this._agents.keys.join(', ')}";
@@ -206,8 +205,8 @@ class SubAgentsProvider extends AIContextProvider {
                 AIFunctionFactoryOptions()),
 
             AIFunctionFactory.create(
-                async (List<int> taskIds) =>
-                {
+                async (List<int> taskIds) {
+                
                     if (taskIds.length == 0)
                     {
                         return "Error: No task IDs provided.";
@@ -216,7 +215,7 @@ class SubAgentsProvider extends AIContextProvider {
                     // Collect in-flight tasks matching the requested iDs(including already-completed ones,
                     // since Task.whenAny returns immediately for completed tasks).
                     var waitableTasks = List<(int Id, Task<AgentResponse> Task)>();
-                    foreach (int id in taskIds)
+                    for (final id in taskIds)
                     {
                         if (runtimeState.inFlightTasks.tryGetValue(id))
                         {
@@ -259,8 +258,8 @@ class SubAgentsProvider extends AIContextProvider {
                 AIFunctionFactoryOptions()),
 
             AIFunctionFactory.create(
-                (int taskId) =>
-                {
+                (int taskId) {
+                
                     this.tryRefreshFutureState(state, runtimeState, session);
 
                     SubTaskInfo? taskInfo = state.tasks.firstOrDefault((t) => t.id == taskId);
@@ -281,8 +280,8 @@ class SubAgentsProvider extends AIContextProvider {
                 AIFunctionFactoryOptions()),
 
             AIFunctionFactory.create(
-                () =>
-                {
+                () {
+                
                     this.tryRefreshFutureState(state, runtimeState, session);
 
                     if (state.tasks.length == 0)
@@ -292,7 +291,7 @@ class SubAgentsProvider extends AIContextProvider {
 
                     var sb = StringBuffer();
                     sb.writeln("Tasks:");
-                    foreach (SubTaskInfo task in state.tasks)
+                    for (final task in state.tasks)
                     {
                         sb.write("- Task ").write(task.id).write(" [").write(task.status).write("] (").write(task.agentName).write("): ").writeln(task.description);
       }
@@ -302,8 +301,8 @@ class SubAgentsProvider extends AIContextProvider {
                 AIFunctionFactoryOptions()),
 
             AIFunctionFactory.create(
-                (int taskId, String text) =>
-                {
+                (int taskId, String text) {
+                
                     this.tryRefreshFutureState(state, runtimeState, session);
 
                     SubTaskInfo? taskInfo = state.tasks.firstOrDefault((t) => t.id == taskId);
@@ -347,8 +346,8 @@ class SubAgentsProvider extends AIContextProvider {
                 AIFunctionFactoryOptions()),
 
             AIFunctionFactory.create(
-                (int taskId) =>
-                {
+                (int taskId) {
+                
                     this.tryRefreshFutureState(state, runtimeState, session);
 
                     SubTaskInfo? taskInfo = state.tasks.firstOrDefault((t) => t.id == taskId);

@@ -1,4 +1,5 @@
 import 'package:extensions/system.dart';
+import 'package:extensions/ai.dart';
 import 'package:extensions/dependency_injection.dart';
 import '../agent_skill.dart';
 import '../agent_skill_script.dart';
@@ -24,8 +25,8 @@ class AgentInlineSkillScript extends AgentSkillScript {
     String name,
     String? description,
     JsonSerializerOptions? serializerOptions,
-    {Delegate? method = null, Object? target = null, },
-  ) {
+    {Function? method = null, Object? target = null, }
+  ) : super(name, description: description) {
     var options = AIFunctionFactoryOptions();
     this._function = AIFunctionFactory.create(method, options);
   }
@@ -43,8 +44,8 @@ class AgentInlineSkillScript extends AgentSkillScript {
     AgentSkill skill,
     JsonElement? arguments,
     ServiceProvider? serviceProvider,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     var funcArgs = convertToFunctionArguments(arguments);
     funcArgs.services = serviceProvider;
     return await this._function.invokeAsync(funcArgs, cancellationToken);

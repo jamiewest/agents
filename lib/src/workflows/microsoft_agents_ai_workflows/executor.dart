@@ -75,7 +75,7 @@ abstract class Executor implements Identified {
   /// simultaneously by multiple runs safely.
   Executor(
     String id,
-    {ExecutorOptions? options = null, bool? declareCrossRunShareable = null, },
+    {ExecutorOptions? options = null, bool? declareCrossRunShareable = null, }
   ) : id = id {
     this.options = options ?? ExecutorOptions.defaultValue;
     //if (declareCrossRunShareable && this is IResettableExecutor)
@@ -121,7 +121,7 @@ abstract class Executor implements Identified {
         // >>> only usable now
 
         this.delayedPortRegistrations.applyPortRegistrations(externalRequestContext);
-    _ = this.protocol;
+    this.protocol;
   }
 
   /// Perform any asynchronous initialization required by the executor. This
@@ -145,8 +145,8 @@ abstract class Executor implements Identified {
     Object message,
     TypeId messageType,
     WorkflowContext context,
-    {WorkflowTelemetryContext? telemetryContext, CancellationToken? cancellationToken, },
-  ) async  {
+    {WorkflowTelemetryContext? telemetryContext, CancellationToken? cancellationToken, }
+  ) async {
     var activity = telemetryContext.startExecutorProcessActivity(
       this.id,
       this.runtimeType.fullName,
@@ -212,7 +212,7 @@ abstract class Executor implements Identified {
   /// requests. The default is [None].
   Future onMessageDeliveryStarting(
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return Future.value(null);
   }
@@ -228,7 +228,7 @@ abstract class Executor implements Identified {
   /// requests. The default is [None].
   Future onMessageDeliveryFinished(
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return Future.value(null);
   }
@@ -319,7 +319,8 @@ abstract class Executor<TInput,TOutput> extends Executor implements MessageHandl
   /// [TInput] The type of input message.
   ///
   /// [TOutput] The type of output message.
-  Executor(String id, {ExecutorOptions? options = null, bool? declareCrossRunShareable = null, });
+  Executor(String id, {ExecutorOptions? options, bool? declareCrossRunShareable})
+      : super(id, options: options, declareCrossRunShareable: declareCrossRunShareable);
 
   @override
   ProtocolBuilder configureProtocol(ProtocolBuilder protocolBuilder) {
@@ -333,7 +334,7 @@ abstract class Executor<TInput,TOutput> extends Executor implements MessageHandl
   Future<TOutput> handle(
     TInput message,
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   );
 }
 /// Provides a simple executor implementation that uses a single message
@@ -361,7 +362,8 @@ abstract class Executor<TInput> extends Executor implements MessageHandler<TInpu
   /// simultaneously by multiple runs safely.
   ///
   /// [TInput] The type of input message.
-  Executor(String id, {ExecutorOptions? options = null, bool? declareCrossRunShareable = null, });
+  Executor(String id, {ExecutorOptions? options, bool? declareCrossRunShareable})
+      : super(id, options: options, declareCrossRunShareable: declareCrossRunShareable);
 
   @override
   ProtocolBuilder configureProtocol(ProtocolBuilder protocolBuilder) {

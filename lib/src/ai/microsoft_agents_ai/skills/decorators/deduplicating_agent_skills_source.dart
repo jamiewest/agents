@@ -15,7 +15,7 @@ class DeduplicatingAgentSkillsSource extends DelegatingAgentSkillsSource {
   DeduplicatingAgentSkillsSource(
     AgentSkillsSource innerSource, {
     LoggerFactory? loggerFactory = null,
-  }) {
+  }) : super(innerSource) {
     this._logger = (loggerFactory ?? NullLoggerFactory.instance)
         .createLogger<DeduplicatingAgentSkillsSource>();
   }

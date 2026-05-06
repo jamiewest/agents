@@ -15,7 +15,7 @@ class DirectEdgeRunner extends EdgeRunner<DirectEdgeData> {
     MessageEnvelope envelope,
     StepTracer? stepTracer,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     var activity = this.startActivity();
     activity?
             .setTag(Tags.edgeGroupType, 'DirectEdgeRunner')

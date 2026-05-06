@@ -27,9 +27,9 @@ class AgentInlineSkillContentBuilder {
     List<AgentSkillResource>? resources,
     List<AgentSkillScript>? scripts,
   ) {
-    _ = name;
-    _ = description;
-    _ = instructions;
+    name;
+    description;
+    instructions;
     var sb = StringBuffer();
     sb.write('<name>${escapeXmlString(name)}</name>\n')
         .write('<description>${escapeXmlString(description)}</description>\n\n')
@@ -64,7 +64,7 @@ class AgentInlineSkillContentBuilder {
   ///
   /// [scripts] The scripts to include in the block.
   static String buildScriptsBlock(List<AgentSkillScript> scripts) {
-    _ = scripts;
+    scripts;
     if (scripts.length == 0) {
       return '';
     }

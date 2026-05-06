@@ -22,7 +22,7 @@ class LocalEvaluator implements AgentEvaluator {
   @override
   Future<AgentEvaluationResults> evaluate(
     List<EvalItem> items,
-    {String? evalName, CancellationToken? cancellationToken, },
+    {String? evalName, CancellationToken? cancellationToken, }
   ) {
     var results = List<EvaluationResult>(items.length);
     for (final item in items) {

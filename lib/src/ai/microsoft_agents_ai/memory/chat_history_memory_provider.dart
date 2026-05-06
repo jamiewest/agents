@@ -66,14 +66,14 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider implements Disp
     String collectionName,
     int vectorDimensions,
     Func<AgentSession?, State> stateInitializer,
-    {ChatHistoryMemoryProviderOptions? options = null, LoggerFactory? loggerFactory = null, },
+    {ChatHistoryMemoryProviderOptions? options = null, LoggerFactory? loggerFactory = null, }
   ) : _vectorStore = vectorStore {
     this._sessionState = ProviderSessionState<State>(
             stateInitializer,
             options?.stateKey ?? this.runtimeType.toString(),
             AgentJsonUtilities.defaultOptions);
     options ??= chatHistoryMemoryProviderOptions();
-    this._maxResults = options.maxResults.hasValue ? Throw.ifLessThanOrEqual(
+    this._maxResults = options.maxResults != null ? Throw.ifLessThanOrEqual(
       options.maxResults.value,
       0,
     ) : DefaultMaxResults;
@@ -98,7 +98,7 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider implements Disp
                   vectorDimensions,
                 )
             ]
-        };
+        ;
   this._collection = this._vectorStore.getDynamicCollection(
     collectionName,
     definition,
@@ -139,8 +139,8 @@ return this._stateKeys ??= [this._sessionState.stateKey];
 @override
 Future<AIContext> provideAIContext(
   InvokingContext context,
-  {CancellationToken? cancellationToken, },
-) async  {
+  {CancellationToken? cancellationToken, }
+) async {
 var state = this._sessionState.getOrInitializeState(context.session);
 var searchScope = state.searchScope;
 if (this._searchTime == ChatHistoryMemoryProviderOptions.searchBehavior.onDemandFunctionCalling) {
@@ -160,7 +160,7 @@ return AIContext();
 @override
 Future<Iterable<ChatMessage>> invokingCore(
   InvokingContext context,
-  {CancellationToken? cancellationToken, },
+  {CancellationToken? cancellationToken, }
 ) {
 if (this._searchTime != ChatHistoryMemoryProviderOptions.searchBehavior.beforeAIInvoke) {
   throw StateError('Using the ${'ChatHistoryMemoryProvider'} as a ${'MessageAIContextProvider'} is! supported when ${'searchTime'} is set to ${ChatHistoryMemoryProviderOptions.searchBehavior.onDemandFunctionCalling}.');
@@ -170,8 +170,8 @@ return super.invokingCore(context, cancellationToken);
 @override
 Future<Iterable<ChatMessage>> provideMessages(
   InvokingContext context,
-  {CancellationToken? cancellationToken, },
-) async  {
+  {CancellationToken? cancellationToken, }
+) async {
 var state = this._sessionState.getOrInitializeState(context.session);
 var searchScope = state.searchScope;
 try {
@@ -214,7 +214,7 @@ try {
 }
  }
 @override
-Future storeAIContext(InvokedContext context, {CancellationToken? cancellationToken, }) async  {
+Future storeAIContext(InvokedContext context, {CancellationToken? cancellationToken, }) async {
 var state = this._sessionState.getOrInitializeState(context.session);
 var storageScope = state.storageScope;
 try {
@@ -272,8 +272,8 @@ try {
 Future<String> searchText(
   String userQuestion,
   ChatHistoryMemoryProviderScope searchScope,
-  {CancellationToken? cancellationToken, },
-) async  {
+  {CancellationToken? cancellationToken, }
+) async {
 if ((userQuestion == null || userQuestion.trim().isEmpty)) {
   return '';
 }
@@ -321,8 +321,8 @@ Future<Iterable<Map<String, Object?>>> searchChatHistory(
   String queryText,
   ChatHistoryMemoryProviderScope searchScope,
   int top,
-  {CancellationToken? cancellationToken, },
-) async  {
+  {CancellationToken? cancellationToken, }
+) async {
 if ((queryText == null || queryText.trim().isEmpty)) {
   return [];
 }
@@ -357,7 +357,7 @@ var searchResults = collection.search(
             options: new()
             {
                 Filter = filter
-            },
+            }
             cancellationToken: cancellationToken);
 var results = new List<Map<String, Object?>>();
 for (final result in searchResults.withCancellation(cancellationToken)) {
@@ -380,7 +380,7 @@ return results;
 /// Returns: The vector store collection.
 ///
 /// [cancellationToken] The cancellation token.
-Future<VectorStoreCollection<Object, Map<String, Object?>>> ensureCollectionExists({CancellationToken? cancellationToken}) async  {
+Future<VectorStoreCollection<Object, Map<String, Object?>>> ensureCollectionExists({CancellationToken? cancellationToken}) async {
 if (this._collectionInitialized) {
   return this._collection;
 }
@@ -445,7 +445,7 @@ class State {
   /// messages. If null, the storage scope will be used for searching as well.
   State(
     ChatHistoryMemoryProviderScope storageScope,
-    {ChatHistoryMemoryProviderScope? searchScope = null, },
+    {ChatHistoryMemoryProviderScope? searchScope = null, }
   ) : storageScope = storageScope {
     this.searchScope = searchScope ?? storageScope;
   }

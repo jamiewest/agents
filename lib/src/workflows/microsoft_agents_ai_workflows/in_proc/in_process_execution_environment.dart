@@ -17,7 +17,7 @@ import 'in_process_runner.dart';
 class InProcessExecutionEnvironment implements WorkflowExecutionEnvironment {
   InProcessExecutionEnvironment(
     ExecutionMode mode,
-    {bool? enableConcurrentRuns = null, CheckpointManager? checkpointManager = null, },
+    {bool? enableConcurrentRuns = null, CheckpointManager? checkpointManager = null, }
   ) {
     this.executionMode = mode;
     this.enableConcurrentRuns = enableConcurrentRuns;
@@ -66,7 +66,7 @@ class InProcessExecutionEnvironment implements WorkflowExecutionEnvironment {
     Workflow workflow,
     CheckpointInfo fromCheckpoint,
     Iterable<Type> knownValidInputTypes,
-    {bool? republishPendingEvents, CancellationToken? cancellationToken, },
+    {bool? republishPendingEvents, CancellationToken? cancellationToken, }
   ) {
     var runner = InProcessRunner.createTopLevelRunner(
       workflow,
@@ -86,8 +86,8 @@ class InProcessExecutionEnvironment implements WorkflowExecutionEnvironment {
   @override
   Future<StreamingRun> openStreaming(
     Workflow workflow,
-    {String? sessionId, CancellationToken? cancellationToken, },
-  ) async  {
+    {String? sessionId, CancellationToken? cancellationToken, }
+  ) async {
     var runHandle = await this.beginRunAsync(workflow, sessionId, [], cancellationToken)
                                              ;
     return new(runHandle);
@@ -97,8 +97,8 @@ class InProcessExecutionEnvironment implements WorkflowExecutionEnvironment {
   Future<StreamingRun> runStreaming<TInput>(
     Workflow workflow,
     TInput input,
-    {String? sessionId, CancellationToken? cancellationToken, },
-  ) async  {
+    {String? sessionId, CancellationToken? cancellationToken, }
+  ) async {
     var runHandle = await this.beginRunAsync(workflow, sessionId, [], cancellationToken)
                                              ;
     return await runHandle.enqueueAndStreamAsync(input, cancellationToken);
@@ -114,8 +114,8 @@ class InProcessExecutionEnvironment implements WorkflowExecutionEnvironment {
   Future<StreamingRun> resumeStreaming(
     Workflow workflow,
     CheckpointInfo fromCheckpoint,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     this.verifyCheckpointingConfigured();
     var runHandle = await this.resumeRunAsync(workflow, fromCheckpoint, [], cancellationToken)
                                              ;
@@ -139,8 +139,8 @@ class InProcessExecutionEnvironment implements WorkflowExecutionEnvironment {
     Workflow workflow,
     CheckpointInfo fromCheckpoint,
     bool republishPendingEvents,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     this.verifyCheckpointingConfigured();
     var runHandle = await this.resumeRunAsync(
       workflow,
@@ -156,8 +156,8 @@ class InProcessExecutionEnvironment implements WorkflowExecutionEnvironment {
   Future<AsyncRunHandle> beginRunHandlingChatProtocol<TInput>(
     Workflow workflow,
     TInput input,
-    {String? sessionId, CancellationToken? cancellationToken, },
-  ) async  {
+    {String? sessionId, CancellationToken? cancellationToken, }
+  ) async {
     var descriptor = await workflow.describeProtocolAsync(cancellationToken);
     var runHandle = await this.beginRunAsync(
       workflow,
@@ -180,8 +180,8 @@ class InProcessExecutionEnvironment implements WorkflowExecutionEnvironment {
   Future<Run> run<TInput>(
     Workflow workflow,
     TInput input,
-    {String? sessionId, CancellationToken? cancellationToken, },
-  ) async  {
+    {String? sessionId, CancellationToken? cancellationToken, }
+  ) async {
     var runHandle = await this.beginRunHandlingChatProtocolAsync(
                                                 workflow,
                                                 input,
@@ -197,8 +197,8 @@ class InProcessExecutionEnvironment implements WorkflowExecutionEnvironment {
   Future<Run> resume(
     Workflow workflow,
     CheckpointInfo fromCheckpoint,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     this.verifyCheckpointingConfigured();
     var runHandle = await this.resumeRunAsync(workflow, fromCheckpoint, [], cancellationToken)
                                              ;

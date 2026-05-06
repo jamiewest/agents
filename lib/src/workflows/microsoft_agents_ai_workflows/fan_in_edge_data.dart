@@ -12,8 +12,9 @@ class FanInEdgeData extends EdgeData {
     String? label,
   ) :
       sourceIds = sourceIds,
-      sinkId = sinkId {
-    this.connection = new(sourceIds, [sinkId]);
+      sinkId = sinkId,
+      super(id, label: label) {
+    this.connection = EdgeConnection(sourceIds, [sinkId]);
   }
 
   /// The ordered list of Ids of the source [Executor] nodes.

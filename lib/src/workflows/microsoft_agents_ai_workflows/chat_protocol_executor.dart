@@ -22,9 +22,9 @@ abstract class ChatProtocolExecutor extends StatefulExecutor<List<ChatMessage>> 
   /// simultaneously by multiple runs safely.
   ChatProtocolExecutor(
     String id,
-    {ChatProtocolExecutorOptions? options = null, bool? declareCrossRunShareable = null, },
+    {ChatProtocolExecutorOptions? options, bool? declareCrossRunShareable}
   ) {
-    this._options = options ?? new();
+    this._options = options ?? ChatProtocolExecutorOptions();
   }
 
   static final List<ChatMessage> Function() s_initFunction = () => [];
@@ -36,7 +36,7 @@ abstract class ChatProtocolExecutor extends StatefulExecutor<List<ChatMessage>> 
   /// Gets a value indicating whether String-based messages are supported by
   /// this [ChatProtocolExecutor].
   bool get supportsStringMessage {
-    return this.stringMessageChatRole.hasValue;
+    return this.stringMessageChatRole != null;
   }
 
   ChatRole? get stringMessageChatRole {
@@ -83,7 +83,7 @@ abstract class ChatProtocolExecutor extends StatefulExecutor<List<ChatMessage>> 
   Future addMessage(
     ChatMessage message,
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return this.invokeWithState(
       ForwardMessageAsync,
@@ -113,7 +113,7 @@ abstract class ChatProtocolExecutor extends StatefulExecutor<List<ChatMessage>> 
   Future addMessages(
     Iterable<ChatMessage> messages,
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return this.invokeWithState(
       ForwardMessageAsync,
@@ -143,7 +143,7 @@ abstract class ChatProtocolExecutor extends StatefulExecutor<List<ChatMessage>> 
   Future takeTurn(
     WorkflowContext context,
     CancellationToken cancellationToken,
-    {TurnToken? token, List<ChatMessage>? messages, bool? emitEvents, },
+    {TurnToken? token, List<ChatMessage>? messages, bool? emitEvents, }
   ) {
     return this.invokeWithState(
       InvokeTakeTurnAsync,

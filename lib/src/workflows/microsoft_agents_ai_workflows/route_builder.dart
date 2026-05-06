@@ -28,7 +28,7 @@ class RouteBuilder {
     Type messageType,
     Func3<Object, WorkflowContext, CancellationToken, Future<CallResult>> handler,
     Type? outputType,
-    {bool? overwrite, },
+    {bool? overwrite, }
   ) {
     if (messageType == PortableValue) {
       throw StateError("Cannot register a handler for PortableValue. Use addCatchAll() instead.");
@@ -53,7 +53,7 @@ class RouteBuilder {
   RouteBuilder addHandlerUntyped(
     Type type,
     bool overwrite,
-    {Func3<Object, WorkflowContext, CancellationToken, Future>? handler, },
+    {Func3<Object, WorkflowContext, CancellationToken, Future>? handler, }
   ) {
     return this.addHandlerInternal(type, WrappedHandlerAsync, outputType: null, overwrite);
     /* TODO: unsupported node kind "unknown" */
@@ -143,7 +143,7 @@ class RouteBuilder {
   /// [TInput]
   RouteBuilder addHandler<TInput>(
     bool overwrite,
-    {Action3<TInput, WorkflowContext, CancellationToken>? handler, },
+    {Action3<TInput, WorkflowContext, CancellationToken>? handler, }
   ) {
     return this.addHandlerInternal(
       TInput,
@@ -161,7 +161,7 @@ class RouteBuilder {
 
   RouteBuilder addCatchAll(
     bool overwrite,
-    {Func3<PortableValue, WorkflowContext, CancellationToken, Future<CallResult>>? handler, },
+    {Func3<PortableValue, WorkflowContext, CancellationToken, Future<CallResult>>? handler, }
   ) {
     if (!overwrite && this._catchAll != null) {
       throw StateError("A catch-all is already registered (overwrite = false).");
@@ -193,6 +193,6 @@ class RouteBuilder {
     if (this._portHandlers.length > 0) {
       this.registerPortHandlerRouter();
     }
-    return new(this._typedHandlers, [.. this._outputTypes.values], this._catchAll);
+    return new(this._typedHandlers, [...this._outputTypes.values], this._catchAll);
   }
 }

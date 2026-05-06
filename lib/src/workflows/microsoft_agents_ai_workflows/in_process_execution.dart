@@ -42,7 +42,7 @@ class InProcessExecution {
     Workflow workflow,
     String? sessionId,
     CancellationToken cancellationToken,
-    {CheckpointManager? checkpointManager, },
+    {CheckpointManager? checkpointManager, }
   ) {
     return defaultValue.openStreamingAsync(workflow, sessionId, cancellationToken);
   }
@@ -52,7 +52,7 @@ class InProcessExecution {
     TInput input,
     String? sessionId,
     CancellationToken cancellationToken,
-    {CheckpointManager? checkpointManager, },
+    {CheckpointManager? checkpointManager, }
   ) {
     return defaultValue.runStreamingAsync(workflow, input, sessionId, cancellationToken);
   }
@@ -61,7 +61,7 @@ class InProcessExecution {
     Workflow workflow,
     CheckpointInfo fromCheckpoint,
     CheckpointManager checkpointManager,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return defaultValue.withCheckpointing(checkpointManager).resumeStreamingAsync(workflow, fromCheckpoint, cancellationToken);
   }
@@ -71,7 +71,7 @@ class InProcessExecution {
     TInput input,
     String? sessionId,
     CancellationToken cancellationToken,
-    {CheckpointManager? checkpointManager, },
+    {CheckpointManager? checkpointManager, }
   ) {
     return defaultValue.runAsync(workflow, input, sessionId, cancellationToken);
   }
@@ -80,7 +80,7 @@ class InProcessExecution {
     Workflow workflow,
     CheckpointInfo fromCheckpoint,
     CheckpointManager checkpointManager,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return defaultValue.withCheckpointing(checkpointManager).resumeAsync(workflow, fromCheckpoint, cancellationToken);
   }

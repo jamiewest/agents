@@ -26,7 +26,7 @@ class InputWaiter implements Disposable {
     }
   }
 
-  Future waitForInput({Duration? timeout, CancellationToken? cancellationToken, }) async  {
+  Future waitForInput({Duration? timeout, CancellationToken? cancellationToken, }) async {
     await this._inputSignal.waitAsync(
       timeout ?? TimeSpan.fromMilliseconds(-1),
       cancellationToken,

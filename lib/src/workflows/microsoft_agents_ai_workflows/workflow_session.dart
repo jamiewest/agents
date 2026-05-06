@@ -30,11 +30,12 @@ class WorkflowSession extends AgentSession {
     WorkflowExecutionEnvironment executionEnvironment,
     bool includeExceptionDetails,
     bool includeWorkflowOutputsInResponse,
-    {String? sessionId = null, JsonElement? serializedSession = null, JsonSerializerOptions? JsonSerializerOptions = null, },
+    {String? sessionId, JsonElement? serializedSession, JsonSerializerOptions? JsonSerializerOptions}
   ) :
       _workflow = workflow,
       _includeExceptionDetails = includeExceptionDetails,
-      _includeWorkflowOutputsInResponse = includeWorkflowOutputsInResponse {
+      _includeWorkflowOutputsInResponse = includeWorkflowOutputsInResponse,
+      super(AgentSessionStateBag(null)) {
     var env = executionEnvironment;
     {
       InProcessExecutionEnvironment? inProcEnv;
@@ -87,7 +88,7 @@ class WorkflowSession extends AgentSession {
 
   static (
     bool,
-    InProcessExecutionEnvironment??,
+    InProcessExecutionEnvironment?,
   ) verifyCheckpointingConfiguration(WorkflowExecutionEnvironment executionEnvironment) {
     var inProcEnv = null;
     inProcEnv = null;
@@ -118,9 +119,9 @@ class WorkflowSession extends AgentSession {
   AgentResponseUpdate createUpdate(
     String responseId,
     Object raw,
-    {List<AIContent>? parts, ChatMessage? message, },
+    {List<AIContent>? parts, ChatMessage? message, }
   ) {
-    return new(ChatRole.assistant, parts)
+    return ChatMessage.fromText(ChatRole.assistant, parts)
         {
             CreatedAt = DateTime.now().toUtc(),
             MessageId = List.generate(32, (_) => Random.secure().nextInt(16).toRadixString(16)).join(),
@@ -132,8 +133,8 @@ class WorkflowSession extends AgentSession {
 
   Future<ResumeRunResult> createOrResumeRun(
     List<ChatMessage> messages,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     if (this.lastCheckpoint != null) {
       var run = await this._inProcEnvironment
                             .resumeStreamingInternalAsync(this._workflow,
@@ -164,7 +165,7 @@ class WorkflowSession extends AgentSession {
   Future<ResumeDispatchInfo> sendMessagesWithResponseConversion(
     StreamingRun run,
     List<ChatMessage> messages,
-  ) async  {
+  ) async {
     var regularMessages = [];
     var externalResponses = [];
     var hasMatchedResponseForStartExecutor = false;
@@ -177,7 +178,7 @@ class WorkflowSession extends AgentSession {
           continue;
         }
         if (contentId != null
-                    && this.tryGetPendingRequest(contentId) is ExternalRequest pendingRequest) {
+                    && this.tryGetPendingRequest(contentId) is ExternalRequest) {
           String? responseExecutorId;
           if (run.tryGetResponsePortExecutorId(pendingRequest.portInfo.portId)) {
             hasMatchedResponseForStartExecutor |= (responseExecutorId == this._workflow.startExecutorId,
@@ -285,7 +286,7 @@ class WorkflowSession extends AgentSession {
     this._pendingRequests.remove(requestId);
   }
 
-  Stream<AgentResponseUpdate> invokeStage({CancellationToken? cancellationToken}) async  {
+  Stream<AgentResponseUpdate> invokeStage({CancellationToken? cancellationToken}) async* {
     this.lastResponseId = List.generate(32, (_) => Random.secure().nextInt(16).toRadixString(16)).join();
     var messages = this.chatHistoryProvider.getFromBookmark(this).toList();
     var resumeResult = await this.createOrResumeRunAsync(
@@ -314,7 +315,7 @@ class WorkflowSession extends AgentSession {
         yield update;
         case WorkflowErrorEvent workflowError:
         var exception = workflowError.exception;
-        if (exception is TargetInvocationException tie && tie.innerException != null) {
+        if (exception is TargetInvocationException && tie.innerException != null) {
           exception = tie.innerException;
         }
         if (exception != null) {
@@ -440,7 +441,7 @@ class SessionState {
   SessionState(
     String sessionId,
     CheckpointInfo? lastCheckpoint,
-    {InMemoryCheckpointManager? checkpointManager = null, AgentSessionStateBag? stateBag = null, Map<String, ExternalRequest>? pendingRequests = null, },
+    {InMemoryCheckpointManager? checkpointManager = null, AgentSessionStateBag? stateBag = null, Map<String, ExternalRequest>? pendingRequests = null, }
   ) :
       sessionId = sessionId,
       lastCheckpoint = lastCheckpoint;

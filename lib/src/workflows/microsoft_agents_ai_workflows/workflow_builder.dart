@@ -178,7 +178,7 @@ class WorkflowBuilder {
   WorkflowBuilder addEdge<T>(
     ExecutorBinding source,
     ExecutorBinding target,
-    {bool? idempotent, Func<T?, bool>? condition, String? label, },
+    {bool? idempotent, Func<T?, bool>? condition, String? label, }
   ) {
     // Add an edge from source to target with an optional condition.
         // This is a low-level builder method that does not enforce any specific executor type.
@@ -189,7 +189,7 @@ class WorkflowBuilder {
         return this;
       }
       throw StateError(
-                "An edge from ${source.id} to "${target.id}' already exists without a condition. ' +
+                'An edge from ${source.id} to "${target.id}" already exists without a condition. ' +
                 "You cannot add another edge without a condition for the same source and target.");
     }
     var directEdge = new(
@@ -207,13 +207,13 @@ class WorkflowBuilder {
     if (condition == null) {
       return null;
     }
-    return (maybeObj) =>
-        {
+    return (maybeObj) {
+        
             if (T != Object && maybeObj is PortableValue PortableValue)
             {
                 maybeObj = PortableValue.asType(T);
       }
-            return condition(maybeObj is T typed ? typed : default);
+            return condition(maybeObj is T ? typed : default);
         };
   }
 
@@ -244,10 +244,10 @@ class WorkflowBuilder {
   WorkflowBuilder addFanOutEdge<T>(
     ExecutorBinding source,
     Iterable<ExecutorBinding> targets,
-    {String? label, Func2<T?, int, Iterable<int>>? targetSelector, },
+    {String? label, Func2<T?, int, Iterable<int>>? targetSelector, }
   ) {
-    var sinkIds = targets.map((target) =>
-        {
+    var sinkIds = targets.map((target) {
+        
             target;
             return this.track(target).id;
         }).toList();
@@ -266,14 +266,14 @@ class WorkflowBuilder {
     if (targetAssigner == null) {
       return null;
     }
-    return (maybeObj, count) =>
-        {
+    return (maybeObj, count) {
+        
             if (T != Object && maybeObj is PortableValue PortableValue)
             {
                 maybeObj = PortableValue.asType(T);
       }
 
-            return targetAssigner(maybeObj is T typed ? typed : default, count);
+            return targetAssigner(maybeObj is T ? typed : default, count);
         };
   }
 
@@ -292,7 +292,7 @@ class WorkflowBuilder {
   WorkflowBuilder addFanInBarrierEdge(
     Iterable<ExecutorBinding> sources,
     ExecutorBinding target,
-    {String? label, },
+    {String? label, }
   ) {
     return this.addFanInBarrierEdge(sources, target, label: null);
   }
@@ -302,7 +302,7 @@ class WorkflowBuilder {
       throw StateError(
                 'Workflow cannot be built because there are unbound executors: ${this._unboundExecutors.join(", ")}.');
     }
-    var remainingExecutors = [.. this._executorBindings.keys];
+    var remainingExecutors = [...this._executorBindings.keys];
     var toVisit = new([this._startExecutorId]);
     if (!validateOrphans) {
       return;

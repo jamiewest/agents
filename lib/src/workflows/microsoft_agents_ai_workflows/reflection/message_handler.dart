@@ -34,7 +34,7 @@ abstract class MessageHandler<TMessage, TResult> {
 /// methods in a partial class deriving from [Executor] instead.
 ///
 /// [TMessage]
-abstract class MessageHandler<TMessage> {
+abstract class UntypedMessageHandler<TMessage> {
   /// Handles the incoming message asynchronously.
   ///
   /// Returns: A task that represents the asynchronous operation.

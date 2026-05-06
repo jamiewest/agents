@@ -30,9 +30,9 @@ class CompactionStrategyChatReducer extends ChatReducer {
 
   Future<Iterable<ChatMessage>> reduce(
     Iterable<ChatMessage> messages,
-    {CancellationToken? cancellationToken, },
-  ) async  {
-    var index = CompactionMessageIndex.create([.. messages]);
+    {CancellationToken? cancellationToken, }
+  ) async {
+    var index = CompactionMessageIndex.create([...messages]);
     await this._strategy.compactAsync(
       index,
       cancellationToken: cancellationToken,

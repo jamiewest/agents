@@ -37,7 +37,7 @@ class ExecutorConfig<TOptions> extends ExecutorConfig {
   /// [options] The options for the configurable Object.
   ///
   /// [TOptions] The type of options for the configurable Object.
-  ExecutorConfig(String id, {TOptions? options = null});
+  ExecutorConfig(String id, {TOptions? options}) : super(id);
 
   /// Gets the options for the configured Object.
   TOptions? get options {

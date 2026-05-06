@@ -14,8 +14,8 @@ class FunctionEvaluator {
   ///
   /// [check] Function that returns true if the response passes.
   static EvalCheck create(String name, {Func<String, bool>? check, }) {
-    return (EvalItem item) =>
-        {
+    return (EvalItem item) {
+        
             var passed = check(item.response);
             return evalCheckResult(passed, passed ? "Passed" : "Failed", name);
         };

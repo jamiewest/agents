@@ -59,7 +59,7 @@ class AggregatingExecutor<TInput,TAggregate> extends Executor<TInput, TAggregate
   AggregatingExecutor(
     String id,
     Func2<TAggregate?, TInput, TAggregate?> aggregator,
-    {ExecutorOptions? options = null, bool? declareCrossRunShareable = null, },
+    {ExecutorOptions? options = null, bool? declareCrossRunShareable = null, }
   );
 
   @override
@@ -67,7 +67,7 @@ class AggregatingExecutor<TInput,TAggregate> extends Executor<TInput, TAggregate
     TInput message,
     WorkflowContext context,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     var runningAggregate = null;
     await context.invokeWithStateAsync<PortableValue>(
       InvokeAggregatorAsync,

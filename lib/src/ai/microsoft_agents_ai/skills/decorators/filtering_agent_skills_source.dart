@@ -24,7 +24,8 @@ class FilteringAgentSkillsSource extends DelegatingAgentSkillsSource {
     AgentSkillsSource innerSource,
     Func<AgentSkill, bool> predicate, {
     LoggerFactory? loggerFactory = null,
-  }) : _predicate = predicate {
+  }) : _predicate = predicate,
+       super(innerSource) {
     this._logger = (loggerFactory ?? NullLoggerFactory.instance)
         .createLogger<FilteringAgentSkillsSource>();
   }

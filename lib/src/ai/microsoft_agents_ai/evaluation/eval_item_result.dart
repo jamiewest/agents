@@ -49,7 +49,7 @@ class EvalItemResult {
 
   /// Gets whether this item is in an error state.
   bool get isError {
-    return this.status is "error" or "errored";
+    return status == "error" || status == "errored";
   }
 
   /// Gets whether this item passed all evaluators.
@@ -113,10 +113,10 @@ class PerEvaluatorResult {
   const PerEvaluatorResult(int Passed, int Failed, ) : passed = Passed, failed = Failed;
 
   /// Number of items that passed for this evaluator.
-  int passed;
+  final int passed;
 
   /// Number of items that failed for this evaluator.
-  int failed;
+  final int failed;
 
   @override
   bool operator ==(Object other) { if (identical(this, other)) return true;

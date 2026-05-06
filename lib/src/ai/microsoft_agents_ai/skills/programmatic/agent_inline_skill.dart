@@ -89,7 +89,7 @@ class AgentInlineSkill extends AgentSkill {
     String name,
     String? description, {
     Object? value,
-    Delegate? method,
+    Function? method,
     JsonSerializerOptions? serializerOptions,
   }) {
     (this._resources ??= []).add(
@@ -115,7 +115,7 @@ class AgentInlineSkill extends AgentSkill {
   /// used; otherwise [DefaultOptions] is used.
   AgentInlineSkill addScript(
     String name,
-    Delegate method, {
+    Function method, {
     String? description,
     JsonSerializerOptions? serializerOptions,
   }) {

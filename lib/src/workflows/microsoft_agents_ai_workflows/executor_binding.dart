@@ -34,7 +34,7 @@ abstract class ExecutorBinding implements Identified {
     String Id,
     Func<String, Future<Executor>>? FactoryAsync,
     Type ExecutorType,
-    {Object? RawValue = null, },
+    {Object? RawValue = null, }
   ) :
       id = Id,
       factoryAsync = FactoryAsync,
@@ -82,12 +82,12 @@ abstract class ExecutorBinding implements Identified {
   Executor checkId(Executor executor) {
     if (executor.id != this.id) {
       throw StateError(
-                "Executor ID mismatch: expected ${this.id}, but got "${executor.id}'.');
+                'Executor ID mismatch: expected ${this.id}, but got "${executor.id}".');
     }
     return executor;
   }
 
-  Future<Executor> createInstance(String sessionId) async  {
+  Future<Executor> createInstance(String sessionId) async {
     return !this.isPlaceholder
          ? this.checkId(await this.factoryAsync(sessionId))
          : throw StateError(
@@ -116,8 +116,8 @@ abstract class ExecutorBinding implements Identified {
   }
 
   @override
-  int getHashCode() {
-    return this.id.getHashCode();
+  int hashCode {
+    return this.id.hashCode;
   }
 
   @override

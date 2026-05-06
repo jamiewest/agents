@@ -10,10 +10,11 @@ class DirectEdgeData extends EdgeData {
     String sourceId,
     String sinkId,
     EdgeId id,
-    {Func<Object?, bool>? condition = null, String? label = null, },
+    {Func<Object?, bool>? condition = null, String? label = null, }
   ) :
       sourceId = sourceId,
-      sinkId = sinkId {
+      sinkId = sinkId,
+      super(id, label: label) {
     this.condition = condition;
     this.connection = new([sourceId], [sinkId]);
   }

@@ -9,7 +9,7 @@ abstract class EdgeData {
   }
 
   /// Gets the connection representation of the edge.
-  final EdgeConnection connection;
+  late final EdgeConnection connection;
 
   final EdgeId id;
 

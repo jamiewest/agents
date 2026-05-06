@@ -30,8 +30,8 @@ extension WorkflowEvaluationExtensions on Run {
 /// [cancellationToken] Cancellation token.
 Future<AgentEvaluationResults> evaluate(
   AgentEvaluator evaluator,
-  {bool? includeOverall, bool? includePerAgent, String? evalName, ConversationSplitter? splitter, CancellationToken? cancellationToken, },
-) async  {
+  {bool? includeOverall, bool? includePerAgent, String? evalName, ConversationSplitter? splitter, CancellationToken? cancellationToken, }
+) async {
 var events = run.outgoingEvents.toList();
 var agentData = extractAgentData(events, splitter);
 var overallItems = List<EvalItem>();
@@ -42,7 +42,7 @@ if (includeOverall) {
     var query = firstInvoked?.data switch
                 {
                     ChatMessage (cm) => cm.text ?? '',
-                    IReadOnlyList<ChatMessage> (msgs) => msgs.lastOrDefault((m) => m.role == ChatRole.user)?.text ?? '',
+                    List<ChatMessage> (msgs) => msgs.lastOrDefault((m) => m.role == ChatRole.user)?.text ?? '',
                     String (s) => s,
                     (_) => firstInvoked?.data?.toString() ?? '',
                 };

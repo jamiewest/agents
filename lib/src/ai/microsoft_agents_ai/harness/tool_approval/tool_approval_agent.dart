@@ -45,7 +45,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
   /// [JsonSerializerOptions] Optional [JsonSerializerOptions] used for
   /// serializing argument values when storing rules and for persisting state.
   /// When `null`, [DefaultOptions] is used.
-  ToolApprovalAgent(AIAgent innerAgent, {JsonSerializerOptions? JsonSerializerOptions = null, }) {
+  ToolApprovalAgent(AIAgent innerAgent, {JsonSerializerOptions? JsonSerializerOptions = null, }) : super(innerAgent) {
     this._jsonSerializerOptions = JsonSerializerOptions ?? AgentJsonUtilities.defaultOptions;
     this._sessionState = ProviderSessionState<ToolApprovalState>(
             (_) => toolApprovalState(),
@@ -60,8 +60,8 @@ class ToolApprovalAgent extends DelegatingAIAgent {
   @override
   Future<AgentResponse> runCore(
     Iterable<ChatMessage> messages,
-    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, },
-  ) async  {
+    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, }
+  ) async {
     // Steps 1–2: Unwrap AlwaysApprove wrappers, process any queued approval requests.
         var (
           state,
@@ -95,8 +95,8 @@ class ToolApprovalAgent extends DelegatingAIAgent {
   @override
   Stream<AgentResponseUpdate> runCoreStreaming(
     Iterable<ChatMessage> messages,
-    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, },
-  ) async  {
+    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, }
+  ) async* {
     // Steps 1–2: Unwrap AlwaysApprove wrappers, process any queued approval requests.
         var (
           state,
@@ -256,7 +256,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     AgentSession? session,
   ) {
     if (state.collectedApprovalResponses.length > 0) {
-      var result = [ChatMessage(role: ChatRole.user, contents: [.. state.collectedApprovalResponses])];
+      var result = [ChatMessage(role: ChatRole.user, contents: [...state.collectedApprovalResponses])];
       result.addAll(callerMessages);
       state.collectedApprovalResponses.clear();
       this._sessionState.saveState(session, state);
@@ -314,7 +314,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       var message = responseMessages[i];
       var hasRemovable = false;
       for (final content in message.contents) {
-        if (content is ToolApprovalRequestContent tarc && toRemove.contains(tarc)) {
+        if (content is ToolApprovalRequestContent && toRemove.contains(tarc)) {
           hasRemovable = true;
           break;
         }
@@ -324,7 +324,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       }
       var remaining = List<AIContent>(message.contents.length);
       for (final content in message.contents) {
-        if (content is ToolApprovalRequestContent tarc && toRemove.contains(tarc)) {
+        if (content is ToolApprovalRequestContent && toRemove.contains(tarc)) {
           continue;
         }
         remaining.add(content);
@@ -380,7 +380,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     ToolApprovalState state,
     JsonSerializerOptions JsonSerializerOptions,
   ) {
-    var messageList = messages as IList<ChatMessage> ?? List<ChatMessage>(messages);
+    var messageList = messages is List<ChatMessage> ? messages as List<ChatMessage> : messages.toList();
     var result = List<ChatMessage>(messageList.length);
     var anyModified = false;
     for (final message in messageList) {
@@ -418,7 +418,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       result.add(clonedMessage);
       anyModified = true;
     }
-    return anyModified ? result : (messageList as List<ChatMessage> ?? messageList.toList());
+    return anyModified ? result : (messageList is List<ChatMessage> ? messageList as List<ChatMessage> : messageList.toList());
   }
 
   /// Determines whether a tool approval request matches any of the stored
@@ -428,7 +428,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     List<ToolApprovalRule> rules,
     JsonSerializerOptions JsonSerializerOptions,
   ) {
-    if (request.toolCall is! FunctionCallContent functionCall) {
+    if (request.toolCall is! FunctionCallContent) {
       return false;
     }
     for (final rule in rules) {

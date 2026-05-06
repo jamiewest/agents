@@ -53,7 +53,7 @@ class JsonWireSerializedValue implements DelayedDeserialization {
   }
 
   @override
-  int getHashCode() {
-    return this.data.getHashCode();
+  int hashCode {
+    return this.data.hashCode;
   }
 }

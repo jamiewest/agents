@@ -37,7 +37,7 @@ for (final interfaceType in executorType.getInterfaces()) {
   }
 
   var genericArguments = interfaceType.getGenericArguments();
-  if (genericArguments.length is < 1 or > 2) {
+  if (genericArguments.length < 1 || genericArguments.length > 2) {
     continue;
   }
 

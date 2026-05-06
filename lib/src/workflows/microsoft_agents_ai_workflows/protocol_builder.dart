@@ -27,14 +27,14 @@ class ProtocolBuilder {
   late final RouteBuilder routeBuilder;
 
   /// Adds types registered in [SendsMessageAttribute] or
-  /// [YieldsOutputAttribute] on the target [Delegate]. This can be used to
+  /// [YieldsOutputAttribute] on the target [Function]. This can be used to
   /// implement delegate-based request handling akin to what is provided by
   /// [Executor] or [Executor].
   ///
   /// Returns:
   ///
   /// [delegate] The delegate to be registered.
-  ProtocolBuilder addDelegateAttributeTypes(Delegate delegate) {
+  ProtocolBuilder addDelegateAttributeTypes(Function delegate) {
     return this.addMethodAttributeTypes(delegate.method);
   }
 

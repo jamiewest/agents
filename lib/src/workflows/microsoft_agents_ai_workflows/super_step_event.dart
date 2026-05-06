@@ -10,9 +10,7 @@ class SuperStepEvent extends WorkflowEvent {
     : stepNumber = stepNumber;
 
   /// The zero-based index of the SuperStep associated with this event.
-  int get stepNumber {
-    return stepNumber;
-  }
+  final int stepNumber;
 
   @override
   String toString() {

@@ -63,7 +63,7 @@ class AgentWorkflowBuilder {
   static Workflow buildConcurrent(
     Iterable<AIAgent> agents,
     Func<List<List<ChatMessage>>, List<ChatMessage>>? aggregator,
-    {String? workflowName, },
+    {String? workflowName, }
   ) {
     return buildConcurrentCore(workflowName: null, agents, aggregator);
   }
@@ -71,13 +71,13 @@ class AgentWorkflowBuilder {
   static Workflow buildConcurrentCore(
     String? workflowName,
     Iterable<AIAgent> agents,
-    {Func<List<List<ChatMessage>>, List<ChatMessage>>? aggregator, },
+    {Func<List<List<ChatMessage>>, List<ChatMessage>>? aggregator, }
   ) {
     var start = new("Start");
     var builder = new(start);
     var agentExecutors = (from agent in agents
                                             select agent.bindAsExecutor(aiAgentHostOptions())).toList();
-    var accumulators = [.. from agent in agentExecutors select (ExecutorBinding)aggregateTurnMessagesExecutor('Batcher/${agent.id}')];
+    var accumulators = [...from agent in agentExecutors select (ExecutorBinding)aggregateTurnMessagesExecutor('Batcher/${agent.id}')];
     builder.addFanOutEdge(start, agentExecutors);
     for (var i = 0; i < agentExecutors.length; i++) {
       builder.addEdge(agentExecutors[i], accumulators[i]);

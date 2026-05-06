@@ -38,15 +38,15 @@ class CompactionProvider extends AIContextProvider {
   /// provider diagnostics. When `null`, logging is disabled.
   CompactionProvider(
     CompactionStrategy compactionStrategy,
-    {String? stateKey = null, LoggerFactory? loggerFactory = null, },
+    {String? stateKey, LoggerFactory? loggerFactory, }
   ) : _compactionStrategy = compactionStrategy {
-    stateKey ??= this._compactionStrategy.runtimeType.toString();
-    this.stateKeys = [stateKey];
-    this._sessionState = ProviderSessionState<State>(
+    stateKey ??= _compactionStrategy.runtimeType.toString();
+    stateKeys = [stateKey];
+    _sessionState = ProviderSessionState<State>(
             (_) => State(),
             stateKey,
             AgentJsonUtilities.defaultOptions);
-    this._loggerFactory = loggerFactory;
+    _loggerFactory = loggerFactory;
   }
 
   final CompactionStrategy _compactionStrategy;
@@ -75,9 +75,9 @@ class CompactionProvider extends AIContextProvider {
   static Future<Iterable<ChatMessage>> compact(
     CompactionStrategy compactionStrategy,
     Iterable<ChatMessage> messages,
-    {Logger? logger, CancellationToken? cancellationToken, },
-  ) async  {
-    var messageList = messages as List<ChatMessage> ?? [.. messages];
+    {Logger? logger, CancellationToken? cancellationToken, }
+  ) async {
+    var messageList = [...messages];
     var messageIndex = CompactionMessageIndex.create(messageList);
     await compactionStrategy.compactAsync(
       messageIndex,
@@ -100,10 +100,10 @@ class CompactionProvider extends AIContextProvider {
   @override
   Future<AIContext> invokingCore(
     InvokingContext context,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     var activity = CompactionTelemetry.activitySource.startActivity(CompactionTelemetry.activityNames.compactionProviderInvoke);
-    var loggerFactory = this.getLoggerFactory(context.agent);
+    var loggerFactory = getLoggerFactory(context.agent);
     var logger = loggerFactory.createLogger<CompactionProvider>();
     var session = context.session;
     var allMessages = context.aiContext.messages;
@@ -117,17 +117,17 @@ class CompactionProvider extends AIContextProvider {
       logger.logCompactionProviderSkipped("session managed by remote service");
       return context.aiContext;
     }
-    var messageList = allMessages as List<ChatMessage> ?? [.. allMessages];
-    var state = this._sessionState.getOrInitializeState(session);
+    var messageList = [...allMessages];
+    var state = _sessionState.getOrInitializeState(session);
     CompactionMessageIndex messageIndex;
     if (state.messageGroups.length > 0) {
-      messageIndex = new([.. state.messageGroups]);
+      messageIndex = new([...state.messageGroups]);
       for (final message in messageIndex.groups.expand((x) => x.messages)) {
         message.additionalProperties ??= additionalPropertiesDictionary();
         message.additionalProperties[AgentRequestMessageSourceAttribution.additionalPropertiesKey] =
                     agentRequestMessageSourceAttribution(
                       AgentRequestMessageSourceType.chatHistory,
-                      this.runtimeType.fullName!,
+                      runtimeType.fullName!,
                     );
       }
       // Update existing index with any new messages appended since the last call.
@@ -136,13 +136,13 @@ class CompactionProvider extends AIContextProvider {
       // First pass — initialize the message index from scratch.
             messageIndex = CompactionMessageIndex.create(messageList);
     }
-    var strategyName = this._compactionStrategy.runtimeType.toString();
+    var strategyName = _compactionStrategy.runtimeType.toString();
     var beforeMessages = messageIndex.includedMessageCount;
     logger.logCompactionProviderApplying(beforeMessages, strategyName);
     // Apply compaction
-        await this._compactionStrategy.compactAsync(
+        await _compactionStrategy.compactAsync(
             messageIndex,
-            loggerFactory.createLogger(this._compactionStrategy.runtimeType),
+            loggerFactory.createLogger(_compactionStrategy.runtimeType),
             cancellationToken);
     var afterMessages = messageIndex.includedMessageCount;
     if (afterMessages < beforeMessages) {
@@ -157,7 +157,7 @@ class CompactionProvider extends AIContextProvider {
         message.additionalProperties[AgentRequestMessageSourceAttribution.additionalPropertiesKey] =
                     agentRequestMessageSourceAttribution(
                       AgentRequestMessageSourceType.chatHistory,
-                      this.runtimeType.fullName!,
+                      runtimeType.fullName!,
                     );
       }
     }
@@ -165,7 +165,7 @@ class CompactionProvider extends AIContextProvider {
   }
 
   LoggerFactory getLoggerFactory(AIAgent agent) {
-    return this._loggerFactory ??
+    return _loggerFactory ??
         agent.getService<IChatClient>()?.getService<LoggerFactory>() ??
         NullLoggerFactory.instance;
   }

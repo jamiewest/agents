@@ -40,17 +40,17 @@ class GroupChatHost extends ChatProtocolExecutor implements ResettableExecutor {
     List<ChatMessage> messages,
     WorkflowContext context,
     bool? emitEvents,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     this._manager ??= this._managerFactory(this._agents);
     if (!await this._manager.shouldTerminateAsync(messages, cancellationToken)) {
       var filtered = await this._manager.updateHistoryAsync(
         messages,
         cancellationToken,
       ) ;
-      messages = filtered == null || identical(filtered, messages) ? messages : [.. filtered];
+      messages = filtered == null || identical(filtered, messages) ? messages : [...filtered];
       var executor;
-      if (await this._manager.selectNextAgentAsync(messages, cancellationToken) is AIAgent nextAgent &&
+      if (await this._manager.selectNextAgentAsync(messages, cancellationToken) is AIAgent &&
                 this._agentMap.containsKey(nextAgent)) {
         this._manager.iterationCount++;
         await context.sendMessage(

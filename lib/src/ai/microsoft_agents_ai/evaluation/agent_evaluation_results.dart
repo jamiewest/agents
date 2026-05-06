@@ -13,7 +13,7 @@ class AgentEvaluationResults {
   AgentEvaluationResults(
     String providerName,
     Iterable<EvaluationResult> items,
-    {List<EvalItem>? inputItems = null, },
+    {List<EvalItem>? inputItems = null, }
   ) :
       providerName = providerName,
       items = items {
@@ -105,7 +105,7 @@ class AgentEvaluationResults {
       if (metric.interpretation?.failed == true) {
         return false;
       }
-      if (metric is BooleanMetric boolean && boolean.value == false) {
+      if (metric is BooleanMetric && boolean.value == false) {
         return false;
       }
     }

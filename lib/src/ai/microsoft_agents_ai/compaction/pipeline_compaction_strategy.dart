@@ -15,8 +15,9 @@ class PipelineCompactionStrategy extends CompactionStrategy {
   /// Initializes a new instance of the [PipelineCompactionStrategy] class.
   ///
   /// [strategies] The ordered sequence of strategies to execute.
-  PipelineCompactionStrategy(Iterable<CompactionStrategy> strategies) : strategies = strategies {
-    this.strategies = [.. strategies];
+  PipelineCompactionStrategy(Iterable<CompactionStrategy> strategies, [CompactionTrigger? trigger])
+      : super(trigger ?? ((_) => false)) {
+    this.strategies = [...strategies];
   }
 
   /// Gets the ordered list of strategies in this pipeline.
@@ -27,7 +28,7 @@ class PipelineCompactionStrategy extends CompactionStrategy {
     CompactionMessageIndex index,
     Logger logger,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     var anyCompacted = false;
     for (final strategy in this.strategies) {
       var compacted = await strategy.compactAsync(

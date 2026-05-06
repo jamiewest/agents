@@ -16,7 +16,7 @@ class RoundRobinGroupChatManager extends GroupChatManager {
   /// count.
   RoundRobinGroupChatManager(
     List<AIAgent> agents,
-    {Func3<RoundRobinGroupChatManager, Iterable<ChatMessage>, CancellationToken, Future<bool>>? shouldTerminateFunc = null, },
+    {Func3<RoundRobinGroupChatManager, Iterable<ChatMessage>, CancellationToken, Future<bool>>? shouldTerminateFunc = null, }
   ) : _agents = agents {
     for (final agent in agents) {
       agent;
@@ -33,7 +33,7 @@ class RoundRobinGroupChatManager extends GroupChatManager {
   @override
   Future<AIAgent> selectNextAgent(
     List<ChatMessage> history,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     var nextAgent = this._agents[this._nextIndex];
     this._nextIndex = (this._nextIndex + 1) % this._agents.length;
@@ -43,9 +43,9 @@ class RoundRobinGroupChatManager extends GroupChatManager {
   @override
   Future<bool> shouldTerminate(
     List<ChatMessage> history,
-    {CancellationToken? cancellationToken, },
-  ) async  {
-    if (this._shouldTerminateFunc is { } func && await func(this, history, cancellationToken)) {
+    {CancellationToken? cancellationToken, }
+  ) async {
+    if ((this._shouldTerminateFunc) != null && await func(this, history, cancellationToken)) {
       return true;
     }
     return await super.shouldTerminateAsync(history, cancellationToken);

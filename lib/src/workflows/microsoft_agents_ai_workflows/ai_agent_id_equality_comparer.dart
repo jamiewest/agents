@@ -12,6 +12,6 @@ class AIAgentIDEqualityComparer implements EqualityComparer<AIAgent> {
 
   @override
   int getHashCode(AIAgent obj) {
-    return obj?.getHashCode() ?? 0;
+    return obj?.hashCode ?? 0;
   }
 }

@@ -37,7 +37,7 @@ class InProcessRunnerContext implements RunnerContext {
     bool checkpointingEnabled,
     EventSink outgoingEvents,
     StepTracer? stepTracer,
-    {Object? existingOwnershipSignoff = null, bool? subworkflow = null, bool? enableConcurrentRuns = null, Logger? logger = null, },
+    {Object? existingOwnershipSignoff = null, bool? subworkflow = null, bool? enableConcurrentRuns = null, Logger? logger = null, }
   ) :
       _workflow = workflow,
       _sessionId = sessionId,
@@ -102,8 +102,8 @@ class InProcessRunnerContext implements RunnerContext {
   Future<Executor> ensureExecutor(
     String executorId,
     StepTracer? tracer,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     this.checkEnded();
     var executorTask = this._executors.getOrAdd(executorId, CreateExecutorAsync);
     /* TODO: unsupported node kind "unknown" */
@@ -122,12 +122,12 @@ class InProcessRunnerContext implements RunnerContext {
       //
       //             tracer?.TraceActivated(executorId);
       //
-      //             if (executor is RequestInfoExecutor requestInputExecutor)
+      //             if (executor is RequestInfoExecutor)
       //             {
         //                 requestInputExecutor.AttachRequestSink(this);
         //             }
       //
-      //             if (executor is WorkflowHostExecutor workflowHostExecutor)
+      //             if (executor is WorkflowHostExecutor)
       //             {
         //                 await workflowHostExecutor.AttachSuperStepContextAsync(this);
         //             }
@@ -137,7 +137,7 @@ class InProcessRunnerContext implements RunnerContext {
     return await executorTask;
   }
 
-  Future<Iterable<Type>> getStartingExecutorInputTypes({CancellationToken? cancellationToken}) async  {
+  Future<Iterable<Type>> getStartingExecutorInputTypes({CancellationToken? cancellationToken}) async {
     var startingExecutor = await this.ensureExecutor(
       this._workflow.startExecutorId,
       tracer: null,
@@ -202,7 +202,7 @@ class InProcessRunnerContext implements RunnerContext {
   }
 
   @override
-  Future<StepContext> advance({CancellationToken? cancellationToken}) async  {
+  Future<StepContext> advance({CancellationToken? cancellationToken}) async {
     this.checkEnded();
     while (this._queuedExternalDeliveries.tryDequeue()) {
       // It's important we do not try to run these in parallel, because they may be modifying
@@ -222,8 +222,8 @@ class InProcessRunnerContext implements RunnerContext {
   Future sendMessageAsync(
     String sourceId,
     Object message,
-    {String? targetId, CancellationToken? cancellationToken, },
-  ) async  {
+    {String? targetId, CancellationToken? cancellationToken, }
+  ) async {
     var activity = this._workflow.telemetryContext.startMessageSendActivity(
       sourceId,
       targetId,
@@ -246,7 +246,7 @@ class InProcessRunnerContext implements RunnerContext {
     ) ;
     var declaredType = source.protocol.sendTypeTranslator.getDeclaredType(message.runtimeType);
     if (declaredType == null) {
-      throw StateError("Executor ${sourceId} cannot send messages of type "${message.runtimeType.fullName}'.');
+      throw StateError('Executor ${sourceId} cannot send messages of type "${message.runtimeType.fullName}".');
     }
     var envelope = new(
       message,
@@ -272,8 +272,8 @@ class InProcessRunnerContext implements RunnerContext {
   Future yieldOutputAsync(
     String sourceId,
     Object output,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     this.checkEnded();
     if (output is AgentResponseUpdate) {
       final update = output as AgentResponseUpdate;
@@ -331,7 +331,7 @@ class InProcessRunnerContext implements RunnerContext {
     return this._externalRequests.tryRemoveKey(requestId);
   }
 
-  (bool, String??) tryGetResponsePortExecutorId(String portId) {
+  (bool, String?) tryGetResponsePortExecutorId(String portId) {
     // TODO(transpiler): implement out-param body
     throw UnimplementedError();
   }
@@ -361,13 +361,13 @@ class InProcessRunnerContext implements RunnerContext {
   Future<RunnerStateData> exportState() {
     this.checkEnded();
     var queuedMessages = this._nextStep.exportMessages();
-    var result = new(instantiatedExecutors: [.. this._executors.keys],
+    var result = new(instantiatedExecutors: [...this._executors.keys],
                                      queuedMessages,
-                                     outstandingRequests: [.. this._externalRequests.values]);
+                                     outstandingRequests: [...this._externalRequests.values]);
     return new(result);
   }
 
-  Future republishUnservicedRequests({CancellationToken? cancellationToken}) async  {
+  Future republishUnservicedRequests({CancellationToken? cancellationToken}) async {
     this.checkEnded();
     if (this.hasUnservicedRequests) {
       for (final requestId in this._externalRequests.keys) {
@@ -380,7 +380,7 @@ class InProcessRunnerContext implements RunnerContext {
     }
   }
 
-  Future importState(Checkpoint checkpoint) async  {
+  Future importState(Checkpoint checkpoint) async {
     this.checkEnded();
     var importedState = checkpoint.runnerData;
     var executorTasks = importedState.instantiatedExecutors
@@ -406,7 +406,7 @@ class InProcessRunnerContext implements RunnerContext {
     }
   }
 
-  Future endRun() async  {
+  Future endRun() async {
     if ((() { final _old = this._runEnded; this._runEnded = 1; return _old; })() == 0) {
       for (final executorId in this._executors.keys) {
         var executorTask = this._executors[executorId];
@@ -436,7 +436,7 @@ class InProcessRunnerContext implements RunnerContext {
   @override
   Future<String> attachSuperstep(
     SuperStepRunner superStepRunner,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     // This needs to be a thread-safe ordered collection because we can potentially instantiate executors
         // in parallel, which means multiple sub-workflows could be attaching at the same time.
@@ -521,7 +521,7 @@ class BoundWorkflowContext implements WorkflowContext {
   Future<T> readOrInitState<T>(
     String key,
     T Function() initialStateFactory,
-    {String? scopeName, CancellationToken? cancellationToken, },
+    {String? scopeName, CancellationToken? cancellationToken, }
   ) {
     return RunnerContext.stateManager.readOrInitStateAsync(
       ExecutorId,
@@ -540,7 +540,7 @@ class BoundWorkflowContext implements WorkflowContext {
   Future queueStateUpdate<T>(
     String key,
     T? value,
-    {String? scopeName, CancellationToken? cancellationToken, },
+    {String? scopeName, CancellationToken? cancellationToken, }
   ) {
     return RunnerContext.stateManager.writeStateAsync(ExecutorId, scopeName, key, value);
   }

@@ -35,7 +35,7 @@ class SessionCheckpointCache<TStoreObject> {
     return this.checkpointIndex.length > 0;
   }
 
-  (bool, CheckpointInfo??) tryGetLastCheckpointInfo() {
+  (bool, CheckpointInfo?) tryGetLastCheckpointInfo() {
     if (this.hasCheckpoints) {
       return (true, this.checkpointIndex[this.checkpointIndex.length - 1]);
     }

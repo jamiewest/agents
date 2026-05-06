@@ -1,12 +1,12 @@
 import 'package:extensions/ai.dart';
 extension AIAgentsAbstractionsExtensions on ChatMessage {ChatMessage chatAssistantToUserIfNotFromNamed(
   String agentName,
-  {bool? changed, bool? inplace, },
+  {bool? changed, bool? inplace, }
 ) {
 changed = false;
 if (message.role == ChatRole.assistant &&
             ! == message.authorName, agentName &&
-            message.contents.every((c) => c is TextContent or DataContent or UriContent or UsageContent)) {
+            message.contents.every((c) => c is TextContent || c is DataContent || c is UriContent || c is UsageContent)) {
   if (!inplace) {
     message = message.clone();
   }

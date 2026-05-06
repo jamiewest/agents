@@ -19,7 +19,7 @@ extension ToolApprovalRequestContentExtensions on ToolApprovalRequestContent {
   AlwaysApproveToolApprovalResponseContent createAlwaysApproveToolResponse({
     String? reason,
   }) {
-    _ = request;
+    request;
     return alwaysApproveToolApprovalResponseContent(
       request.createResponse(approved: true, reason),
       alwaysApproveTool: true,
@@ -40,7 +40,7 @@ extension ToolApprovalRequestContentExtensions on ToolApprovalRequestContent {
   /// [reason] An optional reason for the approval.
   AlwaysApproveToolApprovalResponseContent
   createAlwaysApproveToolWithArgumentsResponse({String? reason}) {
-    _ = request;
+    request;
     return alwaysApproveToolApprovalResponseContent(
       request.createResponse(approved: true, reason),
       alwaysApproveTool: false,

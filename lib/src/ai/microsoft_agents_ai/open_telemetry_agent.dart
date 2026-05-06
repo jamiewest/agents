@@ -1,5 +1,5 @@
 import 'package:extensions/system.dart';
-import 'package:extensions/ai.dart';
+import 'package:extensions/ai.dart' hide OpenTelemetryConsts;
 import '../../abstractions/microsoft_agents_ai_abstractions/agent_response_update.dart';
 import '../../abstractions/microsoft_agents_ai_abstractions/agent_run_options.dart';
 import '../../abstractions/microsoft_agents_ai_abstractions/agent_session.dart';
@@ -30,7 +30,7 @@ class OpenTelemetryAgent extends DelegatingAIAgent implements Disposable {
   /// [sourceName] An optional source name that will be used to identify
   /// telemetry data from this agent. If not provided, a default source name
   /// will be used for telemetry identification.
-  OpenTelemetryAgent(AIAgent innerAgent, {String? sourceName = null, }) {
+  OpenTelemetryAgent(AIAgent innerAgent, {String? sourceName = null, }) : super(innerAgent) {
     this._providerName = innerAgent.getService<AIAgentMetadata>()?.providerName;
     this._otelClient = openTelemetryChatClient(
             forwardingChatClient(this),
@@ -67,8 +67,8 @@ class OpenTelemetryAgent extends DelegatingAIAgent implements Disposable {
   @override
   Future<AgentResponse> runCore(
     Iterable<ChatMessage> messages,
-    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, },
-  ) async  {
+    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, }
+  ) async {
     var co = forwardedOptions(options, session, Activity.current);
     var response = await this._otelClient.getResponseAsync(
       messages,
@@ -81,8 +81,8 @@ class OpenTelemetryAgent extends DelegatingAIAgent implements Disposable {
   @override
   Stream<AgentResponseUpdate> runCoreStreaming(
     Iterable<ChatMessage> messages,
-    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, },
-  ) async  {
+    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, }
+  ) async* {
     var co = forwardedOptions(options, session, Activity.current);
     for (final update in this._otelClient.getStreamingResponseAsync(messages, co, cancellationToken)) {
       yield update.rawRepresentation as AgentResponseUpdate ?? AgentResponseUpdate(role: update);
@@ -95,30 +95,29 @@ class OpenTelemetryAgent extends DelegatingAIAgent implements Disposable {
   /// [previousActivity] The [Activity] that was current prior to the
   /// [OpenTelemetryChatClient]'s invocation.
   void updateCurrentActivity(Activity? previousActivity) {
-    if (Activity.current is not { } activity ||
-            identical(activity, previousActivity)) {
+    final activity = Activity.current;
+    if (activity == null || identical(activity, previousActivity)) {
       return;
     }
     // Override information set by OpenTelemetryChatClient to make it specific to invoke_agent.
 
-        activity.displayName = (this.name == null || this.name.trim().isEmpty)
-            ? '${OpenTelemetryConsts.genAI.invokeAgent} ${this.id}'
-            : '${OpenTelemetryConsts.genAI.invokeAgent} ${this.name}(${this.id})';
+    activity.displayName = (name?.trim().isEmpty ?? true)
+        ? '${OpenTelemetryConsts.genAI.invokeAgent} $id'
+        : '${OpenTelemetryConsts.genAI.invokeAgent} $name($id)';
     activity.setTag(
       OpenTelemetryConsts.genAI.operation.name,
       OpenTelemetryConsts.genAI.invokeAgent,
     );
-    if (!(this._providerName == null || this._providerName.trim().isEmpty)) {
-      _ = activity.setTag(OpenTelemetryConsts.genAI.provider.name, this._providerName);
+    if (_providerName?.trim().isNotEmpty == true) {
+      activity.setTag(OpenTelemetryConsts.genAI.provider.name, _providerName);
     }
     // Further augment the activity with agent-specific tags.
-
-        _ = activity.setTag(OpenTelemetryConsts.genAI.agent.id, this.id);
-    if (this.name is { } name && !(name == null || name.trim().isEmpty)) {
-      _ = activity.setTag(OpenTelemetryConsts.genAI.agent.name, this.name);
+    activity.setTag(OpenTelemetryConsts.genAI.agent.id, id);
+    if (name?.trim().isNotEmpty == true) {
+      activity.setTag(OpenTelemetryConsts.genAI.agent.name, name);
     }
-    if (this.description is { } description && !(description == null || description.trim().isEmpty)) {
-      _ = activity.setTag(OpenTelemetryConsts.genAI.agent.description, description);
+    if (description?.trim().isNotEmpty == true) {
+      activity.setTag(OpenTelemetryConsts.genAI.agent.description, description);
     }
   }
 }
@@ -155,8 +154,8 @@ class ForwardingChatClient extends ChatClient {
 
   Future<ChatResponse> getResponse(
     Iterable<ChatMessage> messages,
-    {ChatOptions? options, CancellationToken? cancellationToken, },
-  ) async  {
+    {ChatOptions? options, CancellationToken? cancellationToken, }
+  ) async {
     var fo = options as ForwardedOptions;
     // Update the current activity to reflect the agent invocation.
             parentAgent.updateCurrentActivity(fo?.currentActivity);
@@ -171,8 +170,8 @@ class ForwardingChatClient extends ChatClient {
 
   Stream<ChatResponseUpdate> getStreamingResponse(
     Iterable<ChatMessage> messages,
-    {ChatOptions? options, CancellationToken? cancellationToken, },
-  ) async  {
+    {ChatOptions? options, CancellationToken? cancellationToken, }
+  ) async* {
     var fo = options as ForwardedOptions;
     // Update the current activity to reflect the agent invocation.
             parentAgent.updateCurrentActivity(fo?.currentActivity);
@@ -182,7 +181,7 @@ class ForwardingChatClient extends ChatClient {
   }
 
   Object? getService(Type serviceType, {Object? serviceKey, }) {
-    return // Delegate any inquiries made by the OpenTelemetryChatClient back to the parent agent.
+    return // Function any inquiries made by the OpenTelemetryChatClient back to the parent agent.
             parentAgent.getService(serviceType, serviceKey);
   }
 

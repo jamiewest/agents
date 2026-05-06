@@ -35,8 +35,8 @@ class EvalChecks {
   ///
   /// Returns: An [EvalCheck] delegate.
   static EvalCheck toolCallsPresent() {
-    return (EvalItem item) =>
-        {
+    return (EvalItem item) {
+        
             var calledTools = getCalledTools(item);
             var passed = calledTools.length > 0;
             var reason = passed
@@ -58,8 +58,8 @@ class EvalChecks {
   ///
   /// Returns: An [EvalCheck] delegate.
   static EvalCheck toolCallArgsMatch() {
-    return (EvalItem item) =>
-        {
+    return (EvalItem item) {
+        
             var expected = item.expectedToolCalls;
             if (expected == null || expected.length == 0)
             {
@@ -74,7 +74,7 @@ class EvalChecks {
             int matched = 0;
             var details = List<String>();
 
-            foreach (var exp in expected)
+            for (final exp in expected)
             {
                 var matching = actualCalls.where((c) => (c.name == exp.name)).toList();
 
@@ -93,7 +93,7 @@ class EvalChecks {
 
                 // Subset match — all expected keys present with expected values
                 bool found = false;
-                foreach (var call in matching)
+                for (final call in matching)
                 {
                     if (call.arguments != null
                         && exp.arguments.every((kvp) =>
@@ -132,8 +132,8 @@ class EvalChecks {
   ///
   /// [minLength] Minimum response length (default 1).
   static EvalCheck nonEmpty({int? minLength}) {
-    return (EvalItem item) =>
-        {
+    return (EvalItem item) {
+        
             var trimmed = item.response.trim();
             var passed = trimmed.length >= minLength;
             var reason = passed
@@ -151,8 +151,8 @@ class EvalChecks {
   ///
   /// [caseSensitive] Whether the comparison is case-sensitive (default false).
   static EvalCheck containsExpected({bool? caseSensitive}) {
-    return (EvalItem item) =>
-        {
+    return (EvalItem item) {
+        
             if ((item.expectedOutput == null || item.expectedOutput.isEmpty))
             {
                 return evalCheckResult(
@@ -180,8 +180,8 @@ class EvalChecks {
   ///
   /// Returns: An [EvalCheck] delegate.
   static EvalCheck hasImageContent() {
-    return (EvalItem item) =>
-        {
+    return (EvalItem item) {
+        
             var passed = item.hasImageContent;
             var reason = passed
                 ? "Conversation contains image content"
@@ -217,7 +217,7 @@ class EvalChecks {
             for (final kvp in rawArgs) {
               if (kvp.value != null) {
                 // Normalize JsonElement values to their .net equivalents for comparison
-                                dict[kvp.key] = kvp.value is JsonElement je ? unwrapJsonElement(je) : kvp.value;
+                                dict[kvp.key] = kvp.value is JsonElement ? unwrapJsonElement(je) : kvp.value;
               }
             }
             args = dict;

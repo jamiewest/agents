@@ -28,8 +28,8 @@ extension FunctionInvocationDelegatingAgentBuilderExtensions on AIAgentBuilder {
 /// continuation delegate representing the next callback in the pipeline. It
 /// returns a task representing the result of the function invocation.
 AIAgentBuilder use(Func4<AIAgent, FunctionInvocationContext, Func2<FunctionInvocationContext, CancellationToken, Future<Object?>>, CancellationToken, Future<Object?>> callback) {
-return builder.use((innerAgent, _) =>
-        {
+return builder.use((innerAgent, _) {
+        
             // Function calling requires a ChatClientAgent inner agent.
             if (innerAgent.getService<FunctionInvokingChatClient>() == null)
             {

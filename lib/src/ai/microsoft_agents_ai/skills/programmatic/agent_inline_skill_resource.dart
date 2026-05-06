@@ -19,10 +19,10 @@ class AgentInlineSkillResource extends AgentSkillResource {
     String name,
     String? description, {
     Object? value = null,
-    Delegate? method = null,
+    Function? method = null,
     JsonSerializerOptions? serializerOptions = null,
     Object? target = null,
-  }) {
+  }) : super(name, description: description) {
     this._value = value;
   }
 

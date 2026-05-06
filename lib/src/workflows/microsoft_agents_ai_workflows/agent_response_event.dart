@@ -9,7 +9,8 @@ class AgentResponseEvent extends WorkflowOutputEvent {
   ///
   /// [response] The agent response.
   AgentResponseEvent(String executorId, AgentResponse response)
-    : response = response {
+    : response = response,
+      super(response, executorId) {
   }
 
   /// Gets the agent response.

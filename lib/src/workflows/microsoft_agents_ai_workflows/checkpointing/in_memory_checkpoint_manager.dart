@@ -42,7 +42,7 @@ class InMemoryCheckpointManager implements CheckpointManager {
     return this.getSessionStore(sessionId).hasCheckpoints;
   }
 
-  (bool, CheckpointInfo??) tryGetLastCheckpoint(String sessionId) {
+  (bool, CheckpointInfo?) tryGetLastCheckpoint(String sessionId) {
     // TODO(transpiler): implement out-param body
     throw UnimplementedError();
   }

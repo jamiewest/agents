@@ -36,7 +36,7 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     AgentFileSkillScriptRunner? scriptRunner,
     AgentFileSkillsSourceOptions? options,
     LoggerFactory? loggerFactory,
-    {String? skillPath = null, Iterable<String>? skillPaths = null, },
+    {String? skillPath = null, Iterable<String>? skillPaths = null, }
   ) : _scriptRunner = scriptRunner;
 
   static final List<String> s_defaultScriptExtensions = [".py", ".js", ".sh", ".ps1", ".cs", ".csx"];
@@ -95,7 +95,7 @@ class AgentFileSkillsSource extends AgentSkillsSource {
       logSkillLoaded(this._logger, skill.frontmatter.name);
     }
     logSkillsLoadedTotal(this._logger, skills.length);
-    return Future.value(skills as IList<AgentSkill>);
+    return Future.value(skills as List<AgentSkill>);
   }
 
   static List<String> discoverSkillDirectories(Iterable<String> skillPaths) {

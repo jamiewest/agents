@@ -19,7 +19,7 @@ class SuperStepCompletedEvent extends SuperStepEvent {
   SuperStepCompletedEvent(
     int stepNumber, {
     SuperStepCompletionInfo? completionInfo = null,
-  });
+  }) : super(stepNumber);
 
   /// Gets the debug information about the state of the system on SuperStep
   /// completion.

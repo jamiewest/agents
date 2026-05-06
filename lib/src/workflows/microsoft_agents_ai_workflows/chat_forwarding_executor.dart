@@ -46,7 +46,7 @@ class ChatForwardingExecutor extends Executor implements ResettableExecutor {
     /* TODO: unsupported node kind "unknown" */
     // void ConfigureRoutes(RouteBuilder routeBuilder)
     //         {
-      //             if (this._stringMessageChatRole.HasValue)
+      //             if (this._stringMessageChatRole != null)
       //             {
         //                 routeBuilder = routeBuilder.AddHandler<String>(
         //                     (message, context) => context.SendMessageAsync(new ChatMessage(this._stringMessageChatRole.Value, message)));
@@ -80,10 +80,10 @@ class ChatForwardingExecutor extends Executor implements ResettableExecutor {
   static Future forwardMessages(
     WorkflowContext context,
     CancellationToken cancellationToken,
-    {Iterable<ChatMessage>? messages, },
+    {Iterable<ChatMessage>? messages, }
   ) {
     return context.sendMessage(
-      messages is List<ChatMessage> messageList ? messageList : messages.toList(),
+      messages is List<ChatMessage> ? messageList : messages.toList(),
       cancellationToken,
     );
   }

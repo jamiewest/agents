@@ -6,8 +6,6 @@ import 'edge_info.dart';
 
 /// Represents a fan-in [Edge] in the [Workflow].
 class FanInEdgeInfo extends EdgeInfo {
-  FanInEdgeInfo({
-    FanInEdgeData? data = null,
-    EdgeConnection? connection = null,
-  });
+  FanInEdgeInfo({FanInEdgeData? data, EdgeConnection? connection})
+      : super(EdgeKind.fanIn, connection ?? EdgeConnection([], []));
 }

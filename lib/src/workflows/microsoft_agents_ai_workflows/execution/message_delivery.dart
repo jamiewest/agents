@@ -10,7 +10,7 @@ class MessageDelivery {
     this.targetId = targetId;
   }
 
-  late final String targetId;
+  late final String? targetId;
 
   final MessageEnvelope envelope;
 

@@ -45,8 +45,8 @@ class SummarizationCompactionStrategy extends CompactionStrategy {
   SummarizationCompactionStrategy(
     ChatClient chatClient,
     CompactionTrigger trigger,
-    {int? minimumPreservedGroups = null, String? summarizationPrompt = null, CompactionTrigger? target = null, },
-  ) : chatClient = chatClient {
+    {int? minimumPreservedGroups = null, String? summarizationPrompt = null, CompactionTrigger? target = null, }
+  ) : chatClient = chatClient, super(trigger, target: target) {
     this.minimumPreservedGroups = ensureNonNegative(minimumPreservedGroups);
     this.summarizationPrompt = summarizationPrompt ?? DefaultSummarizationPrompt;
   }
@@ -67,7 +67,7 @@ class SummarizationCompactionStrategy extends CompactionStrategy {
     CompactionMessageIndex index,
     Logger logger,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     var nonSystemIncludedCount = 0;
     for (var i = 0; i < index.groups.length; i++) {
       var group = index.groups[i];
@@ -132,7 +132,7 @@ class SummarizationCompactionStrategy extends CompactionStrategy {
     }
     var summaryText = (response.text == null || response.text.trim().isEmpty) ? "[Summary unavailable]" : response.text;
     summarizeActivity?.setTag(CompactionTelemetry.tags.summaryLength, summaryText.length);
-    var summaryMessage = new(ChatRole.assistant, '[Summary]\n${summaryText}');
+    var summaryMessage = ChatMessage.fromText(ChatRole.assistant, '[Summary]\n${summaryText}');
     (summaryMessage.additionalProperties ??= [])[CompactionMessageGroup.summaryPropertyKey] = true;
     index.insertGroup(insertIndex, CompactionGroupKind.summary, [summaryMessage]);
     logger.logSummarizationCompleted(summaryText.length, insertIndex);

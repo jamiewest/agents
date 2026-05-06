@@ -9,7 +9,7 @@ class ExecutorPlaceholder extends ExecutorBinding {
   /// unique ID.
   ///
   /// [Id] The unique identifier for the placeholder registration.
-  const ExecutorPlaceholder(String Id);
+  ExecutorPlaceholder(String Id) : super(Id, null, ExecutorPlaceholder);
 
   bool get supportsConcurrentSharedExecution {
     return false;

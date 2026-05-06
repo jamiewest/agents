@@ -17,11 +17,11 @@ class AIAgentBinding extends ExecutorBinding {
   ///
   /// [Options] The options for configuring the AI agent host.
   AIAgentBinding({
-    AIAgent? Agent = null,
-    AIAgentHostOptions? Options = null,
-    AIAgent? agent = null,
-    bool? emitEvents = null,
-  });
+    AIAgent? Agent,
+    AIAgentHostOptions? Options,
+    AIAgent? agent,
+    bool? emitEvents,
+  }) : super((agent ?? Agent)?.id ?? '', null, AIAgentBinding);
 
   /// The AI agent.
   AIAgent agent;

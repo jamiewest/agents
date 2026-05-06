@@ -16,7 +16,8 @@ class SuperStepStartedEvent extends SuperStepEvent {
   ///
   /// [startInfo] Debug information about the state of the system on SuperStep
   /// start.
-  SuperStepStartedEvent(int stepNumber, {SuperStepStartInfo? startInfo = null});
+  SuperStepStartedEvent(int stepNumber, {SuperStepStartInfo? startInfo = null})
+      : super(stepNumber);
 
   /// Gets the debug information about the state of the system on SuperStep
   /// start.

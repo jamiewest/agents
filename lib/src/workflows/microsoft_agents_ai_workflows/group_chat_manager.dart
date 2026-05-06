@@ -25,7 +25,7 @@ abstract class GroupChatManager {
   /// requests. The default is [None].
   Future<AIAgent> selectNextAgent(
     List<ChatMessage> history,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   );
   /// Filters the chat history before it's passed to the next agent.
   ///
@@ -37,7 +37,7 @@ abstract class GroupChatManager {
   /// requests. The default is [None].
   Future<Iterable<ChatMessage>> updateHistory(
     List<ChatMessage> history,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return new(history);
   }
@@ -53,7 +53,7 @@ abstract class GroupChatManager {
   /// requests. The default is [None].
   Future<bool> shouldTerminate(
     List<ChatMessage> history,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return new(this.maximumIterationCount is int max && this.iterationCount >= max);
   }

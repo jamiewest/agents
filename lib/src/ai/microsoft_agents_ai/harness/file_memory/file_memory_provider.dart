@@ -45,7 +45,7 @@ class FileMemoryProvider extends AIContextProvider implements Disposable {
   /// defaults are used.
   FileMemoryProvider(
     AgentFileStore fileStore,
-    {Func<AgentSession?, FileMemoryState>? stateInitializer = null, FileMemoryProviderOptions? options = null, },
+    {Func<AgentSession?, FileMemoryState>? stateInitializer = null, FileMemoryProviderOptions? options = null, }
   ) : _fileStore = fileStore {
     this._instructions = options?.instructions ?? DefaultInstructions;
     this._sessionState = ProviderSessionState<FileMemoryState>(
@@ -79,8 +79,8 @@ class FileMemoryProvider extends AIContextProvider implements Disposable {
   @override
   Future<AIContext> provideAIContext(
     InvokingContext context,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     var state = this._sessionState.getOrInitializeState(context.session);
     if (!(state.workingFolder == null || state.workingFolder.isEmpty)) {
       await this._fileStore.createDirectoryAsync(
@@ -122,8 +122,8 @@ class FileMemoryProvider extends AIContextProvider implements Disposable {
   Future<String> saveFile(
     String fileName,
     String content,
-    {String? description, CancellationToken? cancellationToken, },
-  ) async  {
+    {String? description, CancellationToken? cancellationToken, }
+  ) async {
     if (isInternalFile(fileName)) {
       throw ArgumentError(
         "The provided file name is reserved by the system for internal use. Please choose a different file name.",
@@ -167,7 +167,7 @@ class FileMemoryProvider extends AIContextProvider implements Disposable {
   /// [fileName] The name of the file to read.
   ///
   /// [cancellationToken] A token to cancel the operation.
-  Future<String> readFile(String fileName, {CancellationToken? cancellationToken, }) async  {
+  Future<String> readFile(String fileName, {CancellationToken? cancellationToken, }) async {
     var state = this._sessionState.getOrInitializeState(AIAgent.currentRunContext?.session);
     var path = resolvePath(state.workingFolder, fileName);
     var content = await this._fileStore.readFileAsync(
@@ -185,7 +185,7 @@ class FileMemoryProvider extends AIContextProvider implements Disposable {
   /// [fileName] The name of the file to delete.
   ///
   /// [cancellationToken] A token to cancel the operation.
-  Future<String> deleteFile(String fileName, {CancellationToken? cancellationToken, }) async  {
+  Future<String> deleteFile(String fileName, {CancellationToken? cancellationToken, }) async {
     var state = this._sessionState.getOrInitializeState(AIAgent.currentRunContext?.session);
     var path = resolvePath(state.workingFolder, fileName);
     await this._writeLock.waitAsync(cancellationToken);
@@ -209,7 +209,7 @@ class FileMemoryProvider extends AIContextProvider implements Disposable {
   /// Returns: A list of file entries with names and optional descriptions.
   ///
   /// [cancellationToken] A token to cancel the operation.
-  Future<List<FileListEntry>> listFiles({CancellationToken? cancellationToken}) async  {
+  Future<List<FileListEntry>> listFiles({CancellationToken? cancellationToken}) async {
     var state = this._sessionState.getOrInitializeState(AIAgent.currentRunContext?.session);
     var fileNames = await this._fileStore.listFilesAsync(
       state.workingFolder,
@@ -260,8 +260,8 @@ class FileMemoryProvider extends AIContextProvider implements Disposable {
   /// [cancellationToken] A token to cancel the operation.
   Future<List<FileSearchResult>> searchFiles(
     String regexPattern,
-    {String? filePattern, CancellationToken? cancellationToken, },
-  ) async  {
+    {String? filePattern, CancellationToken? cancellationToken, }
+  ) async {
     var state = this._sessionState.getOrInitializeState(AIAgent.currentRunContext?.session);
     var pattern = (filePattern == null || filePattern.trim().isEmpty) ? null : filePattern;
     var results = await this._fileStore.searchFilesAsync(
@@ -294,7 +294,7 @@ class FileMemoryProvider extends AIContextProvider implements Disposable {
   /// Rebuilds the `memories.md` index file by listing all user files in the
   /// working folder, reading their companion description files, and writing a
   /// markdown summary capped at [MaxIndexEntries] entries.
-  Future rebuildMemoryIndex(FileMemoryState state, CancellationToken cancellationToken, ) async  {
+  Future rebuildMemoryIndex(FileMemoryState state, CancellationToken cancellationToken, ) async {
     var fileNames = await this._fileStore.listFilesAsync(
       state.workingFolder,
       cancellationToken,

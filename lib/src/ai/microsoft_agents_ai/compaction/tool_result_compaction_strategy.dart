@@ -45,8 +45,8 @@ class ToolResultCompactionStrategy extends CompactionStrategy {
   /// as soon as the trigger would no longer fire.
   ToolResultCompactionStrategy(
     CompactionTrigger trigger,
-    {int? minimumPreservedGroups = null, CompactionTrigger? target = null, },
-  ) {
+    {int? minimumPreservedGroups = null, CompactionTrigger? target = null, }
+  ) : super(trigger, target: target) {
     this.minimumPreservedGroups = ensureNonNegative(minimumPreservedGroups);
   }
 
@@ -97,7 +97,7 @@ class ToolResultCompactionStrategy extends CompactionStrategy {
       // Exclude the original group and insert a collapsed replacement
             group.isExcluded = true;
       group.excludeReason = 'Collapsed by ${'ToolResultCompactionStrategy'}';
-      var summaryMessage = new(ChatRole.assistant, summary);
+      var summaryMessage = ChatMessage.fromText(ChatRole.assistant, summary);
       (summaryMessage.additionalProperties ??= [])[CompactionMessageGroup.summaryPropertyKey] = true;
       index.insertGroup(idx + 1, CompactionGroupKind.summary, [summaryMessage], group.turnIndex);
       offset++;
@@ -129,7 +129,7 @@ class ToolResultCompactionStrategy extends CompactionStrategy {
         if (content is FunctionCallContent) {
           final fcc = content as FunctionCallContent;
           functionCalls.add((fcc.callId, fcc.name));
-        } else if (content is FunctionResultContent frc && frc.callId != null) {
+        } else if (content is FunctionResultContent && frc.callId != null) {
           resultsByCallId[frc.callId] = frc.result?.toString() ?? '';
           hasFunctionResult = true;
         }

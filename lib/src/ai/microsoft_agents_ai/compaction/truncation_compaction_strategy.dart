@@ -34,7 +34,7 @@ class TruncationCompactionStrategy extends CompactionStrategy {
     CompactionTrigger trigger, {
     int? minimumPreservedGroups = null,
     CompactionTrigger? target = null,
-  }) {
+  }) : super(trigger, target: target) {
     this.minimumPreservedGroups = ensureNonNegative(minimumPreservedGroups);
   }
 

@@ -46,7 +46,7 @@ class AIContentExternalHandler<TRequestContent,TResponseContent> {
   Future processRequestContents(
     Map<String, TRequestContent> requests,
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     var requestTasks = from String requestId in requests.keys
                                          select this.processRequestContentAsync(
@@ -63,7 +63,7 @@ class AIContentExternalHandler<TRequestContent,TResponseContent> {
     String id,
     TRequestContent requestContent,
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     if (!this._pendingRequests.tryAdd(id, requestContent)) {
       return Future.value();
@@ -96,8 +96,8 @@ class AIContentExternalHandler<TRequestContent,TResponseContent> {
   Future onCheckpointing(
     String id,
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     var pendingRequestsCopy = new(this._pendingRequests);
     await context.queueStateUpdate(
       makeKey(id),
@@ -110,8 +110,8 @@ class AIContentExternalHandler<TRequestContent,TResponseContent> {
   Future onCheckpointRestored(
     String id,
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     var loadedState = await context.readStateAsync<Map<String, TRequestContent>>(
       makeKey(id),
       cancellationToken: cancellationToken,

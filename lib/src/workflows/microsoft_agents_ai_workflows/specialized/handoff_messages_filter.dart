@@ -26,7 +26,7 @@ class HandoffMessagesFilter {
       }
       var retainedContents = new(capacity: unfilteredMessage.contents.length);
       for (final content in unfilteredMessage.contents) {
-        if (content is FunctionCallContent fcc
+        if (content is FunctionCallContent
                     && (filterAllToolCalls || isHandoffFunctionName(fcc.name))) {
           if (!filteredCallsWithoutResponses.add(fcc.callId)) {
             throw StateError("Duplicate FunctionCallContent with CallId ${fcc.callId} without corresponding FunctionResultContent.");

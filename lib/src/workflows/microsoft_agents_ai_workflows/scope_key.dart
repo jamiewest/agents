@@ -38,7 +38,7 @@ class ScopeKey {
   }
 
   @override
-  int getHashCode() {
+  int hashCode {
     return HashCode.combine(this.scopeId, this.key);
   }
 }

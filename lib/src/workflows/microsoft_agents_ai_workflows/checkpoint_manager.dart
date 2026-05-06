@@ -46,7 +46,7 @@ class CheckpointManager {
   /// in messages or state.
   static CheckpointManager createJson(
     CheckpointStore<JsonElement> store,
-    {JsonSerializerOptions? customOptions, },
+    {JsonSerializerOptions? customOptions, }
   ) {
     var marshaller = new(customOptions);
     return new(createImpl(marshaller, store));

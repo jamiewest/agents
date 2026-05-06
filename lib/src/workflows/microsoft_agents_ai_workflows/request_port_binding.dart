@@ -16,15 +16,16 @@ class RequestPortBinding extends ExecutorBinding {
   ///
   /// [AllowWrapped] true to allow wrapped requests to be handled by the port;
   /// otherwise, false. The default is true.
-  RequestPortBinding(RequestPort Port, {bool? AllowWrapped = null})
-    : port = Port;
+  RequestPortBinding(RequestPort Port, {bool? allowWrapped})
+      : port = Port,
+        super(Port.id, null, RequestPort, RawValue: Port);
 
   /// The request port.
   RequestPort port;
 
   /// true to allow wrapped requests to be handled by the port; otherwise,
   /// false. The default is true.
-  bool allowWrapped;
+  bool allowWrapped = true;
 
   bool get isSharedInstance {
     return false;

@@ -31,7 +31,7 @@ class ResponseEdgeRunner extends EdgeRunner<String> {
     MessageEnvelope envelope,
     StepTracer? stepTracer,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     assert(envelope.isExternal, "Input edges should only be chased from external input");
     var activity = this.startActivity();
     activity?
@@ -64,7 +64,7 @@ class ResponseEdgeRunner extends EdgeRunner<String> {
     }
   }
 
-  Future<Executor> findExecutor(StepTracer? tracer) async  {
+  Future<Executor> findExecutor(StepTracer? tracer) async {
     return await this.runContext.ensureExecutor(this.executorId, tracer);
   }
 }

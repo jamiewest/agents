@@ -7,7 +7,8 @@ import 'edge_info.dart';
 
 /// Represents a fan-out [Edge] in the [Workflow].
 class FanOutEdgeInfo extends EdgeInfo {
-  FanOutEdgeInfo({FanOutEdgeData? data = null, bool? hasAssigner = null, EdgeConnection? connection = null, });
+  FanOutEdgeInfo({FanOutEdgeData? data, bool? hasAssigner, EdgeConnection? connection})
+      : super(EdgeKind.fanOut, connection ?? EdgeConnection([], []));
 
   /// Gets a value indicating whether this fan-has an edge-assigner
   /// associated with it.
@@ -15,7 +16,7 @@ class FanOutEdgeInfo extends EdgeInfo {
 
   @override
   bool isMatchInternal(EdgeData edgeData) {
-    return edgeData is FanOutEdgeData fanOutEdge
-            && this.hasAssigner == (fanOutEdge.edgeAssigner != null);
+    return edgeData is FanOutEdgeData
+            && this.hasAssigner == (edgeData.edgeAssigner != null);
   }
 }

@@ -73,8 +73,8 @@ class FileSystemJsonCheckpointStore extends JsonCheckpointStore implements Dispo
         BufferSize,
         leaveOpen: true,
       );
-      while (reader.readLine() is String line) {
-        if (JsonSerializer.deserialize(line, entryTypeInfo) is { } entry) {
+      while (reader.readLine() is String) {
+        if (JsonSerializer.deserialize(line, (entryTypeInfo)) != null) {
           // We never actually use the file names from the index entries since they can be derived from the CheckpointInfo, but it is useful to
                     // have the UrlEncoded file names in the index file for human readability
                     this.checkpointIndex.add(entry.checkpointInfo);
@@ -135,8 +135,8 @@ class FileSystemJsonCheckpointStore extends JsonCheckpointStore implements Dispo
   Future<CheckpointInfo> createCheckpoint(
     String sessionId,
     JsonElement value,
-    {CheckpointInfo? parent, },
-  ) async  {
+    {CheckpointInfo? parent, }
+  ) async {
     this.checkDisposed();
     var key = this.getUnusedCheckpointInfo(sessionId);
     var fileName = this.getFileNameForCheckpoint(sessionId, key);
@@ -165,13 +165,12 @@ class FileSystemJsonCheckpointStore extends JsonCheckpointStore implements Dispo
             // try to clean up after ourselves
                 File.delete(filePath);
           } catch (e, s) {
-            {}
+            }
           }
           throw StateError(
             "Could not create checkpoint in store at ${this.directory.fullName}.",
             ex,
           );
-        }
       } else {
         rethrow;
       }
@@ -179,13 +178,13 @@ class FileSystemJsonCheckpointStore extends JsonCheckpointStore implements Dispo
   }
 
   @override
-  Future<JsonElement> retrieveCheckpoint(String sessionId, CheckpointInfo key, ) async  {
+  Future<JsonElement> retrieveCheckpoint(String sessionId, CheckpointInfo key, ) async {
     this.checkDisposed();
     var fileName = this.getFileNameForCheckpoint(sessionId, key);
     var filePath = p.join(this.directory.fullName, fileName);
     if (!this.checkpointIndex.contains(key) ||
             !File.exists(filePath)) {
-      throw StateError("Checkpoint ${key.checkpointId} not found in store at "${this.directory.fullName}'.');
+      throw StateError('Checkpoint ${key.checkpointId} not found in store at "${this.directory.fullName}".');
     }
     var checkpointFileStream = File.open(filePath, FileMode.open, FileAccess.read, FileShare.read);
     var document = await JsonDocument.parseAsync(checkpointFileStream);

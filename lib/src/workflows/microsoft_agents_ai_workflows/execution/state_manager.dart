@@ -28,7 +28,7 @@ class StateManager {
     return this._queuedUpdates.keys.where((key) => key.isMatchingScope(scopeId, strict: true));
   }
 
-  Future clearState({String? executorId, String? scopeName, ScopeId? scopeId, String? key, }) async  {
+  Future clearState({String? executorId, String? scopeName, ScopeId? scopeId, String? key, }) async {
     // TODO(ai): implement dispatch
     throw UnimplementedError();
   }
@@ -46,7 +46,7 @@ class StateManager {
     return keys;
   }
 
-  Future<Set<String>> readKeys({String? executorId, String? scopeName, ScopeId? scopeId, }) async  {
+  Future<Set<String>> readKeys({String? executorId, String? scopeName, ScopeId? scopeId, }) async {
     return this.readKeysAsync(scopeId(executorId, scopeName));
   }
 
@@ -57,8 +57,8 @@ class StateManager {
   Future<T> readOrInitState<T>(
     String key,
     T Function() initialStateFactory,
-    {String? executorId, String? scopeName, ScopeId? scopeId, },
-  ) async  {
+    {String? executorId, String? scopeName, ScopeId? scopeId, }
+  ) async {
     return this.readOrInitStateAsync(
       scopeId(executorId, scopeName),
       key,
@@ -69,8 +69,8 @@ class StateManager {
   Future<T?> readValueOrDefault<T>(
     ScopeId scopeId,
     String key,
-    {T Function()? defaultValueFactory, bool? initOnDefault, },
-  ) async  {
+    {T Function()? defaultValueFactory, bool? initOnDefault, }
+  ) async {
     if (T == Object) {
       throw UnsupportedError("Reading state as 'Object' is! supported. Use 'PortableValue' instead for variants.");
     }
@@ -87,7 +87,7 @@ class StateManager {
       } else if (T == PortableValue && update.value != null) {
         result = (T)(Object)PortableValue(update.value);
       } else {
-        throw StateError("State for key ${key} in scope "${scopeId}" is! of type ${T.name}.");
+        throw StateError('State for key $key in scope "$scopeId" is not of type $T.');
       }
     } else {
       var scope = this.getOrCreateScope(scopeId);
@@ -113,12 +113,12 @@ class StateManager {
   Future writeState<T>(
     String key,
     T value,
-    {String? executorId, String? scopeName, ScopeId? scopeId, },
+    {String? executorId, String? scopeName, ScopeId? scopeId, }
   ) {
     return this.writeStateAsync(scopeId(executorId, scopeName), key, value);
   }
 
-  Future publishUpdates(StepTracer? tracer) async  {
+  Future publishUpdates(StepTracer? tracer) async {
     var updatesByScope = [];
     for (final key in this._queuedUpdates.keys) {
       if (!updatesByScope.tryGetValue(key.scopeId)) {
@@ -146,7 +146,7 @@ class StateManager {
     }
   }
 
-  Future<Map<ScopeKey, PortableValue>> exportState() async  {
+  Future<Map<ScopeKey, PortableValue>> exportState() async {
     if (this._queuedUpdates.length != 0) {
       throw StateError("Cannot export state while there are queued updates. Call publishUpdatesAsync() first.");
     }

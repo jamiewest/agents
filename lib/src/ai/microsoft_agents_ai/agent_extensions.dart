@@ -54,14 +54,14 @@ AIFunction asAIFunction({AIFunctionFactoryOptions? options, AgentSession? sessio
 //             CancellationToken cancellationToken)
 //         {
 //             // Propagate any additional properties from the parent agent's run to the child agent if the parent is using a FunctionInvokingChatClient.
-//             AgentRunOptions? agentRunOptions = FunctionInvokingChatClient.CurrentContext?.Options?.AdditionalProperties is AdditionalPropertiesDictionary dict
+//             AgentRunOptions? agentRunOptions = FunctionInvokingChatClient.CurrentContext?.Options?.AdditionalProperties is AdditionalPropertiesDictionary
 //                 ? new AgentRunOptions { AdditionalProperties = dict }
 //                 : null;
 //
 //             var response = await agent.RunAsync(query, session: session, options: agentRunOptions, cancellationToken: cancellationToken);
 //             return response.Text;
 //         }
-options ??= new();
+options ??= AIFunctionFactoryOptions();
 options.name ??= sanitizeAgentName(agent.name);
 options.description ??= agent.description;
 return AIFunctionFactory.create(InvokeAgentAsync, options);

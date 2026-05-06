@@ -15,7 +15,7 @@ import '../../json_stubs.dart';
 class WorkflowHostAgent extends AIAgent {
   WorkflowHostAgent(
     Workflow workflow,
-    {String? id = null, String? name = null, String? description = null, WorkflowExecutionEnvironment? executionEnvironment = null, bool? includeExceptionDetails = null, bool? includeWorkflowOutputsInResponse = null, },
+    {String? id = null, String? name = null, String? description = null, WorkflowExecutionEnvironment? executionEnvironment = null, bool? includeExceptionDetails = null, bool? includeWorkflowOutputsInResponse = null, }
   ) : _workflow = workflow {
     this._executionEnvironment = executionEnvironment ?? (workflow.allowConcurrent
                                                               ? InProcessExecution.concurrent
@@ -63,7 +63,7 @@ class WorkflowHostAgent extends AIAgent {
     return result;
   }
 
-  Future validateWorkflow() async  {
+  Future validateWorkflow() async {
     var protocol = await this._describeTask;
     protocol.throwIfNotChatProtocol(allowCatchAll: true);
   }
@@ -76,11 +76,11 @@ class WorkflowHostAgent extends AIAgent {
   @override
   Future<JsonElement> serializeSessionCore(
     AgentSession session,
-    {JsonSerializerOptions? JsonSerializerOptions, CancellationToken? cancellationToken, },
+    {JsonSerializerOptions? JsonSerializerOptions, CancellationToken? cancellationToken, }
   ) {
-    _ = session;
+    session;
     if (session is! WorkflowSession WorkflowSession) {
-      throw StateError("The provided session type ${session.runtimeType.toString()} is! compatible with this agent. Only sessions of type "${'WorkflowSession'}' can be serialized by this agent.');
+      throw StateError('The provided session type ${session.runtimeType.toString()} is! compatible with this agent. Only sessions of type "${'WorkflowSession'}" can be serialized by this agent.');
     }
     return new(WorkflowSession.serialize(JsonSerializerOptions));
   }
@@ -88,15 +88,15 @@ class WorkflowHostAgent extends AIAgent {
   @override
   Future<AgentSession> deserializeSessionCore(
     JsonElement serializedState,
-    {JsonSerializerOptions? JsonSerializerOptions, CancellationToken? cancellationToken, },
+    {JsonSerializerOptions? JsonSerializerOptions, CancellationToken? cancellationToken, }
   ) {
     return new(WorkflowSession(this._workflow, serializedState, this._executionEnvironment, this._includeExceptionDetails, this._includeWorkflowOutputsInResponse, JsonSerializerOptions));
   }
 
   Future<WorkflowSession> updateSession(
     Iterable<ChatMessage> messages,
-    {AgentSession? session, CancellationToken? cancellationToken, },
-  ) async  {
+    {AgentSession? session, CancellationToken? cancellationToken, }
+  ) async {
     session ??= await this.createSessionAsync(cancellationToken);
     if (session is! WorkflowSession WorkflowSession) {
       throw ArgumentError(
@@ -113,8 +113,8 @@ class WorkflowHostAgent extends AIAgent {
   @override
   Future<AgentResponse> runCore(
     Iterable<ChatMessage> messages,
-    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, },
-  ) async  {
+    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, }
+  ) async {
     await this.validateWorkflowAsync();
     var WorkflowSession = await this.updateSessionAsync(
       messages,
@@ -136,8 +136,8 @@ class WorkflowHostAgent extends AIAgent {
   @override
   Stream<AgentResponseUpdate> runCoreStreaming(
     Iterable<ChatMessage> messages,
-    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, },
-  ) async  {
+    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, }
+  ) async* {
     await this.validateWorkflowAsync();
     var WorkflowSession = await this.updateSessionAsync(
       messages,

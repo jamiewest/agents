@@ -60,7 +60,7 @@ abstract class StatefulExecutor<TState,TInput,TOutput> extends StatefulExecutor<
   StatefulExecutor(
     String id,
     TState Function() initialStateFactory,
-    {StatefulExecutorOptions? options = null, Iterable<Type>? sentMessageTypes = null, Iterable<Type>? outputTypes = null, bool? declareCrossRunShareable = null, },
+    {StatefulExecutorOptions? options, Iterable<Type>? sentMessageTypes, Iterable<Type>? outputTypes, bool? declareCrossRunShareable}
   );
 
   @override
@@ -77,7 +77,7 @@ abstract class StatefulExecutor<TState,TInput,TOutput> extends StatefulExecutor<
   Future<TOutput> handle(
     TInput message,
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   );
 }
 /// Provides a simple executor implementation that uses a single message
@@ -132,7 +132,7 @@ abstract class StatefulExecutor<TState,TInput> extends StatefulExecutor<TState> 
   StatefulExecutor(
     String id,
     TState Function() initialStateFactory,
-    {StatefulExecutorOptions? options = null, Iterable<Type>? sentMessageTypes = null, Iterable<Type>? outputTypes = null, bool? declareCrossRunShareable = null, },
+    {StatefulExecutorOptions? options = null, Iterable<Type>? sentMessageTypes = null, Iterable<Type>? outputTypes = null, bool? declareCrossRunShareable = null, }
   );
 
   @override
@@ -170,10 +170,8 @@ abstract class StatefulExecutor<TState> extends Executor {
   StatefulExecutor(
     String id,
     TState Function() initialStateFactory,
-    {StatefulExecutorOptions? options = null, bool? declareCrossRunShareable = null, },
-  ) : _initialStateFactory = initialStateFactory {
-    this.options = (StatefulExecutorOptions)super.options;
-  }
+    {StatefulExecutorOptions? options, bool? declareCrossRunShareable}
+  ) : _initialStateFactory = initialStateFactory;
 
   final TState Function() _initialStateFactory;
 
@@ -204,8 +202,8 @@ abstract class StatefulExecutor<TState> extends Executor {
   /// requests. The default is [None].
   Future<TState> readState(
     WorkflowContext context,
-    {bool? skipCache, CancellationToken? cancellationToken, },
-  ) async  {
+    {bool? skipCache, CancellationToken? cancellationToken, }
+  ) async {
     if (!skipCache && this._stateCache != null) {
       return this._stateCache;
     }
@@ -235,7 +233,7 @@ abstract class StatefulExecutor<TState> extends Executor {
   Future queueStateUpdate(
     TState state,
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     if (!context.concurrentRunsEnabled) {
       this._stateCache = state;
@@ -266,8 +264,8 @@ abstract class StatefulExecutor<TState> extends Executor {
   Future invokeWithState(
     Func3<TState, WorkflowContext, CancellationToken, Future<TState?>> invocation,
     WorkflowContext context,
-    {bool? skipCache, CancellationToken? cancellationToken, },
-  ) async  {
+    {bool? skipCache, CancellationToken? cancellationToken, }
+  ) async {
     if (!skipCache && !context.concurrentRunsEnabled) {
       if (this._stateCache == null) {
         this._stateCache = await context.readOrInitStateAsync(

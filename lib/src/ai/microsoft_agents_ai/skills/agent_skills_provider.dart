@@ -1,4 +1,5 @@
 import 'package:extensions/system.dart';
+import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
 import 'package:extensions/dependency_injection.dart';
 import '../../../abstractions/microsoft_agents_ai_abstractions/ai_context.dart';
@@ -47,8 +48,8 @@ class AgentSkillsProvider extends AIContextProvider {
   @override
   Future<AIContext> provideAIContext(
     InvokingContext context,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     if (this._options?.disableCaching == true) {
       return await this.createContextAsync(context, cancellationToken);
     }
@@ -58,9 +59,9 @@ class AgentSkillsProvider extends AIContextProvider {
   Future<AIContext> createContext(
     InvokingContext context,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     var skills = await this._source.getSkillsAsync(cancellationToken);
-    if (skills is not { Count: > 0 }) {
+    if (skills == null || skills.isEmpty) {
       return await super.provideAIContextAsync(context, cancellationToken);
     }
     var hasScripts = skills.any((s) => s.scripts ?.isNotEmpty == true);
@@ -71,7 +72,7 @@ class AgentSkillsProvider extends AIContextProvider {
   Future<AIContext> getOrCreateContext(
     InvokingContext context,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     var tcs = TaskCompletionSource<AIContext>(TaskCreationOptions.runContinuationsAsynchronously);
     if ((() { final _old = this._contextTask; if (_old == null) this._contextTask = tcs.task; return _old; })() is { } existing) {
       return await existing;
@@ -141,9 +142,9 @@ class AgentSkillsProvider extends AIContextProvider {
             name: "run_skill_script",
             description: "Runs a script associated with a skill.");
     if (this._options?.scriptApproval == true) {
-      return [.. tools, approvalRequiredAIFunction(scriptFunction)];
+      return [...tools, approvalRequiredAIFunction(scriptFunction)];
     }
-    return [.. tools, scriptFunction];
+    return [...tools, scriptFunction];
   }
 
   String? buildSkillsInstructions(
@@ -192,8 +193,8 @@ class AgentSkillsProvider extends AIContextProvider {
     String skillName,
     String resourceName,
     ServiceProvider? serviceProvider,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     if ((skillName == null || skillName.trim().isEmpty)) {
       return "Error: Skill name cannot be empty.";
     }
@@ -206,7 +207,7 @@ class AgentSkillsProvider extends AIContextProvider {
     }
     var resource = skill.resources?.firstOrDefault((resource) => resource.name == resourceName);
     if (resource == null) {
-      return "Error: Resource ${resourceName} not found in skill "${skillName}'.';
+      return 'Error: Resource ${resourceName} not found in skill "${skillName}".';
     }
     try {
       return await resource.readAsync(serviceProvider, cancellationToken);
@@ -215,7 +216,7 @@ class AgentSkillsProvider extends AIContextProvider {
         final ex = e as Exception;
         {
           logResourceReadError(this._logger, skillName, resourceName, ex);
-          return "Error: Failed to read resource ${resourceName} from skill "${skillName}'.';
+          return 'Error: Failed to read resource ${resourceName} from skill "${skillName}".';
         }
       } else {
         rethrow;
@@ -227,8 +228,8 @@ class AgentSkillsProvider extends AIContextProvider {
     List<AgentSkill> skills,
     String skillName,
     String scriptName,
-    {JsonElement? arguments, ServiceProvider? serviceProvider, CancellationToken? cancellationToken, },
-  ) async  {
+    {JsonElement? arguments, ServiceProvider? serviceProvider, CancellationToken? cancellationToken, }
+  ) async {
     if ((skillName == null || skillName.trim().isEmpty)) {
       return "Error: Skill name cannot be empty.";
     }
@@ -241,7 +242,7 @@ class AgentSkillsProvider extends AIContextProvider {
     }
     var script = skill.scripts?.firstOrDefault((resource) => resource.name == scriptName);
     if (script == null) {
-      return "Error: Script ${scriptName} not found in skill "${skillName}'.';
+      return 'Error: Script ${scriptName} not found in skill "${skillName}".';
     }
     try {
       return await script.runAsync(
@@ -255,7 +256,7 @@ class AgentSkillsProvider extends AIContextProvider {
         final ex = e as Exception;
         {
           logScriptExecutionError(this._logger, skillName, scriptName, ex);
-          return "Error: Failed to execute script ${scriptName} from skill "${skillName}'.';
+          return 'Error: Failed to execute script ${scriptName} from skill "${skillName}".';
         }
       } else {
         rethrow;

@@ -10,7 +10,8 @@ class AgentResponseUpdateEvent extends WorkflowOutputEvent {
   ///
   /// [update] The agent run response update.
   AgentResponseUpdateEvent(String executorId, AgentResponseUpdate update)
-    : update = update {
+    : update = update,
+      super(update, executorId) {
   }
 
   /// Gets the agent run response update.

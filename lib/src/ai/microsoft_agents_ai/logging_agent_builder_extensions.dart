@@ -30,8 +30,8 @@ extension LoggingAgentBuilderExtensions on AIAgentBuilder {
 /// the [LoggingAgent] instance. This allows for fine-tuning logging behavior
 /// such as customizing JSON serialization options.
 AIAgentBuilder useLogging({LoggerFactory? loggerFactory, Action<LoggingAgent>? configure, }) {
-return builder.use((innerAgent, services) =>
-        {
+return builder.use((innerAgent, services) {
+        
             loggerFactory ??= services.getRequiredService<LoggerFactory>();
 
             // If the factory we resolve is for the null logger, the LoggingAgent will end up

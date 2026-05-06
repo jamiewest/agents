@@ -1,3 +1,4 @@
+import 'executor.dart';
 import 'executor_binding.dart';
 import 'resettable_executor.dart';
 
@@ -10,8 +11,10 @@ class ExecutorInstanceBinding extends ExecutorBinding {
   /// including configuration options for event emission.
   ///
   /// [ExecutorInstance] The executor instance to bind. Cannot be null.
-  const ExecutorInstanceBinding(Executor ExecutorInstance)
-    : executorInstance = ExecutorInstance;
+  ExecutorInstanceBinding(Executor ExecutorInstance)
+      : executorInstance = ExecutorInstance,
+        super(ExecutorInstance.id, null, ExecutorInstance.runtimeType,
+            RawValue: ExecutorInstance);
 
   /// The executor instance to bind. Cannot be null.
   Executor executorInstance;

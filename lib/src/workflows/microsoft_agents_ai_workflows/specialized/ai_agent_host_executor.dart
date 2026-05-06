@@ -62,8 +62,8 @@ class AIAgentHostExecutor extends ChatProtocolExecutor {
     if (!this._userInputHandler!.markRequestAsHandled(response.requestId)) {
       throw StateError("No pending ToolApprovalRequest found with id ${response.requestId}.");
     }
-    return this.processTurnMessagesAsync(async (pendingMessages, ctx, ct) =>
-        {
+    return this.processTurnMessagesAsync(async (pendingMessages, ctx, ct) {
+        
             pendingMessages.add(ChatMessage(role: ChatRole.user, contents: [response]));
 
             await this.continueTurnAsync(
@@ -86,8 +86,8 @@ class AIAgentHostExecutor extends ChatProtocolExecutor {
     if (!this._functionCallHandler!.markRequestAsHandled(result.callId)) {
       throw StateError("No pending FunctionCall found with id ${result.callId}.");
     }
-    return this.processTurnMessagesAsync(async (pendingMessages, ctx, ct) =>
-        {
+    return this.processTurnMessagesAsync(async (pendingMessages, ctx, ct) {
+        
             pendingMessages.add(ChatMessage(role: ChatRole.tool, contents: [result]));
 
             await this.continueTurnAsync(
@@ -105,12 +105,12 @@ class AIAgentHostExecutor extends ChatProtocolExecutor {
   Future<AgentSession> ensureSession(
     WorkflowContext context,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     return this._session ??= await this._agent.createSessionAsync(cancellationToken);
   }
 
   @override
-  Future onCheckpointing(WorkflowContext context, {CancellationToken? cancellationToken, }) async  {
+  Future onCheckpointing(WorkflowContext context, {CancellationToken? cancellationToken, }) async {
     var sessionState = this._session != null ? await this._agent.serializeSessionAsync(
       this._session,
       cancellationToken: cancellationToken,
@@ -143,8 +143,8 @@ class AIAgentHostExecutor extends ChatProtocolExecutor {
   @override
   Future onCheckpointRestored(
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     var userInputRestoreTask = this._userInputHandler?.onCheckpointRestoredAsync(
       UserInputRequestStateKey,
       context,
@@ -160,7 +160,7 @@ class AIAgentHostExecutor extends ChatProtocolExecutor {
       cancellationToken: cancellationToken,
     ) ;
     if (state != null) {
-      this._session = state.threadState.hasValue
+      this._session = state.threadState != null
                          ? await this._agent.deserializeSessionAsync(
                            state.threadState.value,
                            cancellationToken: cancellationToken,
@@ -182,7 +182,7 @@ class AIAgentHostExecutor extends ChatProtocolExecutor {
     WorkflowContext context,
     bool emitEvents,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     this._currentTurnEmitEvents = emitEvents;
     if (this._options.forwardIncomingMessages) {
       await context.sendMessage(messages, cancellationToken);
@@ -197,7 +197,7 @@ class AIAgentHostExecutor extends ChatProtocolExecutor {
       cancellationToken,
     ) ;
     await context.sendMessage(
-      response.messages is List<ChatMessage> list ? list : response.messages.toList(),
+      response.messages is List<ChatMessage> ? list : response.messages.toList(),
       cancellationToken,
     )
                      ;
@@ -215,7 +215,7 @@ class AIAgentHostExecutor extends ChatProtocolExecutor {
     List<ChatMessage> messages,
     WorkflowContext context,
     bool? emitEvents,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return this.continueTurnAsync(messages,
                                   context,
@@ -230,8 +230,8 @@ class AIAgentHostExecutor extends ChatProtocolExecutor {
     Iterable<ChatMessage> messages,
     WorkflowContext context,
     bool emitUpdateEvents,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     AgentResponse response;
     var collector = new(this._userInputHandler, this._functionCallHandler);
     if (emitUpdateEvents) {

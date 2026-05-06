@@ -62,7 +62,7 @@ class RequestInfoExecutor extends Executor {
     PortableValue message,
     WorkflowContext context,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     var maybeRequest = message.asType(this.port.request);
     if (maybeRequest != null) {
       assert(this.port.request.isInstanceOfType(maybeRequest));
@@ -78,14 +78,14 @@ class RequestInfoExecutor extends Executor {
   Future<ExternalRequest> handle(
     WorkflowContext context,
     CancellationToken cancellationToken,
-    {ExternalRequest? message, },
-  ) async  {
+    {ExternalRequest? message, }
+  ) async {
     // TODO(ai): implement dispatch
     throw UnimplementedError();
   }
 
   @override
-  Future onCheckpointing(WorkflowContext context, {CancellationToken? cancellationToken, }) async  {
+  Future onCheckpointing(WorkflowContext context, {CancellationToken? cancellationToken, }) async {
     await context.queueStateUpdate(WrappedRequestsStateKey,
                                             new Dictionary<String, ExternalRequest>(
                                               this._wrappedRequests,
@@ -98,8 +98,8 @@ class RequestInfoExecutor extends Executor {
   @override
   Future onCheckpointRestored(
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     await super.onCheckpointRestoredAsync(context, cancellationToken);
     this._wrappedRequests.clear();
     var wrappedRequests = await context.readStateAsync<Map<String, ExternalRequest>>(

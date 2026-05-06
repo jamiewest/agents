@@ -35,7 +35,7 @@ class WorkflowHostExecutor extends Executor implements AsyncDisposable {
     ProtocolDescriptor workflowProtocol,
     String sessionId,
     Object ownershipToken,
-    {ExecutorOptions? options = null, },
+    {ExecutorOptions? options = null, }
   ) :
       _workflow = workflow,
       _workflowProtocol = workflowProtocol,
@@ -83,7 +83,7 @@ class WorkflowHostExecutor extends Executor implements AsyncDisposable {
     PortableValue PortableValue,
     WorkflowContext context,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     if (PortableValue.isValue(response)) {
       response = this.checkAndUnqualifyResponse(response);
       await this.ensureRunSendMessageAsync(
@@ -114,7 +114,7 @@ class WorkflowHostExecutor extends Executor implements AsyncDisposable {
     return this._joinContext!;
   }
 
-  Future<InProcessRunner> ensureRunner() async  {
+  Future<InProcessRunner> ensureRunner() async {
     if (this._activeRunner == null) {
       if (this.joinContext.isCheckpointingEnabled) {
         // Use a seprate in-memory checkpoint manager for scoping purposes. We do not need to worry about
@@ -132,7 +132,7 @@ class WorkflowHostExecutor extends Executor implements AsyncDisposable {
     return this._activeRunner;
   }
 
-  Future<StreamingRun> ensureRunSendMessage({Object? incomingMessage, Type? incomingMessageType, bool? resume, CancellationToken? cancellationToken, }) async  {
+  Future<StreamingRun> ensureRunSendMessage({Object? incomingMessage, Type? incomingMessageType, bool? resume, CancellationToken? cancellationToken, }) async {
     assert(
       this._joinContext != null,
       "Must attach to a join context before starting the run.",
@@ -215,7 +215,7 @@ class WorkflowHostExecutor extends Executor implements AsyncDisposable {
     return internalRequest with { PortInfo = requestPort };
   }
 
-  Future forwardWorkflowEvent(Object? sender, WorkflowEvent evt, ) async  {
+  Future forwardWorkflowEvent(Object? sender, WorkflowEvent evt, ) async {
     try {
       var resultTask = Task.value(null);
       switch (evt) {
@@ -256,23 +256,22 @@ class WorkflowHostExecutor extends Executor implements AsyncDisposable {
         final ex = e as Exception;
         {
           try {
-            _ = this._joinContext?.forwardWorkflowEventAsync(subworkflowErrorEvent(this.id, ex)).future;
+            this._joinContext?.forwardWorkflowEventAsync(subworkflowErrorEvent(this.id, ex)).future;
           } catch (e, s) {
-            {}
+            }
           }
-        }
       } else {
         rethrow;
       }
     }
   }
 
-  Future attachSuperStepContext(SuperStepJoinContext joinContext) async  {
+  Future attachSuperStepContext(SuperStepJoinContext joinContext) async {
     this._joinContext = joinContext;
   }
 
   @override
-  Future onCheckpointing(WorkflowContext context, {CancellationToken? cancellationToken, }) async  {
+  Future onCheckpointing(WorkflowContext context, {CancellationToken? cancellationToken, }) async {
     await context.queueStateUpdate(
       CheckpointManagerStateKey,
       this._checkpointManager,
@@ -290,8 +289,8 @@ class WorkflowHostExecutor extends Executor implements AsyncDisposable {
   @override
   Future onCheckpointRestored(
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     await super.onCheckpointRestoredAsync(context, cancellationToken);
     var manager = await context.readStateAsync<InMemoryCheckpointManager>(
       CheckpointManagerStateKey,
@@ -316,7 +315,7 @@ class WorkflowHostExecutor extends Executor implements AsyncDisposable {
     ) ;
   }
 
-  Future reset() async  {
+  Future reset() async {
     if (this._run != null) {
       await this._run.disposeAsync();
       this._run = null;

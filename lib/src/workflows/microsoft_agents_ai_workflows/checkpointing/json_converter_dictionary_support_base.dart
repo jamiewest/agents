@@ -13,7 +13,7 @@ abstract class JsonConverterDictionarySupportBase<T> extends JsonConverterBase<T
   T parse(String propertyName);
   static String escape(
     String? value,
-    {char? escapeChar, bool? allowNullAndPad, String? componentName, },
+    {char? escapeChar, bool? allowNullAndPad, String? componentName, }
   ) {
     if (!allowNullAndPad && value == null) {
       throw FormatException("Invalid ${componentName} ${value}. Expecting non-null String.");
@@ -31,7 +31,7 @@ abstract class JsonConverterDictionarySupportBase<T> extends JsonConverterBase<T
 
   static String? unescape(
     String value,
-    {char? escapeChar, bool? allowNullAndPad, String? componentName, },
+    {char? escapeChar, bool? allowNullAndPad, String? componentName, }
   ) {
     if (value.length == 0) {
       if (!allowNullAndPad) {

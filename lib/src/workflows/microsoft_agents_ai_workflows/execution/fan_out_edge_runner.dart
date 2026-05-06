@@ -15,7 +15,7 @@ class FanOutEdgeRunner extends EdgeRunner<FanOutEdgeData> {
     MessageEnvelope envelope,
     StepTracer? stepTracer,
     CancellationToken cancellationToken,
-  ) async  {
+  ) async {
     var activity = this.startActivity();
     activity?
             .setTag(Tags.edgeGroupType, 'FanOutEdgeRunner')

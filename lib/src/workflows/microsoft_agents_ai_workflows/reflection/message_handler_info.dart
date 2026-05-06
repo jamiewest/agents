@@ -59,7 +59,7 @@ class MessageHandlerInfo {
 
   static Func3<Object, WorkflowContext, CancellationToken, Future<CallResult>> bind(
     bool checkType,
-    {Func3<Object, WorkflowContext, CancellationToken, Object?>? handlerAsync, Type? resultType, Func<Object, Future<Object?>>? unwrapper, ReflectingExecutor<TExecutor>? executor, },
+    {Func3<Object, WorkflowContext, CancellationToken, Object?>? handlerAsync, Type? resultType, Func<Object, Future<Object?>>? unwrapper, ReflectingExecutor<TExecutor>? executor, }
   ) {
     return InvokeHandlerAsync;
     /* TODO: unsupported node kind "unknown" */
@@ -73,7 +73,7 @@ class MessageHandlerInfo {
         //
         //                 if (expectingVoid)
         //                 {
-          //                     if (maybeValueTask is ValueTask vt)
+          //                     if (maybeValueTask is ValueTask)
           //                     {
             //                         await vt;
             //                         return CallResult.ReturnVoid();

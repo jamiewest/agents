@@ -97,7 +97,7 @@ class HandoffAgentExecutor extends StatefulExecutor<HandoffAgentHostState, Hando
                     AllowMultipleToolCalls = false,
                     Instructions = handoffInstructions,
                     Tools = [],
-                },
+                }
             };
       var index = 0;
       for (final handoff in handoffs) {
@@ -143,14 +143,14 @@ class HandoffAgentExecutor extends StatefulExecutor<HandoffAgentHostState, Hando
     if (!this._userInputHandler!.markRequestAsHandled(response.requestId)) {
       throw StateError("No pending ToolApprovalRequest found with id ${response.requestId}.");
     }
-    return this.invokeWithState((state, ctx, ct) =>
-        {
+    return this.invokeWithState((state, ctx, ct) {
+        
             if (!state.isTakingTurn)
             {
                 throw StateError("Cannot process user responses when not taking a turn in Handoff Orchestration.");
       }
 
-            ChatMessage userMessage = new(ChatRole.user, [response])
+            ChatMessage userMessage = ChatMessage(role: ChatRole.user, contents: [response])
             {
                 CreatedAt = DateTime.now().toUtc(),
                 MessageId = List.generate(32, (_) => Random.secure().nextInt(16).toRadixString(16)).join(),
@@ -168,14 +168,14 @@ class HandoffAgentExecutor extends StatefulExecutor<HandoffAgentHostState, Hando
     if (!this._functionCallHandler!.markRequestAsHandled(result.callId)) {
       throw StateError("No pending FunctionCall found with id ${result.callId}.");
     }
-    return this.invokeWithState((state, ctx, ct) =>
-        {
+    return this.invokeWithState((state, ctx, ct) {
+        
             if (!state.isTakingTurn)
             {
                 throw StateError("Cannot process user responses in when not taking a turn in Handoff Orchestration.");
       }
 
-            ChatMessage toolMessage = new(ChatRole.tool, [result])
+            ChatMessage toolMessage = ChatMessage(role: ChatRole.tool, contents: [result])
             {
                 AuthorName = this._agent.name ?? this._agent.id,
                 CreatedAt = DateTime.now().toUtc(),
@@ -191,8 +191,8 @@ class HandoffAgentExecutor extends StatefulExecutor<HandoffAgentHostState, Hando
     List<ChatMessage> incomingMessages,
     WorkflowContext context,
     CancellationToken cancellationToken,
-    {bool? skipAddIncoming, },
-  ) async  {
+    {bool? skipAddIncoming, }
+  ) async {
     if (!state.isTakingTurn) {
       throw StateError("Cannot process user responses in when not taking a turn in Handoff Orchestration.");
     }
@@ -215,8 +215,8 @@ class HandoffAgentExecutor extends StatefulExecutor<HandoffAgentHostState, Hando
     roleChanges.resetUserToAssistantForChangedRoles();
     var newConversationBookmark = state.conversationBookmark;
     await this._sharedStateRef.invokeWithState(
-            (sharedState, ctx, ct) =>
-            {
+            (sharedState, ctx, ct) {
+            
                 if (sharedState == null)
                 {
                     throw StateError("Handoff Orchestration shared state was not properly initialized.");
@@ -249,7 +249,7 @@ class HandoffAgentExecutor extends StatefulExecutor<HandoffAgentHostState, Hando
   Future handle(
     HandoffState message,
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return this.invokeWithState(
       InvokeContinueTurnAsync,
@@ -292,7 +292,7 @@ class HandoffAgentExecutor extends StatefulExecutor<HandoffAgentHostState, Hando
   }
 
   @override
-  Future onCheckpointing(WorkflowContext context, {CancellationToken? cancellationToken, }) async  {
+  Future onCheckpointing(WorkflowContext context, {CancellationToken? cancellationToken, }) async {
     var userInputRequestsTask = this._userInputHandler?.onCheckpointingAsync(
       UserInputRequestStateKey,
       context,
@@ -322,8 +322,8 @@ class HandoffAgentExecutor extends StatefulExecutor<HandoffAgentHostState, Hando
   @override
   Future onCheckpointRestored(
     WorkflowContext context,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     var userInputRestoreTask = this._userInputHandler?.onCheckpointRestoredAsync(
       UserInputRequestStateKey,
       context,
@@ -345,7 +345,7 @@ class HandoffAgentExecutor extends StatefulExecutor<HandoffAgentHostState, Hando
     // async Task RestoreAgentSessionAsync()
     //         {
       //             JsonElement? sessionState = await context.ReadStateAsync<JsonElement?>(AgentSessionKey, cancellationToken: cancellationToken);
-      //             if (sessionState.HasValue)
+      //             if (sessionState != null)
       //             {
         //                 this._session = await this._agent.DeserializeSessionAsync(sessionState.Value, cancellationToken: cancellationToken);
         //             }
@@ -361,16 +361,16 @@ class HandoffAgentExecutor extends StatefulExecutor<HandoffAgentHostState, Hando
     Iterable<ChatMessage> messages,
     WorkflowContext context,
     bool emitUpdateEvents,
-    {CancellationToken? cancellationToken, },
-  ) async  {
+    {CancellationToken? cancellationToken, }
+  ) async {
     AgentResponse response;
     var collector = new(this._userInputHandler, this._functionCallHandler);
     var requestedHandoff = null;
     var updates = [];
     var candidateRequests = [];
     await this.invokeWithState(
-            async (state, ctx, ct) =>
-            {
+            async (state, ctx, ct) {
+            
                 this._session ??= await this._agent.createSessionAsync(ct);
 
                 Stream<AgentResponseUpdate> agentStream =
@@ -379,7 +379,7 @@ class HandoffAgentExecutor extends StatefulExecutor<HandoffAgentHostState, Hando
                                                   options: this._agentOptions,
                                                   cancellationToken: ct);
 
-                await foreach (AgentResponseUpdate update in agentStream)
+                await for (final update in agentStream)
                 {
                     await addUpdateAsync(update, ct);
 
@@ -497,7 +497,7 @@ class StateRef<TState> {
   Future invokeWithState(
     WorkflowContext context,
     CancellationToken cancellationToken,
-    {Func3<TState?, WorkflowContext, CancellationToken, Future<TState?>>? invocation, },
+    {Func3<TState?, WorkflowContext, CancellationToken, Future<TState?>>? invocation, }
   ) {
     return context.invokeWithState(invocation, this.key, this.scopeName, cancellationToken);
   }

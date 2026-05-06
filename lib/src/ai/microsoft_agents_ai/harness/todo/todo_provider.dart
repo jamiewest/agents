@@ -1,4 +1,5 @@
 import 'package:extensions/system.dart';
+import 'package:extensions/ai.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/agent_session.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/agent_session_state_bag.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/ai_context.dart';
@@ -68,7 +69,7 @@ class TodoProvider extends AIContextProvider {
   @override
   Future<AIContext> provideAIContext(
     InvokingContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     var state = this._sessionState.getOrInitializeState(context.session);
     return Future<AIContext>(AIContext());
@@ -78,10 +79,10 @@ class TodoProvider extends AIContextProvider {
     var serializerOptions = AgentJsonUtilities.defaultOptions;
     return [
             AIFunctionFactory.create(
-                (List<TodoItemInput> todos) =>
-                {
+                (List<TodoItemInput> todos) {
+                
                     var created = List<TodoItem>();
-                    foreach (var input in todos)
+                    for (final input in todos)
                     {
                         var item = todoItem();
                         state.items.add(item);
@@ -94,11 +95,11 @@ class TodoProvider extends AIContextProvider {
                 AIFunctionFactoryOptions()),
 
             AIFunctionFactory.create(
-                (List<int> ids) =>
-                {
+                (List<int> ids) {
+                
                     var idSet = Set<int>(ids);
                     int completed = 0;
-                    foreach (TodoItem item in state.items)
+                    for (final item in state.items)
                     {
                         if (!item.isComplete && idSet.contains(item.id))
                         {
@@ -117,8 +118,8 @@ class TodoProvider extends AIContextProvider {
                 AIFunctionFactoryOptions()),
 
             AIFunctionFactory.create(
-                (List<int> ids) =>
-                {
+                (List<int> ids) {
+                
                     var idSet = Set<int>(ids);
                     int removed = state.items.removeAll((t) => idSet.contains(t.id));
 

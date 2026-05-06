@@ -43,9 +43,9 @@ abstract class CompactionStrategy {
   /// `trigger` — compaction stops as soon as the trigger condition would no
   /// longer fire.
   CompactionStrategy(
-    CompactionTrigger trigger,
-    {CompactionTrigger? target = null, },
-  ) : trigger = trigger {
+    this.trigger,
+    {CompactionTrigger? target, }
+  ) {
     this.target = target ?? ((index) => !trigger(index));
   }
 
@@ -96,8 +96,8 @@ abstract class CompactionStrategy {
   /// requests.
   Future<bool> compact(
     CompactionMessageIndex index,
-    {Logger? logger, CancellationToken? cancellationToken, },
-  ) async  {
+    {Logger? logger, CancellationToken? cancellationToken, }
+  ) async {
     var strategyName = this.runtimeType.toString();
     logger ??= NullLogger.instance;
     var activity = CompactionTelemetry.activitySource.startActivity(CompactionTelemetry.activityNames.compact);

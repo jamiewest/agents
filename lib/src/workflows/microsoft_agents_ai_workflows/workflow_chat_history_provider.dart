@@ -34,7 +34,7 @@ class WorkflowChatHistoryProvider extends ChatHistoryProvider {
   @override
   Future<Iterable<ChatMessage>> provideChatHistory(
     InvokingContext context,
-    {CancellationToken? cancellationToken, },
+    {CancellationToken? cancellationToken, }
   ) {
     return new(this._sessionState.getOrInitializeState(context.session).messages.asReadOnly());
   }
