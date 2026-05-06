@@ -1,4 +1,5 @@
 import 'package:extensions/system.dart';
+import '../executor.dart';
 import '../observability/workflow_telemetry_context.dart';
 import '../workflow_context.dart';
 import '../workflow_event.dart';
@@ -14,9 +15,9 @@ abstract class RunnerContext
     WorkflowEvent workflowEvent, {
     CancellationToken? cancellationToken,
   });
-  Future sendMessage(
+  Future sendMessage<TMessage>(
     String sourceId,
-    Object message, {
+    TMessage message, {
     String? targetId,
     CancellationToken? cancellationToken,
   });

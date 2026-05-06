@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'dart:io';
 import 'package:extensions/system.dart';
 import 'package:extensions/dependency_injection.dart';
 import '../agent_skill_resource.dart';
@@ -24,7 +24,6 @@ class AgentFileSkillResource extends AgentSkillResource {
     ServiceProvider? serviceProvider,
     CancellationToken? cancellationToken,
   }) async {
-    var reader = streamReader(this.fullPath, const Utf8Codec());
-    return await reader.readToEndAsync();
+    return await File(this.fullPath).readAsString();
   }
 }

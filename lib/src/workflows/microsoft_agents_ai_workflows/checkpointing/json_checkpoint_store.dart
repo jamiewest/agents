@@ -1,5 +1,4 @@
 import '../checkpoint_info.dart';
-import '../workflows_json_utilities.dart';
 import 'checkpoint_store.dart';
 import '../../../json_stubs.dart';
 
@@ -10,7 +9,7 @@ abstract class JsonCheckpointStore implements CheckpointStore<JsonElement> {
 
   /// A default TypeInfo for serializing the [CheckpointInfo] type, if needed.
   static JsonTypeInfo<CheckpointInfo> get keyTypeInfo {
-    return WorkflowsJsonUtilities.jsonContext.defaultValue.checkpointInfo;
+    throw UnimplementedError('keyTypeInfo: JSON serialization context not yet wired');
   }
 
   @override

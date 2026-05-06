@@ -27,9 +27,9 @@ class Checkpoint {
 
   final RunnerStateData runnerData;
 
-  final Map<ScopeKey, PortableValue> stateData = {};
+  final Map<ScopeKey, PortableValue> stateData;
 
-  final Map<EdgeId, PortableValue> edgeStateData = {};
+  final Map<EdgeId, PortableValue> edgeStateData;
 
   late final CheckpointInfo? parent;
 

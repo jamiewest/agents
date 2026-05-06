@@ -51,15 +51,6 @@ extension AgentEvaluationExtensions on AIAgent {
     Iterable<AgentEvaluator>? evaluators,
     Iterable<AgentResponse>? responses,
   }) async {
-    var items = await runAgentForEvalAsync(
-      agent,
-      queries,
-      expectedOutput,
-      expectedToolCalls,
-      splitter,
-      numRepetitions,
-      cancellationToken,
-    );
-    return await evaluator.evaluateAsync(items, evalName, cancellationToken);
+    throw UnimplementedError('evaluate: agent evaluation runner not yet implemented');
   }
 }

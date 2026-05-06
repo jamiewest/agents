@@ -1,5 +1,6 @@
 import 'package:extensions/system.dart';
 import 'package:extensions/ai.dart';
+import '../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
 import '../../func_typedefs.dart';
 import 'ai_agent_builder.dart';
 import 'function_invocation_delegating_agent.dart';
@@ -28,15 +29,13 @@ extension FunctionInvocationDelegatingAgentBuilderExtensions on AIAgentBuilder {
 /// continuation delegate representing the next callback in the pipeline. It
 /// returns a task representing the result of the function invocation.
 AIAgentBuilder use(Func4<AIAgent, FunctionInvocationContext, Func2<FunctionInvocationContext, CancellationToken, Future<Object?>>, CancellationToken, Future<Object?>> callback) {
-return builder.use((innerAgent, _) {
-        
-            // Function calling requires a ChatClientAgent inner agent.
-            if (innerAgent.getService<FunctionInvokingChatClient>() == null)
-            {
-                throw StateError('The function invocation middleware can only be used with decorations of a ${'AIAgent'} that support usage of FunctionInvokingChatClient decorated chat clients.');
-            }
-
-            return functionInvocationDelegatingAgent(innerAgent, callback);
-        });
+    return useFactory((innerAgent, _) {
+      if (innerAgent.getService(FunctionInvokingChatClient) == null) {
+        throw StateError(
+          'The function invocation middleware can only be used with decorations of a AIAgent that support usage of FunctionInvokingChatClient decorated chat clients.',
+        );
+      }
+      return FunctionInvocationDelegatingAgent(innerAgent, callback);
+    });
  }
  }

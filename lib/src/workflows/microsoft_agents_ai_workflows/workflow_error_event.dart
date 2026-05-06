@@ -7,11 +7,9 @@ class WorkflowErrorEvent extends WorkflowEvent {
   /// Event triggered when a workflow encounters an error.
   ///
   /// [e] Optionally, the [Exception] representing the error.
-  const WorkflowErrorEvent(Exception? e);
+  WorkflowErrorEvent(Exception? e) : super(data: e);
 
   /// Gets the exception that caused the current operation to fail, if one
   /// occurred.
-  Exception? get exception {
-    return this.data as exception;
-  }
+  Exception? get exception => data as Exception?;
 }

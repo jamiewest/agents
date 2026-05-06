@@ -7,14 +7,13 @@ class AgentInMemorySkillsSource extends AgentSkillsSource {
   /// Initializes a new instance of the [AgentInMemorySkillsSource] class.
   ///
   /// [skills] The skills to include in this source.
-  AgentInMemorySkillsSource(Iterable<AgentSkill> skills) : _skills = skills {
-    this._skills = skills.toList();
-  }
+  AgentInMemorySkillsSource(Iterable<AgentSkill> skills)
+      : _skills = skills.toList();
 
   final List<AgentSkill> _skills;
 
   @override
   Future<List<AgentSkill>> getSkills({CancellationToken? cancellationToken}) {
-    return Future.value<List<AgentSkill>>(this._skills);
+    return Future.value(this._skills);
   }
 }

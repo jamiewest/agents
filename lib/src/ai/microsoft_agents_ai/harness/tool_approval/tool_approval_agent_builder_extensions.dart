@@ -27,6 +27,6 @@ extension ToolApprovalAgentBuilderExtensions on AIAgentBuilder {
   AIAgentBuilder useToolApproval({
     JsonSerializerOptions? JsonSerializerOptions,
   }) {
-    return use((innerAgent) => toolApprovalAgent(innerAgent, JsonSerializerOptions));
+    return use(agentFactory: (innerAgent) => ToolApprovalAgent(innerAgent, JsonSerializerOptions: JsonSerializerOptions));
   }
 }

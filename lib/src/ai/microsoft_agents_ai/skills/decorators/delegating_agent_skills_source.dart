@@ -24,6 +24,6 @@ abstract class DelegatingAgentSkillsSource extends AgentSkillsSource {
 
   @override
   Future<List<AgentSkill>> getSkills({CancellationToken? cancellationToken}) {
-    return this.innerSource.getSkillsAsync(cancellationToken);
+    return this.innerSource.getSkills(cancellationToken: cancellationToken);
   }
 }

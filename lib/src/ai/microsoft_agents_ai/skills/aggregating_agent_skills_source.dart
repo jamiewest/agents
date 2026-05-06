@@ -22,11 +22,11 @@ class AggregatingAgentSkillsSource extends AgentSkillsSource {
   Future<List<AgentSkill>> getSkills({
     CancellationToken? cancellationToken,
   }) async {
-    var allSkills = List<AgentSkill>();
+    var allSkills = <AgentSkill>[];
     for (final source in this._sources) {
-      var skills = await source
-          .getSkillsAsync(cancellationToken)
-          ;
+      var skills = await source.getSkills(
+        cancellationToken: cancellationToken,
+      );
       allSkills.addAll(skills);
     }
     return allSkills;

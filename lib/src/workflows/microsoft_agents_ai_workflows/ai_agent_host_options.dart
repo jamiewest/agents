@@ -11,18 +11,18 @@ class AIAgentHostOptions {
 
   /// Gets or sets a value indicating whether aggregated agent response events
   /// should be emitted during execution.
-  bool emitAgentResponseEvents;
+  bool emitAgentResponseEvents = true;
 
   /// Gets or sets a value indicating whether [ToolApprovalRequestContent]
   /// should be intercepted and sent as a message to the workflow for handling,
   /// instead of being raised as a request.
-  bool interceptUserInputRequests;
+  bool interceptUserInputRequests = false;
 
   /// Gets or sets a value indicating whether [FunctionCallContent] without a
   /// corresponding [FunctionResultContent] should be intercepted and sent as a
   /// message to the workflow for handling, instead of being raised as a
   /// request.
-  bool interceptUnterminatedFunctionCalls;
+  bool interceptUnterminatedFunctionCalls = false;
 
   /// Gets or sets a value indicating whether other messages from other agents
   /// should be assigned to the [User] role during execution.

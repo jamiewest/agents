@@ -14,10 +14,9 @@ class DirectEdgeData extends EdgeData {
   ) :
       sourceId = sourceId,
       sinkId = sinkId,
-      super(id, label: label) {
-    this.condition = condition;
-    this.connection = new([sourceId], [sinkId]);
-  }
+      condition = condition,
+      connection = EdgeConnection([sourceId], [sinkId]),
+      super(id, label: label);
 
   /// The Id of the source [Executor] node.
   final String sourceId;
@@ -30,6 +29,6 @@ class DirectEdgeData extends EdgeData {
   /// by the source.
   final Func<Object?, bool>? condition;
 
-  late final EdgeConnection connection;
+  final EdgeConnection connection;
 
 }

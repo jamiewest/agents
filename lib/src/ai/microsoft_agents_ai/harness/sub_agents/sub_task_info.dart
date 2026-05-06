@@ -7,7 +7,7 @@ class SubTaskInfo {
   SubTaskInfo();
 
   /// Gets or sets the unique identifier for this sub-task.
-  int id;
+  int id = 0;
 
   /// Gets or sets the name of the agent that is executing this sub-task.
   String agentName = '';
@@ -16,7 +16,7 @@ class SubTaskInfo {
   String description = '';
 
   /// Gets or sets the current status of this sub-task.
-  SubTaskStatus status;
+  SubTaskStatus status = SubTaskStatus.running;
 
   /// Gets or sets the text result of the sub-task, populated when the task
   /// completes successfully.

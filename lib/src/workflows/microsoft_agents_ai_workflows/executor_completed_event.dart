@@ -13,6 +13,6 @@ class ExecutorCompletedEvent extends ExecutorEvent {
   ///
   /// [result] The result produced by the executor upon completion, or `null` if
   /// no result is available.
-  const ExecutorCompletedEvent(String executorId, Object? result)
+  ExecutorCompletedEvent(String executorId, Object? result)
       : super(executorId, result);
 }

@@ -11,6 +11,6 @@ class ExecutorInvokedEvent extends ExecutorEvent {
   /// [executorId] The unique identifier of the executor being invoked.
   ///
   /// [message] The invocation message.
-  const ExecutorInvokedEvent(String executorId, Object message)
+  ExecutorInvokedEvent(String executorId, Object message)
       : super(executorId, message);
 }

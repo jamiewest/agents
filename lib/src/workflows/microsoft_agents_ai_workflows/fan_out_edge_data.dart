@@ -15,10 +15,9 @@ class FanOutEdgeData extends EdgeData {
   ) :
       sourceId = sourceId,
       sinkIds = sinkIds,
-      super(edgeId, label: label) {
-    this.edgeAssigner = assigner;
-    this.connection = new([sourceId], sinkIds);
-  }
+      edgeAssigner = assigner,
+      connection = EdgeConnection([sourceId], sinkIds),
+      super(edgeId, label: label);
 
   /// The Id of the source [Executor] node.
   final String sourceId;
@@ -31,6 +30,6 @@ class FanOutEdgeData extends EdgeData {
   /// selected.
   final Func2<Object?, int, Iterable<int>>? edgeAssigner;
 
-  late final EdgeConnection connection;
+  final EdgeConnection connection;
 
 }

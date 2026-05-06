@@ -1,7 +1,6 @@
 import '../../../func_typedefs.dart';
 import 'check_result.dart';
 import 'eval_check.dart';
-import 'eval_item.dart';
 
 /// Factory for creating [EvalCheck] delegates from typed lambda functions.
 class FunctionEvaluator {
@@ -14,10 +13,9 @@ class FunctionEvaluator {
   ///
   /// [check] Function that returns true if the response passes.
   static EvalCheck create(String name, {Func<String, bool>? check, }) {
-    return (EvalItem item) {
-        
-            var passed = check(item.response);
-            return evalCheckResult(passed, passed ? "Passed" : "Failed", name);
-        };
+    return (item) {
+      final passed = check!(item.response);
+      return EvalCheckResult(passed, passed ? 'Passed' : 'Failed', name);
+    };
   }
 }

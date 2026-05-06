@@ -1,4 +1,5 @@
 import '../../abstractions/microsoft_agents_ai_abstractions/agent_response.dart';
+import '../../abstractions/microsoft_agents_ai_abstractions/agent_response_extensions.dart';
 import '../../abstractions/microsoft_agents_ai_abstractions/agent_response_update.dart';
 import 'workflow_output_event.dart';
 

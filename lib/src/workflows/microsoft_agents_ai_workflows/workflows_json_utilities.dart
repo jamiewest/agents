@@ -17,7 +17,7 @@ extension WorkflowsJsonDeserialize on JsonElement {
     if (value is List) {
       return (value as List)
           .whereType<Map<String, dynamic>>()
-          .map((m) => ChatMessage(ChatRole.user, m['content']?.toString()))
+          .map((m) => ChatMessage(role: ChatRole.user, contents: m['content'] != null ? [TextContent(m['content'].toString())] : null))
           .toList();
     }
     return [];

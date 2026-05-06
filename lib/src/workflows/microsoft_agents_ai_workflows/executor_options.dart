@@ -1,9 +1,9 @@
 /// Configuration options for Executor behavior.
 class ExecutorOptions {
-  const ExecutorOptions();
+  ExecutorOptions();
 
   /// The default runner configuration.
-  static final ExecutorOptions defaultValue;
+  static final ExecutorOptions defaultValue = ExecutorOptions();
 
   /// If `true`, the result of a message handler that returns a value will be
   /// sent as a message from the executor.

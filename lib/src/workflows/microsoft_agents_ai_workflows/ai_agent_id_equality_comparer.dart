@@ -1,17 +1,15 @@
-import 'package:extensions/ai.dart';
 import '../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
-class AIAgentIDEqualityComparer implements EqualityComparer<AIAgent> {
+
+class AIAgentIDEqualityComparer {
   AIAgentIDEqualityComparer();
 
-  static final AIAgentIDEqualityComparer instance;
+  static final AIAgentIDEqualityComparer instance = AIAgentIDEqualityComparer();
 
-  @override
   bool equals(AIAgent? x, AIAgent? y) {
     return x?.id == y?.id;
   }
 
-  @override
   int getHashCode(AIAgent obj) {
-    return obj?.hashCode ?? 0;
+    return obj.id.hashCode;
   }
 }

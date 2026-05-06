@@ -24,7 +24,7 @@ class ExecutorInstanceBinding extends ExecutorBinding {
   }
 
   bool get supportsResetting {
-    return this.executorInstance is IResettableExecutor;
+    return this.executorInstance is ResettableExecutor;
   }
 
   bool get isSharedInstance {
@@ -35,7 +35,7 @@ class ExecutorInstanceBinding extends ExecutorBinding {
   Future<bool> resetCore() async {
     if (this.executorInstance is ResettableExecutor) {
       final resettable = this.executorInstance as ResettableExecutor;
-      await resettable.resetAsync();
+      await resettable.reset();
       return true;
     }
     return false;

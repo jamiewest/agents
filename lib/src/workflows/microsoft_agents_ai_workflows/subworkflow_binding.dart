@@ -33,21 +33,14 @@ class SubworkflowBinding extends ExecutorBinding {
   ///
   ExecutorOptions? executorOptions;
 
-  static Func<String, Future<Executor>> createWorkflowExecutorFactory(
+  static Func<String, Future<Object>> createWorkflowExecutorFactory(
     Workflow workflow,
     String id,
     ExecutorOptions? options,
   ) {
-    var ownershipToken = new();
+    final ownershipToken = Object();
     workflow.takeOwnership(ownershipToken, subworkflow: true);
-    return InitHostExecutorAsync;
-    /* TODO: unsupported node kind "unknown" */
-    // async ValueTask<Executor> InitHostExecutorAsync(String sessionId)
-    //         {
-      //             ProtocolDescriptor workflowProtocol = await workflow.DescribeProtocolAsync();
-      //
-      //             return new WorkflowHostExecutor(id, workflow, workflowProtocol, sessionId, ownershipToken, options);
-      //         }
+    throw UnimplementedError('createWorkflowExecutorFactory: WorkflowHostExecutor wiring not yet implemented');
   }
 
   bool get isSharedInstance {

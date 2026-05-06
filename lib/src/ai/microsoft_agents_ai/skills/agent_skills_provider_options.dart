@@ -14,12 +14,12 @@ class AgentSkillsProviderOptions {
   /// Gets or sets a value indicating whether script execution requires
   /// approval. When `true`, script execution is blocked until approved.
   /// Defaults to `false`.
-  bool scriptApproval;
+  bool scriptApproval = false;
 
   /// Gets or sets a value indicating whether caching of tools and instructions
   /// is disabled. When `false` (the default), the provider caches the tools and
   /// instructions after the first build and returns the cached instance on
   /// subsequent calls. Set to `true` to rebuild tools and instructions on every
   /// invocation.
-  bool disableCaching;
+  bool disableCaching = false;
 }

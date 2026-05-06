@@ -5,7 +5,7 @@ class TodoItem {
   TodoItem();
 
   /// Gets or sets the unique identifier for this todo item.
-  int id;
+  int id = 0;
 
   /// Gets or sets the title of this todo item.
   String title = '';
@@ -15,5 +15,5 @@ class TodoItem {
   String? description;
 
   /// Gets or sets a value indicating whether this todo item has been completed.
-  bool isComplete;
+  bool isComplete = false;
 }

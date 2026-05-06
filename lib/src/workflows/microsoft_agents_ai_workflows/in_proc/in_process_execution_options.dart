@@ -3,7 +3,7 @@ import '../execution/execution_mode.dart';
 class InProcessExecutionOptions {
   InProcessExecutionOptions();
 
-  ExecutionMode executionMode = InProcessExecution.Default.ExecutionMode;
+  ExecutionMode executionMode = ExecutionMode.offThread;
 
-  bool allowSharedWorkflow;
+  bool allowSharedWorkflow = false;
 }

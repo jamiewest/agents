@@ -11,7 +11,7 @@ class ExecutorFailedEvent extends ExecutorEvent {
   /// [executorId] The unique identifier of the executor that has failed.
   ///
   /// [err] The exception representing the error.
-  const ExecutorFailedEvent(String executorId, this.err)
+  ExecutorFailedEvent(String executorId, this.err)
       : super(executorId, err);
 
   /// The exception that caused the executor to fail. This may be `null` if no

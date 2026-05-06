@@ -41,15 +41,15 @@ class ChatReducerCompactionStrategy extends CompactionStrategy {
     CancellationToken cancellationToken,
   ) async {
     var includedMessages = [...index.getIncludedMessages()];
-    var reduced = await this.chatReducer.reduceAsync(
+    var reduced = await this.chatReducer.reduce(
       includedMessages,
-      cancellationToken,
-    ) ;
+      cancellationToken: cancellationToken,
+    );
     var reducedMessages = [...reduced];
     if (reducedMessages.length >= includedMessages.length) {
       return false;
     }
-    var rebuilt = CompactionMessageIndex.create(reducedMessages, index.tokenizer);
+    var rebuilt = CompactionMessageIndex.create(reducedMessages, tokenizer: index.tokenizer);
     index.groups.clear();
     for (final group in rebuilt.groups) {
       index.groups.add(group);

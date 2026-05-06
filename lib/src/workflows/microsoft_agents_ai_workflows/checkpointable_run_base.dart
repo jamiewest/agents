@@ -12,7 +12,7 @@ abstract class CheckpointableRunBase {
   final CheckpointingHandle _checkpointingHandle;
 
   /// Gets the most recent checkpoint information.
-  final CheckpointInfo? lastCheckpoint;
+  final CheckpointInfo? lastCheckpoint = null;
 
   bool get isCheckpointingEnabled {
     return this._checkpointingHandle.isCheckpointingEnabled;
@@ -26,9 +26,9 @@ abstract class CheckpointableRunBase {
     CheckpointInfo checkpointInfo, {
     CancellationToken? cancellationToken,
   }) {
-    return this._checkpointingHandle.restoreCheckpointAsync(
+    return this._checkpointingHandle.restoreCheckpoint(
       checkpointInfo,
-      cancellationToken,
+      cancellationToken: cancellationToken,
     );
   }
 }

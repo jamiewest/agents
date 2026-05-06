@@ -7,7 +7,7 @@ class ChatHistoryMemoryProviderOptions {
   ChatHistoryMemoryProviderOptions();
 
   /// Gets or sets a value indicating when the search should be executed.
-  SearchBehavior searchTime = SearchBehavior.BeforeAIInvoke;
+  SearchBehavior searchTime = SearchBehavior.beforeAIInvoke;
 
   /// Gets or sets the name of the exposed search tool when operating in
   /// on-demand mode.
@@ -30,11 +30,11 @@ class ChatHistoryMemoryProviderOptions {
   /// Remarks: When set to `true`, sensitive data is passed through to logs
   /// unchanged and any configured [Redactor] is ignored. This property takes
   /// precedence over [Redactor].
-  bool enableSensitiveTelemetryData;
+  bool enableSensitiveTelemetryData = false;
 
   /// Gets or sets a custom [Redactor] used to redact sensitive data in log
   /// output.
-  Redactor? redactor;
+  Object? redactor;
 
   /// Gets or sets the key used to store provider state in the [StateBag].
   String? stateKey;

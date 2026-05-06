@@ -3,7 +3,7 @@ import '../executor.dart';
 import 'type_id.dart';
 
 class ExecutorInfo {
-  const ExecutorInfo(TypeId ExecutorType, String ExecutorId)
+  ExecutorInfo(TypeId ExecutorType, String ExecutorId)
     : executorType = ExecutorType,
       executorId = ExecutorId;
 
@@ -12,6 +12,7 @@ class ExecutorInfo {
   late String executorId;
 
   bool isMatch({Executor? executor, ExecutorBinding? binding}) {
+    if (binding == null) return false;
     return this.executorType.isMatch(binding.executorType) &&
         this.executorId == binding.id;
   }

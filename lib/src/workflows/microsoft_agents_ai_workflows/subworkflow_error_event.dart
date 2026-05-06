@@ -11,10 +11,10 @@ class SubworkflowErrorEvent extends WorkflowErrorEvent {
   /// [subworkflowId] The ID of the subworkflow that encountered the error.
   ///
   /// [e] Optionally, the [Exception] representing the error.
-  const SubworkflowErrorEvent(String subworkflowId, Exception? e)
+  SubworkflowErrorEvent(String subworkflowId, Exception? e)
     : subworkflowId = subworkflowId,
       super(e);
 
   /// Gets the ID of the subworkflow that encountered the error.
-  final String subworkflowId = subworkflowId;
+  final String subworkflowId;
 }
