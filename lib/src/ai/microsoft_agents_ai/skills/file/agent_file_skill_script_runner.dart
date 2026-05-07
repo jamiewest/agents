@@ -1,20 +1,16 @@
+import 'package:extensions/dependency_injection.dart';
+import 'package:extensions/system.dart';
+
+import '../../../../json_stubs.dart';
+import 'agent_file_skill.dart';
+import 'agent_file_skill_script.dart';
+
 /// Function for running file-based skill scripts.
-///
-/// Remarks: Implementations determine the execution strategy (e.g., local
-/// subprocess, hosted code execution environment). The `arguments` parameter
-/// preserves the raw JSON sent by the caller, in the shape described by
-/// [ParametersSchema].
-///
-/// Returns: The script execution result.
-///
-/// [skill] The skill that owns the script.
-///
-/// [script] The file-based script to run.
-///
-/// [arguments] Raw JSON arguments for the script, in the shape described by
-/// [ParametersSchema].
-///
-/// [serviceProvider] Optional service provider for dependency injection.
-///
-/// [cancellationToken] Cancellation token.
-typedef AgentFileSkillScriptRunner = void Function();
+typedef AgentFileSkillScriptRunner =
+    Future<Object?> Function(
+      AgentFileSkill skill,
+      AgentFileSkillScript script,
+      JsonElement? arguments,
+      ServiceProvider? serviceProvider, {
+      CancellationToken? cancellationToken,
+    });

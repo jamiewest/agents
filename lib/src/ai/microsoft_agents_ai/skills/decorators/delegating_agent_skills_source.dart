@@ -16,8 +16,7 @@ abstract class DelegatingAgentSkillsSource extends AgentSkillsSource {
   /// [innerSource] The underlying skill source that will handle the core
   /// operations.
   DelegatingAgentSkillsSource(AgentSkillsSource innerSource)
-    : innerSource = innerSource {
-  }
+    : innerSource = innerSource {}
 
   /// Gets the inner skill source that receives delegated operations.
   final AgentSkillsSource innerSource;

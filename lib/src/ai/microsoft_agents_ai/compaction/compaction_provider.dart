@@ -1,15 +1,17 @@
-import '../../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
-import 'package:extensions/system.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
-import '../../../abstractions/microsoft_agents_ai_abstractions/agent_request_message_source_attribution.dart';
+import 'package:extensions/system.dart';
+
 import '../../../abstractions/microsoft_agents_ai_abstractions/agent_request_message_source_type.dart';
+import '../../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
 import '../../../abstractions/microsoft_agents_ai_abstractions/ai_context.dart';
 import '../../../abstractions/microsoft_agents_ai_abstractions/ai_context_provider.dart';
+import '../../../abstractions/microsoft_agents_ai_abstractions/chat_message_extensions.dart';
 import '../../../abstractions/microsoft_agents_ai_abstractions/provider_session_state_t_state_.dart';
 import '../agent_json_utilities.dart';
-import '../ai_agent_builder.dart';
 import '../chat_client/chat_client_agent_session.dart';
+import 'chat_message_content_equality.dart';
+import 'compaction_log_messages.dart';
 import 'compaction_message_group.dart';
 import 'compaction_message_index.dart';
 import 'compaction_strategy.dart';
@@ -17,166 +19,155 @@ import 'compaction_telemetry.dart';
 
 /// A [AIContextProvider] that applies a [CompactionStrategy] to compact the
 /// message list before each agent invocation.
-///
-/// Remarks: This provider performs in-run compaction by organizing messages
-/// into atomic groups (preserving tool-call/result pairings) before applying
-/// compaction logic. Only included messages are forwarded to the agent's
-/// underlying chat client. The [CompactionProvider] can be added to an
-/// agent's context provider pipeline via [AIContextProviders] or via
-/// `UseAIContextProviders` on a [ChatClientBuilder] or [AIAgentBuilder].
 class CompactionProvider extends AIContextProvider {
-  /// Initializes a new instance of the [CompactionProvider] class.
-  ///
-  /// [compactionStrategy] The compaction strategy to apply before each
-  /// invocation.
-  ///
-  /// [stateKey] An optional key used to store the provider state in the
-  /// [StateBag]. Provide an explicit value if configuring multiple agents with
-  /// different compaction strategies that will interact in the same session.
-  ///
-  /// [loggerFactory] An optional [LoggerFactory] used to create a logger for
-  /// provider diagnostics. When `null`, logging is disabled.
   CompactionProvider(
-    CompactionStrategy compactionStrategy,
-    {String? stateKey, LoggerFactory? loggerFactory, }
-  ) : _compactionStrategy = compactionStrategy {
-    stateKey ??= _compactionStrategy.runtimeType.toString();
-    stateKeys = [stateKey];
+    CompactionStrategy compactionStrategy, {
+    String? stateKey,
+    LoggerFactory? loggerFactory,
+  }) : _compactionStrategy = compactionStrategy,
+       _loggerFactory = loggerFactory {
+    final resolvedStateKey =
+        stateKey ?? compactionStrategy.runtimeType.toString();
+    _stateKeys = [resolvedStateKey];
     _sessionState = ProviderSessionState<State>(
-            (_) => State(),
-            stateKey,
-            AgentJsonUtilities.defaultOptions);
-    _loggerFactory = loggerFactory;
+      (_) => State(),
+      resolvedStateKey,
+      JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
+    );
   }
 
   final CompactionStrategy _compactionStrategy;
-
+  final LoggerFactory? _loggerFactory;
   late final ProviderSessionState<State> _sessionState;
+  late final List<String> _stateKeys;
 
-  late final LoggerFactory? _loggerFactory;
+  @override
+  List<String> get stateKeys => _stateKeys;
 
-  late final List<String> stateKeys;
-
-  /// Applies compaction strategy to the provided message list and returns the
-  /// compacted messages. This can be used for ad-hoc compaction outside of the
-  /// provider pipeline.
-  ///
-  /// Returns: An enumeration of the compacted [ChatMessage] instances.
-  ///
-  /// [compactionStrategy] The compaction strategy to apply before each
-  /// invocation.
-  ///
-  /// [messages] The messages to compact
-  ///
-  /// [logger] An optional [Logger] for emitting compaction diagnostics.
-  ///
-  /// [cancellationToken] The [CancellationToken] to monitor for cancellation
-  /// requests.
   static Future<Iterable<ChatMessage>> compact(
     CompactionStrategy compactionStrategy,
-    Iterable<ChatMessage> messages,
-    {Logger? logger, CancellationToken? cancellationToken, }
-  ) async {
-    var messageList = [...messages];
-    var messageIndex = CompactionMessageIndex.create(messageList);
-    await compactionStrategy.compactAsync(
+    Iterable<ChatMessage> messages, {
+    Logger? logger,
+    CancellationToken? cancellationToken,
+  }) async {
+    final messageIndex = CompactionMessageIndex.create(messages.toList());
+    await compactionStrategy.compact(
       messageIndex,
-      logger,
-      cancellationToken,
-    ) ;
+      logger: logger,
+      cancellationToken: cancellationToken,
+    );
     return messageIndex.getIncludedMessages();
   }
 
-  /// Applies the compaction strategy to the accumulated message list before
-  /// forwarding it to the agent.
-  ///
-  /// Returns: A task that represents the asynchronous operation. The task
-  /// result contains an [AIContext] with the compacted message list.
-  ///
-  /// [context] Contains the request context including all accumulated messages.
-  ///
-  /// [cancellationToken] The [CancellationToken] to monitor for cancellation
-  /// requests.
   @override
   Future<AIContext> invokingCore(
-    InvokingContext context,
-    {CancellationToken? cancellationToken, }
-  ) async {
-    var activity = CompactionTelemetry.activitySource.startActivity(CompactionTelemetry.activityNames.compactionProviderInvoke);
-    var loggerFactory = getLoggerFactory(context.agent);
-    var logger = loggerFactory.createLogger<CompactionProvider>();
-    var session = context.session;
-    var allMessages = context.aiContext.messages;
-    if (session == null|| allMessages == null) {
-      logger.logCompactionProviderSkipped("no session or no messages");
+    InvokingContext context, {
+    CancellationToken? cancellationToken,
+  }) async {
+    final activity = CompactionTelemetry.activitySource.startActivity(
+      CompactionTelemetry.activityNames.compactionProviderInvoke,
+    );
+    final loggerFactory = getLoggerFactory(context.agent);
+    final logger = loggerFactory.createLogger('CompactionProvider');
+    final session = context.session;
+    final allMessages = context.aiContext.messages;
+
+    if (session == null || allMessages == null) {
+      logger.logCompactionProviderSkipped('no session or no messages');
+      activity?.setTag(CompactionTelemetry.tags.compacted, false);
       return context.aiContext;
     }
-    var chatClientSession = session.getService<ChatClientAgentSession>();
+
+    final chatClientSession =
+        session.getService(ChatClientAgentSession) as ChatClientAgentSession?;
     if (chatClientSession != null &&
-            !(chatClientSession.conversationId == null || chatClientSession.conversationId.trim().isEmpty)) {
-      logger.logCompactionProviderSkipped("session managed by remote service");
+        chatClientSession.conversationId != null &&
+        chatClientSession.conversationId!.trim().isNotEmpty) {
+      logger.logCompactionProviderSkipped('session managed by remote service');
+      activity?.setTag(CompactionTelemetry.tags.compacted, false);
       return context.aiContext;
     }
-    var messageList = [...allMessages];
-    var state = _sessionState.getOrInitializeState(session);
-    CompactionMessageIndex messageIndex;
-    if (state.messageGroups.length > 0) {
-      messageIndex = new([...state.messageGroups]);
-      for (final message in messageIndex.groups.expand((x) => x.messages)) {
-        message.additionalProperties ??= additionalPropertiesDictionary();
-        message.additionalProperties[AgentRequestMessageSourceAttribution.additionalPropertiesKey] =
-                    agentRequestMessageSourceAttribution(
-                      AgentRequestMessageSourceType.chatHistory,
-                      runtimeType.fullName!,
-                    );
-      }
-      // Update existing index with any new messages appended since the last call.
-            messageIndex.update(messageList);
+
+    final messageList = allMessages.toList();
+    final state = _sessionState.getOrInitializeState(session);
+    final CompactionMessageIndex messageIndex;
+
+    if (state.messageGroups.isNotEmpty) {
+      messageIndex = CompactionMessageIndex(List.of(state.messageGroups));
+      _markGroupsAsChatHistory(messageIndex.groups);
+      messageIndex.update(messageList);
     } else {
-      // First pass — initialize the message index from scratch.
-            messageIndex = CompactionMessageIndex.create(messageList);
+      messageIndex = CompactionMessageIndex.create(messageList);
     }
-    var strategyName = _compactionStrategy.runtimeType.toString();
-    var beforeMessages = messageIndex.includedMessageCount;
+
+    final strategyName = _compactionStrategy.runtimeType.toString();
+    final beforeMessages = messageIndex.includedMessageCount;
     logger.logCompactionProviderApplying(beforeMessages, strategyName);
-    // Apply compaction
-        await _compactionStrategy.compactAsync(
-            messageIndex,
-            loggerFactory.createLogger(_compactionStrategy.runtimeType),
-            cancellationToken);
-    var afterMessages = messageIndex.includedMessageCount;
+
+    await _compactionStrategy.compact(
+      messageIndex,
+      logger: loggerFactory.createLogger(strategyName),
+      cancellationToken: cancellationToken,
+    );
+
+    final afterMessages = messageIndex.includedMessageCount;
     if (afterMessages < beforeMessages) {
       logger.logCompactionProviderApplied(beforeMessages, afterMessages);
     }
-    // Persist the index
-        state.messageGroups.clear();
-    state.messageGroups.addAll(messageIndex.groups);
-    for (final message in messageIndex.groups.expand((x) => x.messages)) {
-      if (message.getAgentRequestMessageSourceType() != AgentRequestMessageSourceType.chatHistory && !messageList.any((x) => x.contentEquals(message))) {
-        message.additionalProperties ??= additionalPropertiesDictionary();
-        message.additionalProperties[AgentRequestMessageSourceAttribution.additionalPropertiesKey] =
-                    agentRequestMessageSourceAttribution(
-                      AgentRequestMessageSourceType.chatHistory,
-                      runtimeType.fullName!,
-                    );
+    activity?.setTag(
+      CompactionTelemetry.tags.compacted,
+      afterMessages < beforeMessages,
+    );
+
+    state.messageGroups
+      ..clear()
+      ..addAll(messageIndex.groups);
+    _sessionState.saveState(session, state);
+
+    for (final message in messageIndex.groups.expand(
+      (group) => group.messages,
+    )) {
+      final existingSourceType = message.getAgentRequestMessageSourceType();
+      final wasInInput = messageList.any(
+        (input) => input.contentEquals(message),
+      );
+      if (existingSourceType != AgentRequestMessageSourceType.chatHistory &&
+          !wasInInput) {
+        message.additionalProperties ??= <String, Object?>{};
+        final stamped = message.withAgentRequestMessageSource(
+          AgentRequestMessageSourceType.chatHistory,
+          sourceId: runtimeType.toString(),
+        );
+        message.additionalProperties = stamped.additionalProperties;
       }
     }
-    return AIContext();
+
+    return AIContext()
+      ..messages = messageIndex.getIncludedMessages()
+      ..tools = context.aiContext.tools
+      ..instructions = context.aiContext.instructions;
   }
 
   LoggerFactory getLoggerFactory(AIAgent agent) {
+    final chatClient = agent.getService(ChatClient) as ChatClient?;
     return _loggerFactory ??
-        agent.getService<IChatClient>()?.getService<LoggerFactory>() ??
+        chatClient?.getService<LoggerFactory>() ??
         NullLoggerFactory.instance;
   }
+
+  void _markGroupsAsChatHistory(List<CompactionMessageGroup> groups) {
+    for (final message in groups.expand((group) => group.messages)) {
+      final stamped = message.withAgentRequestMessageSource(
+        AgentRequestMessageSourceType.chatHistory,
+        sourceId: runtimeType.toString(),
+      );
+      message.additionalProperties = stamped.additionalProperties;
+    }
+  }
 }
+
 /// Represents the persisted state of a [CompactionProvider] stored in the
-/// [StateBag].
+/// session state bag.
 class State {
-  State();
-
-  /// Gets or sets the message index groups used for incremental compaction
-  /// updates.
-  List<CompactionMessageGroup> messageGroups = [];
-
+  final List<CompactionMessageGroup> messageGroups = [];
 }

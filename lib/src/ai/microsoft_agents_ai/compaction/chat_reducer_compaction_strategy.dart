@@ -4,7 +4,6 @@ import 'package:extensions/logging.dart';
 import 'compaction_message_index.dart';
 import 'compaction_strategy.dart';
 import 'compaction_trigger.dart';
-import 'compaction_triggers.dart';
 
 /// A compaction strategy that delegates to an [ChatReducer] to reduce the
 /// conversation's included messages.
@@ -25,11 +24,7 @@ class ChatReducerCompactionStrategy extends CompactionStrategy {
   /// [chatReducer] The [ChatReducer] that performs the message reduction.
   ///
   /// [trigger] The [CompactionTrigger] that controls when compaction proceeds.
-  ChatReducerCompactionStrategy(
-    ChatReducer chatReducer,
-    CompactionTrigger trigger,
-  ) : chatReducer = chatReducer, super(trigger) {
-  }
+  ChatReducerCompactionStrategy(this.chatReducer, super.trigger);
 
   /// Gets the chat reducer used to reduce messages.
   final ChatReducer chatReducer;
@@ -40,16 +35,18 @@ class ChatReducerCompactionStrategy extends CompactionStrategy {
     Logger logger,
     CancellationToken cancellationToken,
   ) async {
-    var includedMessages = [...index.getIncludedMessages()];
-    var reduced = await this.chatReducer.reduce(
+    final includedMessages = index.getIncludedMessages().toList();
+    final reducedMessages = await chatReducer.reduce(
       includedMessages,
       cancellationToken: cancellationToken,
     );
-    var reducedMessages = [...reduced];
     if (reducedMessages.length >= includedMessages.length) {
       return false;
     }
-    var rebuilt = CompactionMessageIndex.create(reducedMessages, tokenizer: index.tokenizer);
+    final rebuilt = CompactionMessageIndex.create(
+      reducedMessages,
+      tokenizer: index.tokenizer,
+    );
     index.groups.clear();
     for (final group in rebuilt.groups) {
       index.groups.add(group);

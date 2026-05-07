@@ -1,14 +1,5 @@
-import 'package:extensions/system.dart';
-
-import 'checkpointing/edge_info.dart';
-import 'checkpointing/representation_extensions.dart';
-import 'checkpointing/request_port_info.dart';
 import 'edge.dart';
-import 'execution/external_request_sink.dart';
 import 'executor_binding.dart';
-import 'external_request.dart';
-import 'external_request_context.dart';
-import 'observability/workflow_telemetry_context.dart';
 import 'protocol_descriptor.dart';
 import 'request_port.dart';
 
@@ -19,18 +10,17 @@ class Workflow {
     this.startExecutorId, {
     this.name,
     this.description,
-    WorkflowTelemetryContext? telemetryContext,
-  }) : telemetryContext =
-           telemetryContext ?? WorkflowTelemetryContext.disabled;
-
-  /// A dictionary of executor providers, keyed by executor ID.
-  Map<String, ExecutorBinding> executorBindings = {};
-
-  Map<String, Set<Edge>> edges = {};
-
-  Set<String> outputExecutors = {};
-
-  Map<String, RequestPort> ports = {};
+    Iterable<ExecutorBinding> executorBindings = const <ExecutorBinding>[],
+    Iterable<Edge> edges = const <Edge>[],
+    Iterable<String> outputExecutorIds = const <String>[],
+    Iterable<RequestPortDescriptor> requestPorts =
+        const <RequestPortDescriptor>[],
+  }) : _executorBindings = Map<String, ExecutorBinding>.unmodifiable({
+         for (final binding in executorBindings) binding.id: binding,
+       }),
+       _edges = List<Edge>.unmodifiable(edges),
+       _outputExecutorIds = List<String>.unmodifiable(outputExecutorIds),
+       _requestPorts = List<RequestPortDescriptor>.unmodifiable(requestPorts);
 
   /// Gets the identifier of the starting executor of the workflow.
   final String startExecutorId;
@@ -41,70 +31,99 @@ class Workflow {
   /// Gets the optional description of what the workflow does.
   String? description;
 
-  /// Gets the telemetry context for the workflow.
-  final WorkflowTelemetryContext telemetryContext;
-
-  bool _needsReset = false;
+  final Map<String, ExecutorBinding> _executorBindings;
+  final List<Edge> _edges;
+  final List<String> _outputExecutorIds;
+  final List<RequestPortDescriptor> _requestPorts;
 
   Object? _ownerToken;
-
   bool _ownedAsSubworkflow = false;
+  bool _needsReset = false;
 
-  /// Gets the collection of edges grouped by their source node identifier.
-  Map<String, Set<EdgeInfo>> reflectEdges() {
-    return Map.fromEntries(
-      edges.entries.map(
-        (e) => MapEntry(
-          e.key,
-          e.value.map((edge) => edge.toEdgeInfo()).toSet(),
-        ),
-      ),
-    );
-  }
+  /// Gets whether the workflow can run concurrently.
+  bool get allowConcurrent => nonConcurrentExecutorIds.isEmpty;
 
-  /// Gets the collection of external request ports, keyed by their ID.
-  Map<String, RequestPortInfo> reflectPorts() {
-    return Map.fromEntries(
-      ports.entries.map(
-        (e) => MapEntry(e.key, e.value.toPortInfo()),
-      ),
-    );
-  }
+  /// Gets IDs for any executors that do not support concurrent execution.
+  Iterable<String> get nonConcurrentExecutorIds => _executorBindings.values
+      .where(
+        (binding) =>
+            binding.isSharedInstance &&
+            !binding.supportsConcurrentSharedExecution,
+      )
+      .map((binding) => binding.id);
 
-  /// Gets a copy of the executor bindings dictionary.
-  Map<String, ExecutorBinding> reflectExecutors() {
-    return Map.of(executorBindings);
-  }
+  /// Gets whether any bound executors support resetting.
+  bool get hasResettableExecutors =>
+      _executorBindings.values.any((binding) => binding.supportsResetting);
 
-  bool get allowConcurrent {
-    return executorBindings.values.every(
-      (r) => r.supportsConcurrentSharedExecution,
-    );
-  }
+  /// Gets the executor bindings registered with the workflow.
+  Iterable<ExecutorBinding> reflectExecutors() => _executorBindings.values;
 
-  Iterable<String> get nonConcurrentExecutorIds {
-    return executorBindings.values
-        .where((r) => !r.supportsConcurrentSharedExecution)
-        .map((r) => r.id);
-  }
+  /// Gets the edges registered with the workflow.
+  Iterable<Edge> reflectEdges() => _edges;
 
-  bool get hasResettableExecutors {
-    return executorBindings.values.any((r) => r.supportsResetting);
-  }
+  /// Gets output executor identifiers.
+  Iterable<String> reflectOutputExecutors() => _outputExecutorIds;
 
-  Future<bool> tryResetExecutorRegistrations() async {
-    if (hasResettableExecutors) {
-      for (final registration in executorBindings.values) {
-        if (!await registration.tryReset()) {
-          return false;
+  /// Gets request ports exposed by the workflow.
+  Iterable<RequestPortDescriptor> reflectPorts() => _requestPorts;
+
+  /// Describes the workflow protocol from the start executor and outputs.
+  Future<ProtocolDescriptor> describeProtocol() async {
+    final acceptedTypes = <Type>[];
+    var acceptsAll = false;
+    final startBinding = _executorBindings[startExecutorId];
+    if (startBinding != null) {
+      final startProtocol = await startBinding.describeProtocol();
+      acceptedTypes.addAll(startProtocol.acceptedTypes);
+      acceptsAll = startProtocol.acceptsAll;
+    }
+
+    final producedTypes = <Type>[];
+    final seenPorts = <RequestPortDescriptor>{..._requestPorts};
+    for (final outputExecutorId in _outputExecutorIds) {
+      final binding = _executorBindings[outputExecutorId];
+      if (binding == null) {
+        continue;
+      }
+      final protocol = await binding.describeProtocol();
+      for (final producedType in protocol.producedTypes) {
+        if (!producedTypes.contains(producedType)) {
+          producedTypes.add(producedType);
         }
       }
-      _needsReset = false;
-      return true;
+      seenPorts.addAll(protocol.requestPorts);
     }
-    return false;
+
+    return ProtocolDescriptor(
+      acceptedTypes: acceptedTypes,
+      producedTypes: producedTypes,
+      requestPorts: seenPorts,
+      acceptsAll: acceptsAll,
+    );
   }
 
+  /// Attempts to reset executor registrations.
+  Future<bool> tryResetExecutorRegistrations() async {
+    if (_needsReset && !hasResettableExecutors) {
+      return false;
+    }
+    var resetAny = false;
+    for (final binding in _executorBindings.values) {
+      if (!binding.supportsResetting) {
+        continue;
+      }
+      final reset = await binding.tryReset();
+      resetAny = resetAny || reset;
+      if (!reset) {
+        return false;
+      }
+    }
+    _needsReset = false;
+    return resetAny;
+  }
+
+  /// Verifies current ownership.
   void checkOwnership({Object? existingOwnershipSignoff}) {
     final maybeOwned = _ownerToken;
     if (!identical(maybeOwned, existingOwnershipSignoff)) {
@@ -115,6 +134,7 @@ class Workflow {
     }
   }
 
+  /// Takes ownership of this workflow for a run or parent workflow.
   void takeOwnership(
     Object ownerToken, {
     bool? subworkflow,
@@ -138,8 +158,7 @@ class Workflow {
       final message = switch ((isSubworkflow, _ownedAsSubworkflow)) {
         (true, true) =>
           'Cannot use a Workflow as a subworkflow of multiple parent workflows.',
-        (true, false) =>
-          'Cannot use a running Workflow as a subworkflow.',
+        (true, false) => 'Cannot use a running Workflow as a subworkflow.',
         (false, true) =>
           'Cannot directly run a Workflow that is a subworkflow of another workflow.',
         (false, false) =>
@@ -147,10 +166,11 @@ class Workflow {
       };
       throw StateError(message);
     }
-    _needsReset = hasResettableExecutors;
+    _needsReset = !allowConcurrent || hasResettableExecutors;
     _ownedAsSubworkflow = subworkflow ?? false;
   }
 
+  /// Releases ownership of this workflow.
   Future<void> releaseOwnership(
     Object ownerToken,
     Object? targetOwnerToken,
@@ -167,33 +187,11 @@ class Workflow {
       );
     }
     await tryResetExecutorRegistrations();
+    if (targetOwnerToken == null) {
+      _ownedAsSubworkflow = false;
+    }
   }
 
-  /// Retrieves a [ProtocolDescriptor] defining how to interact with this
-  /// workflow.
-  Future<ProtocolDescriptor> describeProtocol({
-    CancellationToken? cancellationToken,
-  }) async {
-    final startBinding = executorBindings[startExecutorId]!;
-    final startExecutor = await startBinding.createInstance('');
-    startExecutor.attachRequestContext(NoOpExternalRequestContext());
-    final inputProtocol = startExecutor.describeProtocol();
-    final outputExecutorFutures = outputExecutors
-        .map((id) => executorBindings[id]!.createInstance(''));
-    final outputExecutorList = await Future.wait(outputExecutorFutures);
-    // ignore: avoid_dynamic_calls
-    final yieldedTypes = outputExecutorList
-        .expand<Type>((e) => (e as dynamic)?.describeProtocol()?.yields ?? <Type>[]);
-    return ProtocolDescriptor(
-      inputProtocol.accepts,
-      yieldedTypes,
-      const [],
-      inputProtocol.acceptsAll,
-    );
-  }
-
-  /// In Dart (single event loop), compare-and-swap is a simple conditional
-  /// assignment. Returns the original value of [_ownerToken].
   Object? _compareExchange(Object? newValue, Object? comparand) {
     final original = _ownerToken;
     if (identical(original, comparand)) {
@@ -202,19 +200,10 @@ class Workflow {
     return original;
   }
 
-  static String _summarize(Object? maybeOwnerToken) => switch (maybeOwnerToken) {
-    final String s => "'$s'",
-    null => '<null>',(_) => '${maybeOwnerToken.runtimeType}@${maybeOwnerToken.hashCode}',
-  };
-}
-
-class NoOpExternalRequestContext
-    implements ExternalRequestContext, ExternalRequestSink {
-  NoOpExternalRequestContext();
-
-  @override
-  Future<void> post(ExternalRequest request) async {}
-
-  @override
-  ExternalRequestSink registerPort(RequestPort port) => this;
+  static String _summarize(Object? maybeOwnerToken) =>
+      switch (maybeOwnerToken) {
+        final String s => "'$s'",
+        null => '<null>',
+        _ => '${maybeOwnerToken.runtimeType}@${maybeOwnerToken.hashCode}',
+      };
 }

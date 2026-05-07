@@ -1,27 +1,31 @@
-import 'identified.dart';
+import 'executor_options.dart';
 
-/// Represents a configuration for an Object with a String identifier. For
-/// example, [Identified] Object.
-///
-/// [id] A unique identifier for the configurable Object.
-///
-/// [TOptions] Optional type of options for the configurable Object.
-class ExecutorConfig<TOptions> {
-  /// Represents a configuration for an Object with a String identifier.
-  ///
-  /// [id] A unique identifier for the configurable Object.
-  ///
-  /// [options] The options for the configurable Object.
-  ExecutorConfig(String id, {TOptions? options})
-      : id = id,
-        options = options;
+/// Configuration applied while creating or binding an executor.
+class ExecutorConfig {
+  /// Creates an executor config.
+  const ExecutorConfig({
+    this.id,
+    this.options,
+    this.properties = const <String, Object?>{},
+  });
 
-  /// Gets a unique identifier for the configurable Object.
-  ///
-  /// Remarks: If not provided, the configured Object will generate its own
-  /// identifier.
-  final String id;
+  /// Gets an optional executor identifier override.
+  final String? id;
 
-  /// Gets the options for the configured Object.
-  final TOptions? options;
+  /// Gets executor runtime options.
+  final ExecutorOptions? options;
+
+  /// Gets arbitrary configuration properties.
+  final Map<String, Object?> properties;
+
+  /// Creates a copy with selected values replaced.
+  ExecutorConfig copyWith({
+    String? id,
+    ExecutorOptions? options,
+    Map<String, Object?>? properties,
+  }) => ExecutorConfig(
+    id: id ?? this.id,
+    options: options ?? this.options,
+    properties: properties ?? this.properties,
+  );
 }

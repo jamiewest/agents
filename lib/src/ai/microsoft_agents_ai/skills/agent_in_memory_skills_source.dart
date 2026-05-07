@@ -8,7 +8,7 @@ class AgentInMemorySkillsSource extends AgentSkillsSource {
   ///
   /// [skills] The skills to include in this source.
   AgentInMemorySkillsSource(Iterable<AgentSkill> skills)
-      : _skills = skills.toList();
+    : _skills = skills.toList();
 
   final List<AgentSkill> _skills;
 

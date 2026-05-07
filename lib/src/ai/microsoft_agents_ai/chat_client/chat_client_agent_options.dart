@@ -52,8 +52,9 @@ class ChatClientAgentOptions {
     ..description = description
     ..chatOptions = chatOptions?.clone()
     ..chatHistoryProvider = chatHistoryProvider
-    ..aiContextProviders =
-        aiContextProviders == null ? null : List.of(aiContextProviders!)
+    ..aiContextProviders = aiContextProviders == null
+        ? null
+        : List.of(aiContextProviders!)
     ..useProvidedChatClientAsIs = useProvidedChatClientAsIs
     ..clearOnChatHistoryProviderConflict = clearOnChatHistoryProviderConflict
     ..warnOnChatHistoryProviderConflict = warnOnChatHistoryProviderConflict

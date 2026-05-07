@@ -7,10 +7,10 @@
 /// to the specified tool with exactly matching argument values are
 /// auto-approved.
 class ToolApprovalRule {
-  ToolApprovalRule();
+  ToolApprovalRule({this.toolName = '', this.arguments});
 
   /// Gets or sets the name of the tool function that this rule applies to.
-  String toolName = '';
+  String toolName;
 
   /// Gets or sets the specific argument values that must match for this rule to
   /// apply. When `null`, the rule applies to all invocations of the tool

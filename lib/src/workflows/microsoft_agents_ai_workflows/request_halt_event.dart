@@ -1,6 +1,1 @@
-import 'workflow_event.dart';
-
-/// Event triggered when a workflow completes execution.
-class RequestHaltEvent extends WorkflowEvent {
-  RequestHaltEvent({Object? result = null});
-}
+// Placeholder for the C#-faithful workflow port slice: request_halt_event.dart.

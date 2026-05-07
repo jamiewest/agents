@@ -1,34 +1,28 @@
-import '../../func_typedefs.dart';
 import 'edge_data.dart';
 import 'edge_id.dart';
-import 'execution/edge_connection.dart';
 
-/// Represents a directed edge between two nodes, optionally associated with a
-/// condition that determines whether the edge is active.
+/// Edge data for a direct source-to-target connection.
 class DirectEdgeData extends EdgeData {
-  DirectEdgeData(
-    String sourceId,
-    String sinkId,
-    EdgeId id,
-    {Func<Object?, bool>? condition = null, String? label = null, }
-  ) :
-      sourceId = sourceId,
-      sinkId = sinkId,
-      condition = condition,
-      connection = EdgeConnection([sourceId], [sinkId]),
-      super(id, label: label);
+  /// Creates direct edge data.
+  const DirectEdgeData({
+    required EdgeId id,
+    required this.sourceExecutorId,
+    required this.targetExecutorId,
+    this.messageType,
+  }) : super(id);
 
-  /// The Id of the source [Executor] node.
-  final String sourceId;
+  /// Gets the source executor identifier.
+  final String sourceExecutorId;
 
-  /// The Id of the destination [Executor] node.
-  final String sinkId;
+  /// Gets the target executor identifier.
+  final String targetExecutorId;
 
-  /// An optional predicate determining whether the edge is active for a given
-  /// message. If `null`, the edge is always active when a message is generated
-  /// by the source.
-  final Func<Object?, bool>? condition;
+  /// Gets the optional routed message type.
+  final Type? messageType;
 
-  final EdgeConnection connection;
+  @override
+  Iterable<String> get sourceExecutorIds => <String>[sourceExecutorId];
 
+  @override
+  Iterable<String> get targetExecutorIds => <String>[targetExecutorId];
 }

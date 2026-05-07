@@ -1,6 +1,32 @@
 import 'package:extensions/ai.dart';
-import '../../../func_typedefs.dart';
+
 import 'chat_history_memory_provider.dart';
+
+/// Redacts sensitive values before they are written to diagnostic logs.
+abstract class Redactor {
+  String redact(String? value);
+}
+
+class NullRedactor implements Redactor {
+  const NullRedactor();
+
+  static const NullRedactor instance = NullRedactor();
+
+  @override
+  String redact(String? value) => value ?? '';
+}
+
+class ReplacingRedactor implements Redactor {
+  const ReplacingRedactor(this.replacement);
+
+  final String replacement;
+
+  @override
+  String redact(String? value) => replacement;
+}
+
+Redactor replacingRedactor(String replacement) =>
+    ReplacingRedactor(replacement);
 
 /// Options controlling the behavior of [ChatHistoryMemoryProvider].
 class ChatHistoryMemoryProviderOptions {
@@ -26,32 +52,28 @@ class ChatHistoryMemoryProviderOptions {
 
   /// Gets or sets a value indicating whether sensitive data such as user ids
   /// and user messages may appear in logs.
-  ///
-  /// Remarks: When set to `true`, sensitive data is passed through to logs
-  /// unchanged and any configured [Redactor] is ignored. This property takes
-  /// precedence over [Redactor].
   bool enableSensitiveTelemetryData = false;
 
   /// Gets or sets a custom [Redactor] used to redact sensitive data in log
   /// output.
-  Object? redactor;
+  Redactor? redactor;
 
-  /// Gets or sets the key used to store provider state in the [StateBag].
+  /// Gets or sets the key used to store provider state in the state bag.
   String? stateKey;
 
   /// Gets or sets an optional filter function applied to request messages when
-  /// constructing the search text to use to search for relevant chat history
-  /// during [CancellationToken)].
-  Func<Iterable<ChatMessage>, Iterable<ChatMessage>>? searchInputMessageFilter;
+  /// constructing the search text.
+  Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
+  searchInputMessageFilter;
 
   /// Gets or sets an optional filter function applied to request messages when
-  /// storing recent chat history during [CancellationToken)].
-  Func<Iterable<ChatMessage>, Iterable<ChatMessage>>?
+  /// storing recent chat history.
+  Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
   storageInputRequestMessageFilter;
 
   /// Gets or sets an optional filter function applied to response messages when
-  /// storing recent chat history during [CancellationToken)].
-  Func<Iterable<ChatMessage>, Iterable<ChatMessage>>?
+  /// storing recent chat history.
+  Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
   storageInputResponseMessageFilter;
 }
 
@@ -60,7 +82,6 @@ enum SearchBehavior {
   /// Execute search prior to each invocation and inject results as a message.
   beforeAIInvoke,
 
-  /// Expose a function tool to perform search on-demand via function/tool
-  /// calling.
+  /// Expose a function tool to perform search on-demand via function calling.
   onDemandFunctionCalling,
 }

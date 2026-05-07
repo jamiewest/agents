@@ -4,7 +4,6 @@ import 'compaction_group_kind.dart';
 import 'compaction_message_index.dart';
 import 'compaction_strategy.dart';
 import 'compaction_trigger.dart';
-import 'compaction_triggers.dart';
 
 /// A compaction strategy that removes the oldest non-system message groups,
 /// keeping at least [MinimumPreservedGroups] most-recent groups intact.
@@ -31,11 +30,13 @@ class TruncationCompactionStrategy extends CompactionStrategy {
   /// When `null`, defaults to the inverse of the `trigger` — compaction stops
   /// as soon as the trigger would no longer fire.
   TruncationCompactionStrategy(
-    CompactionTrigger trigger, {
-    int? minimumPreservedGroups = null,
-    CompactionTrigger? target = null,
-  }) : super(trigger, target: target) {
-    this.minimumPreservedGroups = ensureNonNegative(minimumPreservedGroups);
+    super.trigger, {
+    int? minimumPreservedGroups,
+    super.target,
+  }) {
+    this.minimumPreservedGroups = CompactionStrategy.ensureNonNegative(
+      minimumPreservedGroups,
+    );
   }
 
   /// Gets the minimum number of most-recent non-system message groups that are
@@ -48,7 +49,7 @@ class TruncationCompactionStrategy extends CompactionStrategy {
     CompactionMessageIndex index,
     Logger logger,
     CancellationToken cancellationToken,
-  ) {
+  ) async {
     var removableCount = 0;
     for (var i = 0; i < index.groups.length; i++) {
       var group = index.groups[i];
@@ -56,9 +57,9 @@ class TruncationCompactionStrategy extends CompactionStrategy {
         removableCount++;
       }
     }
-    var maxRemovable = removableCount - this.minimumPreservedGroups;
+    var maxRemovable = removableCount - minimumPreservedGroups;
     if (maxRemovable <= 0) {
-      return Future<bool>(false);
+      return false;
     }
     var compacted = false;
     var removed = 0;
@@ -68,14 +69,13 @@ class TruncationCompactionStrategy extends CompactionStrategy {
         continue;
       }
       group.isExcluded = true;
-      group.excludeReason =
-          'Truncated by ${'TruncationCompactionStrategy'}';
+      group.excludeReason = 'Truncated by ${'TruncationCompactionStrategy'}';
       removed++;
       compacted = true;
-      if (this.target(index)) {
+      if (target(index)) {
         break;
       }
     }
-    return Future<bool>(compacted);
+    return compacted;
   }
 }

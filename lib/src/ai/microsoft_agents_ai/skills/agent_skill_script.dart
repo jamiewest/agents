@@ -19,7 +19,7 @@ abstract class AgentSkillScript {
   final String name;
 
   /// Gets the optional script description.
-  late final String? description;
+  String? description;
 
   /// Gets the JSON schema describing the parameters accepted by this script, or
   /// `null` if not available.

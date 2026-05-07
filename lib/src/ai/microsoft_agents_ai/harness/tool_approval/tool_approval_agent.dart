@@ -1,85 +1,71 @@
-import 'package:extensions/system.dart';
 import 'package:extensions/ai.dart';
+import 'package:extensions/system.dart';
+
+import '../../../../abstractions/microsoft_agents_ai_abstractions/agent_response.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/agent_response_update.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/agent_run_options.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/agent_session.dart';
-import '../../../../abstractions/microsoft_agents_ai_abstractions/agent_session_state_bag.dart';
+import '../../../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/delegating_ai_agent.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/provider_session_state_t_state_.dart';
+import '../../../../json_stubs.dart';
 import '../../agent_json_utilities.dart';
 import 'always_approve_tool_approval_response_content.dart';
 import 'tool_approval_rule.dart';
 import 'tool_approval_state.dart';
-import '../../../../json_stubs.dart';
-import '../../../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
 
-/// A [DelegatingAIAgent] middleware that implements "don't ask again" tool
-/// approval behavior and queues multiple approval requests to present them to
-/// the caller one at a time.
-///
-/// Remarks: This middleware intercepts the approval flow between the caller
-/// and the inner agent: Outbound (response to caller): When the inner agent
-/// surfaces [ToolApprovalRequestContent] items, the middleware checks whether
-/// matching [ToolApprovalRule] entries have been recorded. Matched requests
-/// are auto-approved and stored as collected approval responses. If multiple
-/// unapproved requests remain, only the first is returned to the caller while
-/// the rest are queued. On subsequent calls, queued items are re-evaluated
-/// against rules (which may have been updated by the caller's "always
-/// approve" response) and presented one at a time. Once all queued requests
-/// are resolved, the collected responses are injected and the inner agent is
-/// called again. Inbound (caller to agent): When the caller sends an
-/// [AlwaysApproveToolApprovalResponseContent], the middleware extracts the
-/// standing approval settings, records them as [ToolApprovalRule] entries in
-/// the session state, and forwards only the unwrapped
-/// [ToolApprovalResponseContent] to the inner agent. Content ordering within
-/// each message is preserved. Approval rules are persisted in the
-/// [AgentSessionStateBag] and survive across agent runs within the same
-/// session. Two categories of rules are supported: Tool-level: Approve all
-/// calls to a specific tool, regardless of arguments. Tool+arguments: Approve
-/// all calls to a specific tool with exactly matching arguments.
+/// Middleware that handles standing tool-approval rules and queues approval
+/// requests so callers see at most one unresolved request at a time.
 class ToolApprovalAgent extends DelegatingAIAgent {
-  /// Initializes a new instance of the [ToolApprovalAgent] class.
-  ///
-  /// [innerAgent] The underlying agent to delegate to.
-  ///
-  /// [JsonSerializerOptions] Optional [JsonSerializerOptions] used for
-  /// serializing argument values when storing rules and for persisting state.
-  /// When `null`, [DefaultOptions] is used.
-  ToolApprovalAgent(AIAgent innerAgent, {JsonSerializerOptions? JsonSerializerOptions = null, }) : super(innerAgent) {
-    this._jsonSerializerOptions = JsonSerializerOptions ?? AgentJsonUtilities.defaultOptions;
-    this._sessionState = ProviderSessionState<ToolApprovalState>(
-            (_) => toolApprovalState(),
-            "toolApprovalState",
-            this._jsonSerializerOptions);
-  }
+  ToolApprovalAgent(
+    AIAgent? innerAgent, {
+    JsonSerializerOptions? jsonSerializerOptions,
+  }) : _jsonSerializerOptions =
+           jsonSerializerOptions ?? AgentJsonUtilities.defaultOptions,
+       _sessionState = ProviderSessionState<ToolApprovalState>(
+         (_) => ToolApprovalState(),
+         'toolApprovalState',
+         JsonSerializerOptions:
+             jsonSerializerOptions ?? AgentJsonUtilities.defaultOptions,
+       ),
+       super(innerAgent ?? (throw ArgumentError.notNull('innerAgent')));
 
-  late final ProviderSessionState<ToolApprovalState> _sessionState;
-
-  late final JsonSerializerOptions _jsonSerializerOptions;
+  final ProviderSessionState<ToolApprovalState> _sessionState;
+  final JsonSerializerOptions _jsonSerializerOptions;
 
   @override
   Future<AgentResponse> runCore(
-    Iterable<ChatMessage> messages,
-    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, }
-  ) async {
-    // Steps 1–2: Unwrap AlwaysApprove wrappers, process any queued approval requests.
-        var (
-          state,
-          callerMessages,
-          nextQueuedItem,
-        ) = this.prepareInboundMessages(messages, session);
-    if (nextQueuedItem != null) {
-      return agentResponse(ChatMessage(role: ChatRole.assistant, contents: [nextQueuedItem]));
+    Iterable<ChatMessage> messages, {
+    AgentSession? session,
+    AgentRunOptions? options,
+    CancellationToken? cancellationToken,
+  }) async {
+    final inbound = prepareInboundMessages(messages, session);
+    var state = inbound.state;
+    var callerMessages = inbound.callerMessages;
+
+    if (inbound.nextQueuedItem != null) {
+      return AgentResponse(
+        message: ChatMessage(
+          role: ChatRole.assistant,
+          contents: [inbound.nextQueuedItem!],
+        ),
+      );
     }
+
     while (true) {
-      var processedMessages = this.injectCollectedResponses(callerMessages, state, session);
-      var response = await this.innerAgent.runAsync(
-        processedMessages,
+      final processedMessages = injectCollectedResponses(
+        callerMessages,
+        state,
+        session,
+      );
+      final response = await innerAgent.run(
         session,
         options,
-        cancellationToken,
-      ) ;
-      var allAutoApproved = this.processAndQueueOutboundApprovalRequests(
+        cancellationToken ?? CancellationToken.none,
+        messages: processedMessages,
+      );
+      final allAutoApproved = processAndQueueOutboundApprovalRequests(
         response.messages,
         state,
         session,
@@ -87,449 +73,503 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       if (!allAutoApproved) {
         return response;
       }
-      // All approval requests were auto-approved. Loop to re-invoke with them injected.
-            callerMessages = [];
+
+      callerMessages = const [];
     }
   }
 
   @override
   Stream<AgentResponseUpdate> runCoreStreaming(
-    Iterable<ChatMessage> messages,
-    {AgentSession? session, AgentRunOptions? options, CancellationToken? cancellationToken, }
-  ) async* {
-    // Steps 1–2: Unwrap AlwaysApprove wrappers, process any queued approval requests.
-        var (
-          state,
-          callerMessages,
-          nextQueuedItem,
-        ) = this.prepareInboundMessages(messages, session);
-    if (nextQueuedItem != null) {
-      yield AgentResponseUpdate(role: ChatRole.assistant, contents: [nextQueuedItem]);
+    Iterable<ChatMessage> messages, {
+    AgentSession? session,
+    AgentRunOptions? options,
+    CancellationToken? cancellationToken,
+  }) async* {
+    final inbound = prepareInboundMessages(messages, session);
+    var state = inbound.state;
+    var callerMessages = inbound.callerMessages;
+
+    if (inbound.nextQueuedItem != null) {
+      yield AgentResponseUpdate(
+        role: ChatRole.assistant,
+        contents: [inbound.nextQueuedItem!],
+      );
       return;
     }
+
     while (true) {
-      var processedMessages = this.injectCollectedResponses(callerMessages, state, session);
-      var streamedApprovalRequests = [];
-      for (final update in this.innerAgent.runStreamingAsync(processedMessages, session, options, cancellationToken)) {
-        var hasApprovalRequests = false;
-        for (final content in update.contents) {
-          if (content is ToolApprovalRequestContent) {
-            hasApprovalRequests = true;
-            break;
-          }
-        }
-        if (!hasApprovalRequests) {
+      final processedMessages = injectCollectedResponses(
+        callerMessages,
+        state,
+        session,
+      );
+      final streamedApprovalRequests = <ToolApprovalRequestContent>[];
+
+      await for (final update in innerAgent.runStreaming(
+        session,
+        options,
+        cancellationToken ?? CancellationToken.none,
+        messages: processedMessages,
+      )) {
+        final approvalRequests = update.contents
+            .whereType<ToolApprovalRequestContent>()
+            .toList();
+        if (approvalRequests.isEmpty) {
           yield update;
           continue;
         }
-        var filteredContents = List<AIContent>();
-        for (final content in update.contents) {
-          if (content is ToolApprovalRequestContent) {
-            final tarc = content as ToolApprovalRequestContent;
-            streamedApprovalRequests.add(tarc);
-          } else {
-            filteredContents.add(content);
-          }
-        }
-        if (filteredContents.length > 0) {
-          yield AgentResponseUpdate(role: update.role, contents: filteredContents);
+
+        streamedApprovalRequests.addAll(approvalRequests);
+        final filteredContents = update.contents
+            .where((content) => content is! ToolApprovalRequestContent)
+            .toList();
+        if (filteredContents.isNotEmpty) {
+          yield _cloneUpdateWithContents(update, filteredContents);
         }
       }
-      if (streamedApprovalRequests.length == 0) {
+
+      if (streamedApprovalRequests.isEmpty) {
         return;
       }
-      var unapproved = [];
-      for (final tarc in streamedApprovalRequests) {
-        if (matchesRule(tarc, state.rules, this._jsonSerializerOptions)) {
+
+      final unapproved = <ToolApprovalRequestContent>[];
+      for (final request in streamedApprovalRequests) {
+        if (matchesRule(request, state.rules, _jsonSerializerOptions)) {
           state.collectedApprovalResponses.add(
-                        tarc.createResponse(
-                          approved: true,
-                          reason: "Auto-approved by standing rule",
-                        ) );
+            request.createResponse(
+              true,
+              reason: 'Auto-approved by standing rule',
+            ),
+          );
         } else {
-          unapproved.add(tarc);
+          unapproved.add(request);
         }
       }
-      if (unapproved.length == 0) {
-        callerMessages = [];
+
+      if (unapproved.isEmpty) {
+        _sessionState.saveState(session, state);
+        callerMessages = const [];
         continue;
       }
+
       if (unapproved.length > 1) {
-        state.queuedApprovalRequests.addAll(unapproved.getRange(1, unapproved.length - 1));
+        state.queuedApprovalRequests.addAll(unapproved.skip(1));
       }
-      this._sessionState.saveState(session, state);
-      yield AgentResponseUpdate(role: ChatRole.assistant, contents: [unapproved[0]]);
+      _sessionState.saveState(session, state);
+      yield AgentResponseUpdate(
+        role: ChatRole.assistant,
+        contents: [unapproved.first],
+      );
       return;
     }
   }
 
-  /// Extracts [ToolApprovalResponseContent] instances from the caller's
-  /// messages and collects them into [CollectedApprovalResponses]. Extracted
-  /// responses are removed from the messages in-place.
+  ({
+    ToolApprovalState state,
+    List<ChatMessage> callerMessages,
+    ToolApprovalRequestContent? nextQueuedItem,
+  })
+  prepareInboundMessages(
+    Iterable<ChatMessage> messages,
+    AgentSession? session,
+  ) {
+    final state = _sessionState.getOrInitializeState(session);
+    final callerMessages = unwrapAlwaysApproveResponses(
+      messages,
+      state,
+      _jsonSerializerOptions,
+    );
+
+    collectApprovalResponsesFromMessages(callerMessages, state);
+
+    if (state.queuedApprovalRequests.isNotEmpty) {
+      drainAutoApprovableFromQueue(state);
+      if (state.queuedApprovalRequests.isNotEmpty) {
+        final next = state.queuedApprovalRequests.removeAt(0);
+        _sessionState.saveState(session, state);
+        return (
+          state: state,
+          callerMessages: callerMessages,
+          nextQueuedItem: next,
+        );
+      }
+    }
+
+    return (state: state, callerMessages: callerMessages, nextQueuedItem: null);
+  }
+
   static void collectApprovalResponsesFromMessages(
     List<ChatMessage> messages,
     ToolApprovalState state,
   ) {
     for (var i = messages.length - 1; i >= 0; i--) {
-      var message = messages[i];
-      var hasApprovalResponse = false;
-      for (final content in message.contents) {
-        if (content is ToolApprovalResponseContent) {
-          hasApprovalResponse = true;
-          break;
-        }
-      }
-      if (!hasApprovalResponse) {
+      final message = messages[i];
+      if (!message.contents.any((c) => c is ToolApprovalResponseContent)) {
         continue;
       }
-      var remaining = List<AIContent>(message.contents.length);
+
+      final remaining = <AIContent>[];
       for (final content in message.contents) {
         if (content is ToolApprovalResponseContent) {
-          final response = content as ToolApprovalResponseContent;
-          state.collectedApprovalResponses.add(response);
+          state.collectedApprovalResponses.add(content);
         } else {
           remaining.add(content);
         }
       }
-      if (remaining.length == 0) {
+
+      if (remaining.isEmpty) {
         messages.removeAt(i);
       } else {
-        var cloned = message.clone();
-        cloned.contents = remaining;
-        messages[i] = cloned;
+        messages[i] = _cloneMessageWithContents(message, remaining);
       }
     }
   }
 
-  /// Re-evaluates queued approval requests against current rules and
-  /// auto-approves any that now match.
   void drainAutoApprovableFromQueue(ToolApprovalState state) {
     for (var i = state.queuedApprovalRequests.length - 1; i >= 0; i--) {
-      if (matchesRule(state.queuedApprovalRequests[i], state.rules, this._jsonSerializerOptions)) {
+      final request = state.queuedApprovalRequests[i];
+      if (matchesRule(request, state.rules, _jsonSerializerOptions)) {
         state.collectedApprovalResponses.add(
-                    state.queuedApprovalRequests[i].createResponse(
-                      approved: true,
-                      reason: "Auto-approved by standing rule",
-                    ) );
+          request.createResponse(
+            true,
+            reason: 'Auto-approved by standing rule',
+          ),
+        );
         state.queuedApprovalRequests.removeAt(i);
       }
     }
   }
 
-  /// Performs the common inbound processing shared by both the streaming and
-  /// non-streaming paths: Unwraps [AlwaysApproveToolApprovalResponseContent]
-  /// wrappers, extracting standing rules. If there are queued approval requests
-  /// from a previous batch, collects the caller's responses, drains any items
-  /// now resolvable by new rules, and dequeues the next item if any remain.
-  ///
-  /// Returns: A tuple of (state, processed caller messages, next queued item or
-  /// `null` if the queue is resolved). When the returned item is non-null, the
-  /// caller should return/yield it without calling the inner agent.
-  Object? prepareInboundMessages(
-    Iterable<ChatMessage> messages,
-    AgentSession? session,
-  ) {
-    var state = this._sessionState.getOrInitializeState(session);
-    var callerMessages = unwrapAlwaysApproveResponses(messages, state, this._jsonSerializerOptions);
-    if (state.queuedApprovalRequests.length > 0) {
-      // Collect the caller's approval/denial responses for the previously dequeued item
-            // and store them in state for the next downstream call.
-            collectApprovalResponsesFromMessages(callerMessages, state);
-      // Re-evaluate remaining queued items — the caller may have added new rules
-            // (e.g., "always approve this tool") that resolve additional items.
-            this.drainAutoApprovableFromQueue(state);
-      if (state.queuedApprovalRequests.length > 0) {
-        var next = state.queuedApprovalRequests[0];
-        state.queuedApprovalRequests.removeAt(0);
-        this._sessionState.saveState(session, state);
-        return (state, callerMessages, next);
-      }
-    }
-    return (state, callerMessages, null);
-  }
-
-  /// Injects any collected approval responses as user messages before the
-  /// caller's messages, then clears the collected responses.
   List<ChatMessage> injectCollectedResponses(
     List<ChatMessage> callerMessages,
     ToolApprovalState state,
     AgentSession? session,
   ) {
-    if (state.collectedApprovalResponses.length > 0) {
-      var result = [ChatMessage(role: ChatRole.user, contents: [...state.collectedApprovalResponses])];
-      result.addAll(callerMessages);
-      state.collectedApprovalResponses.clear();
-      this._sessionState.saveState(session, state);
-      return result;
+    if (state.collectedApprovalResponses.isEmpty) {
+      return callerMessages;
     }
-    return callerMessages;
+
+    final result = <ChatMessage>[
+      ChatMessage(
+        role: ChatRole.user,
+        contents: List<AIContent>.of(state.collectedApprovalResponses),
+      ),
+      ...callerMessages,
+    ];
+    state.collectedApprovalResponses.clear();
+    _sessionState.saveState(session, state);
+    return result;
   }
 
-  /// Processes outbound approval requests from non-streaming response messages.
-  /// Auto-approvable requests are collected as responses, and if multiple
-  /// unapproved requests remain, only the first is kept in the response while
-  /// the rest are queued for subsequent calls.
-  ///
-  /// Returns: `true` if all TARc items were auto-approved (caller should
-  /// re-invoke the inner agent); `false` otherwise.
   bool processAndQueueOutboundApprovalRequests(
     List<ChatMessage> responseMessages,
     ToolApprovalState state,
     AgentSession? session,
   ) {
-    var autoApproved = List<ToolApprovalRequestContent>();
-    var unapproved = List<ToolApprovalRequestContent>();
+    final autoApproved = <ToolApprovalRequestContent>[];
+    final unapproved = <ToolApprovalRequestContent>[];
+
     for (final message in responseMessages) {
       for (final content in message.contents) {
         if (content is ToolApprovalRequestContent) {
-          final tarc = content as ToolApprovalRequestContent;
-          if (matchesRule(tarc, state.rules, this._jsonSerializerOptions)) {
-            autoApproved.add(tarc);
+          if (matchesRule(content, state.rules, _jsonSerializerOptions)) {
+            autoApproved.add(content);
           } else {
-            unapproved.add(tarc);
+            unapproved.add(content);
           }
         }
       }
     }
-    if (autoApproved.length == 0 && unapproved.length <= 1) {
+
+    if (autoApproved.isEmpty && unapproved.length <= 1) {
       return false;
     }
-    for (final tarc in autoApproved) {
+
+    for (final request in autoApproved) {
       state.collectedApprovalResponses.add(
-                tarc.createResponse(approved: true, reason: "Auto-approved by standing rule"));
+        request.createResponse(true, reason: 'Auto-approved by standing rule'),
+      );
     }
-    if (unapproved.length == 0) {
+
+    if (unapproved.isEmpty) {
       removeAllToolApprovalRequests(responseMessages);
-      this._sessionState.saveState(session, state);
+      _sessionState.saveState(session, state);
       return true;
     }
-    var toRemove = Set<ToolApprovalRequestContent>(autoApproved);
+
+    final toRemove = <ToolApprovalRequestContent>{...autoApproved};
     if (unapproved.length > 1) {
-      for (var i = 1; i < unapproved.length; i++) {
-        toRemove.add(unapproved[i]);
-        state.queuedApprovalRequests.add(unapproved[i]);
+      for (final request in unapproved.skip(1)) {
+        toRemove.add(request);
+        state.queuedApprovalRequests.add(request);
       }
     }
-    for (var i = responseMessages.length - 1; i >= 0; i--) {
-      var message = responseMessages[i];
-      var hasRemovable = false;
-      for (final content in message.contents) {
-        if (content is ToolApprovalRequestContent && toRemove.contains(tarc)) {
-          hasRemovable = true;
-          break;
-        }
-      }
-      if (!hasRemovable) {
-        continue;
-      }
-      var remaining = List<AIContent>(message.contents.length);
-      for (final content in message.contents) {
-        if (content is ToolApprovalRequestContent && toRemove.contains(tarc)) {
-          continue;
-        }
-        remaining.add(content);
-      }
-      if (remaining.length == 0) {
-        responseMessages.removeAt(i);
-      } else {
-        var clonedMessage = message.clone();
-        clonedMessage.contents = remaining;
-        responseMessages[i] = clonedMessage;
-      }
-    }
-    this._sessionState.saveState(session, state);
+
+    removeToolApprovalRequests(responseMessages, toRemove);
+    _sessionState.saveState(session, state);
     return false;
   }
 
-  /// Removes all [ToolApprovalRequestContent] items from response messages.
-  static void removeAllToolApprovalRequests(List<ChatMessage> responseMessages) {
+  static void removeAllToolApprovalRequests(
+    List<ChatMessage> responseMessages,
+  ) {
+    removeToolApprovalRequests(
+      responseMessages,
+      responseMessages
+          .expand((message) => message.contents)
+          .whereType<ToolApprovalRequestContent>()
+          .toSet(),
+    );
+  }
+
+  static void removeToolApprovalRequests(
+    List<ChatMessage> responseMessages,
+    Set<ToolApprovalRequestContent> requests,
+  ) {
+    if (requests.isEmpty) {
+      return;
+    }
+
     for (var i = responseMessages.length - 1; i >= 0; i--) {
-      var message = responseMessages[i];
-      var hasTarc = false;
-      for (final content in message.contents) {
-        if (content is ToolApprovalRequestContent) {
-          hasTarc = true;
-          break;
-        }
-      }
-      if (!hasTarc) {
+      final message = responseMessages[i];
+      if (!message.contents.any(
+        (content) =>
+            content is ToolApprovalRequestContent && requests.contains(content),
+      )) {
         continue;
       }
-      var remaining = List<AIContent>(message.contents.length);
-      for (final content in message.contents) {
-        if (content is! ToolApprovalRequestContent) {
-          remaining.add(content);
-        }
-      }
-      if (remaining.length == 0) {
+
+      final remaining = message.contents
+          .where(
+            (content) =>
+                content is! ToolApprovalRequestContent ||
+                !requests.contains(content),
+          )
+          .toList();
+      if (remaining.isEmpty) {
         responseMessages.removeAt(i);
       } else {
-        var clonedMessage = message.clone();
-        clonedMessage.contents = remaining;
-        responseMessages[i] = clonedMessage;
+        responseMessages[i] = _cloneMessageWithContents(message, remaining);
       }
     }
   }
 
-  /// Scans input messages for [AlwaysApproveToolApprovalResponseContent]
-  /// instances, extracts standing approval rules, and replaces them in-place
-  /// with the unwrapped inner [ToolApprovalResponseContent], preserving content
-  /// ordering.
   static List<ChatMessage> unwrapAlwaysApproveResponses(
     Iterable<ChatMessage> messages,
     ToolApprovalState state,
-    JsonSerializerOptions JsonSerializerOptions,
+    JsonSerializerOptions jsonSerializerOptions,
   ) {
-    var messageList = messages is List<ChatMessage> ? messages as List<ChatMessage> : messages.toList();
-    var result = List<ChatMessage>(messageList.length);
+    final messageList = List<ChatMessage>.of(messages);
     var anyModified = false;
+    final result = <ChatMessage>[];
+
     for (final message in messageList) {
-      var hasAlwaysApprove = false;
-      for (final content in message.contents) {
-        if (content is AlwaysApproveToolApprovalResponseContent) {
-          hasAlwaysApprove = true;
-          break;
-        }
-      }
-      if (!hasAlwaysApprove) {
+      if (!message.contents.any(
+        (c) => c is AlwaysApproveToolApprovalResponseContent,
+      )) {
         result.add(message);
         continue;
       }
-      var newContents = List<AIContent>(message.contents.length);
+
+      final newContents = <AIContent>[];
       for (final content in message.contents) {
         if (content is AlwaysApproveToolApprovalResponseContent) {
-          final alwaysApprove = content as AlwaysApproveToolApprovalResponseContent;
-          if (alwaysApprove.innerResponse.toolCall is FunctionCallContent) {
-            final toolCall = alwaysApprove.innerResponse.toolCall as FunctionCallContent;
-            if (alwaysApprove.alwaysApproveTool) {
-              addRuleIfNotExists(state, toolApprovalRule());
-            } else if (alwaysApprove.alwaysApproveToolWithArguments) {
-              addRuleIfNotExists(state, toolApprovalRule());
+          final toolCall = _asFunctionCall(content.innerResponse.toolCall);
+          if (toolCall != null) {
+            if (content.alwaysApproveTool) {
+              addRuleIfNotExists(
+                state,
+                ToolApprovalRule(toolName: toolCall.name),
+              );
+            } else if (content.alwaysApproveToolWithArguments) {
+              addRuleIfNotExists(
+                state,
+                ToolApprovalRule(
+                  toolName: toolCall.name,
+                  arguments: serializeArguments(
+                    toolCall.arguments,
+                    jsonSerializerOptions,
+                  ),
+                ),
+              );
             }
           }
-          // Replace the wrapper with the unwrapped inner response, preserving position.
-                    newContents.add(alwaysApprove.innerResponse);
+          newContents.add(content.innerResponse);
         } else {
           newContents.add(content);
         }
       }
-      var clonedMessage = message.clone();
-      clonedMessage.contents = newContents;
-      result.add(clonedMessage);
+
+      result.add(_cloneMessageWithContents(message, newContents));
       anyModified = true;
     }
-    return anyModified ? result : (messageList is List<ChatMessage> ? messageList as List<ChatMessage> : messageList.toList());
+
+    return anyModified ? result : messageList;
   }
 
-  /// Determines whether a tool approval request matches any of the stored
-  /// rules.
   static bool matchesRule(
     ToolApprovalRequestContent request,
     List<ToolApprovalRule> rules,
-    JsonSerializerOptions JsonSerializerOptions,
+    JsonSerializerOptions jsonSerializerOptions,
   ) {
-    if (request.toolCall is! FunctionCallContent) {
+    final toolCall = _asFunctionCall(request.toolCall);
+    if (toolCall == null) {
       return false;
     }
+
     for (final rule in rules) {
-      if (!(rule.toolName == functionCall.name)) {
+      if (rule.toolName != toolCall.name) {
         continue;
       }
       if (rule.arguments == null) {
         return true;
       }
-      if (argumentsMatch(rule.arguments, functionCall.arguments, JsonSerializerOptions)) {
+      if (argumentsMatch(
+        rule.arguments!,
+        toolCall.arguments,
+        jsonSerializerOptions,
+      )) {
         return true;
       }
     }
+
     return false;
   }
 
-  /// Compares stored rule arguments against actual function call arguments for
-  /// an exact match.
   static bool argumentsMatch(
     Map<String, String> ruleArguments,
     Map<String, Object?>? callArguments,
-    JsonSerializerOptions JsonSerializerOptions,
+    JsonSerializerOptions jsonSerializerOptions,
   ) {
     if (callArguments == null) {
-      return ruleArguments.length == 0;
+      return ruleArguments.isEmpty;
     }
     if (ruleArguments.length != callArguments.length) {
       return false;
     }
-    for (final kvp in ruleArguments) {
-      var callValue;
-      if (!callArguments.containsKey(kvp.key)) {
+
+    for (final entry in ruleArguments.entries) {
+      if (!callArguments.containsKey(entry.key)) {
         return false;
       }
-      var serializedCallValue = serializeArgumentValue(callValue, JsonSerializerOptions);
-      if (!(kvp.value == serializedCallValue)) {
+      final serializedCallValue = serializeArgumentValue(
+        callArguments[entry.key],
+        jsonSerializerOptions,
+      );
+      if (entry.value != serializedCallValue) {
         return false;
       }
     }
+
     return true;
   }
 
-  /// Serializes function call arguments to a String dictionary for storage and
-  /// comparison.
   static Map<String, String>? serializeArguments(
     Map<String, Object?>? arguments,
-    JsonSerializerOptions JsonSerializerOptions,
+    JsonSerializerOptions jsonSerializerOptions,
   ) {
-    if (arguments == null || arguments.length == 0) {
+    if (arguments == null || arguments.isEmpty) {
       return null;
     }
-    var serialized = new Dictionary<String, String>(arguments.length, );
-    for (final kvp in arguments) {
-      serialized[kvp.key] = serializeArgumentValue(kvp.value, JsonSerializerOptions);
-    }
-    return serialized;
+
+    return {
+      for (final entry in arguments.entries)
+        entry.key: serializeArgumentValue(entry.value, jsonSerializerOptions),
+    };
   }
 
-  /// Serializes a single argument value to its JSON String representation.
   static String serializeArgumentValue(
     Object? value,
-    JsonSerializerOptions JsonSerializerOptions,
+    JsonSerializerOptions jsonSerializerOptions,
   ) {
     if (value == null) {
-      return "null";
+      return 'null';
     }
     if (value is JsonElement) {
-      final jsonElement = value as JsonElement;
-      return jsonElement.getRawText();
+      return value.toString();
     }
-    return JsonSerializer.serialize(value, JsonSerializerOptions.getTypeInfo(value.runtimeType));
+    return JsonSerializer.serialize(value);
   }
 
-  /// Adds a rule to the state if an equivalent rule does not already exist.
-  static void addRuleIfNotExists(ToolApprovalState state, ToolApprovalRule newRule, ) {
+  static void addRuleIfNotExists(
+    ToolApprovalState state,
+    ToolApprovalRule newRule,
+  ) {
     for (final existingRule in state.rules) {
-      if (!(existingRule.toolName == newRule.toolName)) {
+      if (existingRule.toolName != newRule.toolName) {
         continue;
       }
-      if (existingRule.arguments == null&& newRule.arguments == null) {
+      if (existingRule.arguments == null && newRule.arguments == null) {
         return;
       }
-      if (existingRule.arguments != null&& newRule.arguments != null &&
-                argumentDictionariesEqual(existingRule.arguments, newRule.arguments)) {
+      if (existingRule.arguments != null &&
+          newRule.arguments != null &&
+          argumentDictionariesEqual(
+            existingRule.arguments!,
+            newRule.arguments!,
+          )) {
         return;
       }
     }
+
     state.rules.add(newRule);
   }
 
-  /// Compares two String dictionaries for equality.
-  static bool argumentDictionariesEqual(Map<String, String> a, Map<String, String> b, ) {
+  static bool argumentDictionariesEqual(
+    Map<String, String> a,
+    Map<String, String> b,
+  ) {
     if (a.length != b.length) {
       return false;
     }
-    for (final kvp in a) {
-      var bValue;
-      if (!b.containsKey(kvp.key) || !(kvp.value == bValue)) {
+
+    for (final entry in a.entries) {
+      if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
         return false;
       }
     }
+
     return true;
+  }
+
+  static FunctionCallContent? _asFunctionCall(ToolCallContent toolCall) {
+    final dynamic candidate = toolCall;
+    return candidate is FunctionCallContent ? candidate : null;
+  }
+
+  static ChatMessage _cloneMessageWithContents(
+    ChatMessage message,
+    List<AIContent> contents,
+  ) {
+    return ChatMessage(
+      role: message.role,
+      contents: contents,
+      authorName: message.authorName,
+      createdAt: message.createdAt,
+      messageId: message.messageId,
+      rawRepresentation: message.rawRepresentation,
+      additionalProperties: message.additionalProperties != null
+          ? Map.of(message.additionalProperties!)
+          : null,
+    );
+  }
+
+  static AgentResponseUpdate _cloneUpdateWithContents(
+    AgentResponseUpdate update,
+    List<AIContent> contents,
+  ) {
+    final clone = AgentResponseUpdate(role: update.role, contents: contents);
+    clone.authorName = update.authorName;
+    clone.rawRepresentation = update.rawRepresentation;
+    clone.additionalProperties = update.additionalProperties != null
+        ? Map.of(update.additionalProperties!)
+        : null;
+    clone.agentId = update.agentId;
+    clone.responseId = update.responseId;
+    clone.messageId = update.messageId;
+    clone.createdAt = update.createdAt;
+    clone.continuationToken = update.continuationToken;
+    clone.finishReason = update.finishReason;
+    return clone;
   }
 }

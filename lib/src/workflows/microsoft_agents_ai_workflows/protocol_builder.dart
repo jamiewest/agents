@@ -1,164 +1,61 @@
-import 'executor.dart';
-import 'executor_options.dart';
-import 'route_builder.dart';
-import 'workflow_output_event.dart';
-import '../../func_typedefs.dart';
+import 'protocol_descriptor.dart';
+import 'request_port.dart';
 
-extension MemberAttributeExtensions on MemberInfo {EnumerableTypeSentEnumerableTypeYielded getAttributeTypes() {
-var sendsMessageAttrs = memberInfo.getCustomAttributes<SendsMessageAttribute>();
-var yieldsOutputAttrs = memberInfo.getCustomAttributes<YieldsOutputAttribute>();
-return (
-  Sent: sendsMessageAttrs.map((attr) => attr.type),
-  Yielded: yieldsOutputAttrs.map((attr) => attr.type),
-);
- }
- }
-/// .
+/// Builder used by executors to describe their accepted and produced messages.
 class ProtocolBuilder {
-  ProtocolBuilder(DelayedExternalRequestContext delayRequestContext) {
-    this.routeBuilder = routeBuilder(delayRequestContext);
-  }
+  final List<Type> _acceptedTypes = <Type>[];
+  final List<Type> _producedTypes = <Type>[];
+  final List<RequestPortDescriptor> _requestPorts = <RequestPortDescriptor>[];
+  bool _acceptsAll = false;
 
-  final Set<Type> _sendTypes = {};
-
-  final Set<Type> _yieldTypes = {};
-
-  /// Gets a route builder to configure message handlers.
-  late final RouteBuilder routeBuilder;
-
-  /// Adds types registered in [SendsMessageAttribute] or
-  /// [YieldsOutputAttribute] on the target [Function]. This can be used to
-  /// implement delegate-based request handling akin to what is provided by
-  /// [Executor] or [Executor].
-  ///
-  /// Returns:
-  ///
-  /// [delegate] The delegate to be registered.
-  ProtocolBuilder addDelegateAttributeTypes(Function delegate) {
-    return this.addMethodAttributeTypes(delegate.method);
-  }
-
-  /// Adds types registered in [SendsMessageAttribute] or
-  /// [YieldsOutputAttribute] on the target [MethodInfo]. This can be used to
-  /// implement delegate-based request handling akin to what is provided by
-  /// [Executor] or [Executor].
-  ///
-  /// Returns:
-  ///
-  /// [method] The method to be registered.
-  ProtocolBuilder addMethodAttributeTypes(MethodInfo method) {
-    (Iterable<Type> sentTypes, Iterable<Type> yieldTypes) = method.getAttributeTypes();
-    this._sendTypes.addAll(sentTypes);
-    this._yieldTypes.addAll(yieldTypes);
-    return method.declaringType != null ? this.addClassAttributeTypes(method.declaringType)
-                                            : this;
-  }
-
-  /// Adds types registered in [SendsMessageAttribute] or
-  /// [YieldsOutputAttribute] on the target [Type]. This can be used to
-  /// implement delegate-based request handling akin to what is provided by
-  /// [Executor] or [Executor].
-  ///
-  /// Returns:
-  ///
-  /// [executorType] The type to be registered.
-  ProtocolBuilder addClassAttributeTypes(Type executorType) {
-    (Iterable<Type> sentTypes, Iterable<Type> yieldTypes) = executorType.getAttributeTypes();
-    this._sendTypes.addAll(sentTypes);
-    this._yieldTypes.addAll(yieldTypes);
+  /// Marks this protocol as accepting messages of type [T].
+  ProtocolBuilder acceptsMessage<T>() {
+    _addUnique(_acceptedTypes, T);
     return this;
   }
 
-  /// Adds the specified type to the set of declared "sent" message types for
-  /// the protocol. Objects of these types will be allowed to be sent through
-  /// the Executor's outgoing edges, via [CancellationToken)].
-  ///
-  /// Returns:
-  ///
-  /// [TMessage] The type to be declared.
-  ProtocolBuilder sendsMessage<TMessage>() {
-    return this.sendsMessageTypes([TMessage]);
-  }
-
-  /// Adds the specified type to the set of declared "sent" messagetypes for the
-  /// protocol. Objects of these types will be allowed to be sent through the
-  /// Executor's outgoing edges, via [CancellationToken)].
-  ///
-  /// Returns:
-  ///
-  /// [messageType] The type to be declared.
-  ProtocolBuilder sendsMessageType(Type messageType) {
-    return this.sendsMessageTypes([messageType]);
-  }
-
-  /// Adds the specified types to the set of declared "sent" message types for
-  /// the protocol. Objects of these types will be allowed to be sent through
-  /// the Executor's outgoing edges, via [CancellationToken)].
-  ///
-  /// Returns:
-  ///
-  /// [messageTypes] A set of types to be declared.
-  ProtocolBuilder sendsMessageTypes(Iterable<Type> messageTypes) {
-    this._sendTypes.addAll(messageTypes);
+  /// Marks this protocol as accepting every message type.
+  ProtocolBuilder acceptsAllMessages() {
+    _acceptsAll = true;
     return this;
   }
 
-  /// Adds the specified output type to the set of declared "yielded" output
-  /// types for the protocol. Objects of this type will be allowed to be output
-  /// from the executor through the [WorkflowOutputEvent], via
-  /// [CancellationToken)].
-  ///
-  /// Returns:
-  ///
-  /// [TOutput] The type to be declared.
-  ProtocolBuilder yieldsOutput<TOutput>() {
-    return this.yieldsOutputTypes([TOutput]);
-  }
-
-  /// Adds the specified output type to the set of declared "yielded" output
-  /// types for the protocol. Objects of this type will be allowed to be output
-  /// from the executor through the [WorkflowOutputEvent], via
-  /// [CancellationToken)].
-  ///
-  /// Returns:
-  ///
-  /// [outputType] The type to be declared.
-  ProtocolBuilder yieldsOutputType(Type outputType) {
-    return this.yieldsOutputTypes([outputType]);
-  }
-
-  /// Adds the specified types to the set of declared "yielded" output types for
-  /// the protocol. Objects of these types will be allowed to be output from the
-  /// executor through the [WorkflowOutputEvent], via [CancellationToken)].
-  ///
-  /// Returns:
-  ///
-  /// [yieldedTypes] A set of types to be declared.
-  ProtocolBuilder yieldsOutputTypes(Iterable<Type> yieldedTypes) {
-    this._yieldTypes.addAll(yieldedTypes);
+  /// Marks this protocol as producing messages of type [T].
+  ProtocolBuilder sendsMessage<T>() {
+    _addUnique(_producedTypes, T);
     return this;
   }
 
-  /// Fluently configures message handlers.
-  ///
-  /// Returns:
-  ///
-  /// [configureAction] The handler configuration callback.
-  ProtocolBuilder configureRoutes(Action<RouteBuilder> configureAction) {
-    configureAction(this.routeBuilder);
-    return this;
-  }
-
-  ExecutorProtocol build(ExecutorOptions options) {
-    var router = this.routeBuilder.build();
-    var sendTypes = new(this._sendTypes);
-    if (options.autoSendMessageHandlerResultObject) {
-      sendTypes.addAll(router.defaultOutputTypes);
+  /// Adds a request/response port to the protocol.
+  ProtocolBuilder requests<TRequest, TResponse>(
+    RequestPort<TRequest, TResponse> port,
+  ) {
+    final descriptor = port.toDescriptor();
+    if (!_requestPorts.contains(descriptor)) {
+      _requestPorts.add(descriptor);
     }
-    var yieldTypes = new(this._yieldTypes);
-    if (options.autoYieldOutputHandlerResultObject) {
-      yieldTypes.addAll(router.defaultOutputTypes);
+    return this;
+  }
+
+  /// Adds an existing request port descriptor to the protocol.
+  ProtocolBuilder requestsDescriptor(RequestPortDescriptor port) {
+    if (!_requestPorts.contains(port)) {
+      _requestPorts.add(port);
     }
-    return new(router, sendTypes, yieldTypes);
+    return this;
+  }
+
+  /// Builds an immutable protocol descriptor.
+  ProtocolDescriptor build() => ProtocolDescriptor(
+    acceptedTypes: _acceptedTypes,
+    producedTypes: _producedTypes,
+    requestPorts: _requestPorts,
+    acceptsAll: _acceptsAll,
+  );
+
+  static void _addUnique(List<Type> list, Type type) {
+    if (!list.contains(type)) {
+      list.add(type);
+    }
   }
 }

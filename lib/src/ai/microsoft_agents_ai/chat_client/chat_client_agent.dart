@@ -4,6 +4,7 @@ import 'package:extensions/system.dart';
 
 import '../../../abstractions/microsoft_agents_ai_abstractions/agent_response.dart';
 import '../../../abstractions/microsoft_agents_ai_abstractions/agent_response_update.dart';
+import '../../../abstractions/microsoft_agents_ai_abstractions/agent_run_context.dart';
 import '../../../abstractions/microsoft_agents_ai_abstractions/agent_run_options.dart';
 import '../../../abstractions/microsoft_agents_ai_abstractions/agent_session.dart';
 import '../../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
@@ -57,9 +58,13 @@ final class ChatClientAgent extends AIAgent {
       providerName: chatClient_.getService<ChatClientMetadata>()?.providerName,
     );
     _chatClientType = chatClient_.runtimeType;
-    // TODO: apply chatClient_.withDefaultAgentMiddleware(options, services)
-    // once that extension is implemented.
-    chatClient = chatClient_;
+    chatClient = _agentOptions?.useProvidedChatClientAsIs == true
+        ? chatClient_
+        : _withDefaultAgentMiddleware(
+            chatClient_,
+            _agentOptions,
+            loggerFactory,
+          );
     chatHistoryProvider =
         _agentOptions?.chatHistoryProvider ?? InMemoryChatHistoryProvider();
     aiContextProviders = _agentOptions?.aiContextProviders?.toList();
@@ -67,10 +72,11 @@ final class ChatClientAgent extends AIAgent {
       _agentOptions?.aiContextProviders,
       chatHistoryProvider,
     );
-    _logger = (loggerFactory ??
-            chatClient.getService<LoggerFactory>() ??
-            NullLoggerFactory.instance)
-        .createLogger('ChatClientAgent');
+    _logger =
+        (loggerFactory ??
+                chatClient.getService<LoggerFactory>() ??
+                NullLoggerFactory.instance)
+            .createLogger('ChatClientAgent');
     _warnOnMissingPerServiceCallChatHistoryPersistingChatClient();
   }
 
@@ -88,10 +94,7 @@ final class ChatClientAgent extends AIAgent {
     opts.name = name;
     opts.description = description;
     if (tools != null || instructions != null) {
-      opts.chatOptions = ChatOptions(
-        tools: tools,
-        instructions: instructions,
-      );
+      opts.chatOptions = ChatOptions(tools: tools, instructions: instructions);
     }
     return ChatClientAgent(
       chatClient,
@@ -103,8 +106,10 @@ final class ChatClientAgent extends AIAgent {
 
   String? get idCore => _agentOptions?.id;
 
+  @override
   String? get name => _agentOptions?.name;
 
+  @override
   String? get description => _agentOptions?.description;
 
   /// Gets the system instructions for this agent.
@@ -120,83 +125,99 @@ final class ChatClientAgent extends AIAgent {
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
   }) async {
-    final inputMessages =
-        messages is List<ChatMessage> ? messages : messages.toList();
+    final inputMessages = messages is List<ChatMessage>
+        ? messages
+        : messages.toList();
 
-    final (safeSession, chatOpts, inputMessagesForClient, _) =
-        await _prepareSessionAndMessages(
+    final (
+      safeSession,
+      chatOpts,
+      inputMessagesForClient,
+      _,
+    ) = await _prepareSessionAndMessages(
       session,
       inputMessages,
       options,
       cancellationToken,
     );
 
-    _ensureRunContextHasSession(safeSession);
-
-    var client = chatClient;
-    client = _applyRunOptionsTransformations(options, client);
-
-    final agentName = _getLoggingAgentName();
-    _logger.logAgentChatClientInvokingAgent(
-      'runAsync',
-      id,
-      agentName,
-      _chatClientType,
+    final previousRunContext = AIAgent.currentRunContext;
+    AIAgent.currentRunContext = AgentRunContext(
+      this,
+      safeSession,
+      inputMessages,
+      options,
     );
-
-    late ChatResponse chatResponse;
     try {
-      chatResponse = await client.getResponse(
-        messages: inputMessagesForClient,
-        options: chatOpts,
-        cancellationToken: cancellationToken,
+      var client = chatClient;
+      client = _applyRunOptionsTransformations(options, client);
+
+      final agentName = _getLoggingAgentName();
+      _logger.logAgentChatClientInvokingAgent(
+        'runAsync',
+        id,
+        agentName,
+        _chatClientType,
       );
-    } catch (ex) {
-      await _notifyProvidersOfFailureAtEndOfRun(
+
+      late ChatResponse chatResponse;
+      try {
+        chatResponse = await client.getResponse(
+          messages: inputMessagesForClient,
+          options: chatOpts,
+          cancellationToken: cancellationToken,
+        );
+      } catch (ex) {
+        await _notifyProvidersOfFailureAtEndOfRun(
+          safeSession,
+          ex is Exception ? ex : Exception(ex.toString()),
+          inputMessagesForClient,
+          chatOpts,
+          cancellationToken,
+        );
+        rethrow;
+      }
+
+      _logger.logAgentChatClientInvokedAgent(
+        'runAsync',
+        id,
+        agentName,
+        _chatClientType,
+        inputMessages.length,
+      );
+
+      final forceEndOfRunPersistence =
+          chatOpts?.continuationToken != null ||
+          chatOpts?.allowBackgroundResponses == true;
+
+      _updateSessionConversationIdAtEndOfRun(
         safeSession,
-        ex is Exception ? ex : Exception(ex.toString()),
+        chatResponse.conversationId,
+        cancellationToken,
+        forceUpdate: forceEndOfRunPersistence,
+      );
+
+      for (final msg in chatResponse.messages) {
+        msg.authorName ??= name;
+      }
+
+      await _notifyProvidersOfNewMessagesAtEndOfRun(
+        safeSession,
         inputMessagesForClient,
+        chatResponse.messages,
         chatOpts,
         cancellationToken,
+        forceNotify: forceEndOfRunPersistence,
       );
-      rethrow;
+
+      return AgentResponse(response: chatResponse)
+        ..agentId = id
+        ..continuationToken = _wrapContinuationToken(
+          chatResponse.continuationToken,
+        );
+    } finally {
+      AIAgent.currentRunContext = previousRunContext;
     }
-
-    _logger.logAgentChatClientInvokedAgent(
-      'runAsync',
-      id,
-      agentName,
-      _chatClientType,
-      inputMessages.length,
-    );
-
-    final forceEndOfRunPersistence = chatOpts?.continuationToken != null ||
-        chatOpts?.allowBackgroundResponses == true;
-
-    _updateSessionConversationIdAtEndOfRun(
-      safeSession,
-      chatResponse.conversationId,
-      cancellationToken,
-      forceUpdate: forceEndOfRunPersistence,
-    );
-
-    for (final msg in chatResponse.messages) {
-      msg.authorName ??= name;
-    }
-
-    await _notifyProvidersOfNewMessagesAtEndOfRun(
-      safeSession,
-      inputMessagesForClient,
-      chatResponse.messages,
-      chatOpts,
-      cancellationToken,
-      forceNotify: forceEndOfRunPersistence,
-    );
-
-    return AgentResponse(response: chatResponse)
-      ..agentId = id
-      ..continuationToken =
-          _wrapContinuationToken(chatResponse.continuationToken);
   }
 
   @override
@@ -206,86 +227,103 @@ final class ChatClientAgent extends AIAgent {
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
   }) async* {
-    final inputMessages =
-        messages is List<ChatMessage> ? messages : messages.toList();
+    final inputMessages = messages is List<ChatMessage>
+        ? messages
+        : messages.toList();
 
-    final (safeSession, chatOpts, inputMessagesForClient, continuationToken) =
-        await _prepareSessionAndMessages(
+    final (
+      safeSession,
+      chatOpts,
+      inputMessagesForClient,
+      continuationToken,
+    ) = await _prepareSessionAndMessages(
       session,
       inputMessages,
       options,
       cancellationToken,
     );
 
-    _ensureRunContextHasSession(safeSession);
-
-    var client = chatClient;
-    client = _applyRunOptionsTransformations(options, client);
-
-    final agentName = _getLoggingAgentName();
-    _logger.logAgentChatClientInvokingAgent(
-      'runStreamingAsync',
-      id,
-      agentName,
-      _chatClientType,
+    final previousRunContext = AIAgent.currentRunContext;
+    AIAgent.currentRunContext = AgentRunContext(
+      this,
+      safeSession,
+      inputMessages,
+      options,
     );
-
-    final responseUpdates = _getResponseUpdates(continuationToken);
-
-    _logger.logAgentChatClientInvokedStreamingAgent(
-      'runStreamingAsync',
-      id,
-      agentName,
-      _chatClientType,
-    );
-
     try {
-      await for (final update in client.getStreamingResponse(
-        messages: inputMessagesForClient,
-        options: chatOpts,
-        cancellationToken: cancellationToken,
-      )) {
-        update.authorName ??= name;
-        responseUpdates.add(update);
-        yield AgentResponseUpdate(chatResponseUpdate: update)
-          ..agentId = id
-          ..continuationToken = _wrapContinuationToken(
-            update.continuationToken,
-            inputMessages: _getInputMessages(inputMessages, continuationToken),
-            responseUpdates: responseUpdates,
-          );
-        _ensureRunContextHasSession(safeSession);
+      var client = chatClient;
+      client = _applyRunOptionsTransformations(options, client);
+
+      final agentName = _getLoggingAgentName();
+      _logger.logAgentChatClientInvokingAgent(
+        'runStreamingAsync',
+        id,
+        agentName,
+        _chatClientType,
+      );
+
+      final responseUpdates = _getResponseUpdates(continuationToken);
+
+      _logger.logAgentChatClientInvokedStreamingAgent(
+        'runStreamingAsync',
+        id,
+        agentName,
+        _chatClientType,
+      );
+
+      try {
+        await for (final update in client.getStreamingResponse(
+          messages: inputMessagesForClient,
+          options: chatOpts,
+          cancellationToken: cancellationToken,
+        )) {
+          update.authorName ??= name;
+          responseUpdates.add(update);
+          yield AgentResponseUpdate(chatResponseUpdate: update)
+            ..agentId = id
+            ..continuationToken = _wrapContinuationToken(
+              update.continuationToken,
+              inputMessages: _getInputMessages(
+                inputMessages,
+                continuationToken,
+              ),
+              responseUpdates: responseUpdates,
+            );
+        }
+      } catch (ex) {
+        await _notifyProvidersOfFailureAtEndOfRun(
+          safeSession,
+          ex is Exception ? ex : Exception(ex.toString()),
+          _getInputMessages(inputMessagesForClient, continuationToken),
+          chatOpts,
+          cancellationToken,
+        );
+        rethrow;
       }
-    } catch (ex) {
-      await _notifyProvidersOfFailureAtEndOfRun(
+
+      final chatResponse = _buildChatResponse(responseUpdates);
+      final forceEndOfRunPersistence =
+          continuationToken != null ||
+          chatOpts?.allowBackgroundResponses == true;
+
+      _updateSessionConversationIdAtEndOfRun(
         safeSession,
-        ex is Exception ? ex : Exception(ex.toString()),
+        chatResponse.conversationId,
+        cancellationToken,
+        forceUpdate: forceEndOfRunPersistence,
+      );
+
+      await _notifyProvidersOfNewMessagesAtEndOfRun(
+        safeSession,
         _getInputMessages(inputMessagesForClient, continuationToken),
+        chatResponse.messages,
         chatOpts,
         cancellationToken,
+        forceNotify: forceEndOfRunPersistence,
       );
-      rethrow;
+    } finally {
+      AIAgent.currentRunContext = previousRunContext;
     }
-
-    final chatResponse = _buildChatResponse(responseUpdates);
-    final forceEndOfRunPersistence = continuationToken != null ||
-        chatOpts?.allowBackgroundResponses == true;
-
-    _updateSessionConversationIdAtEndOfRun(
-      safeSession,
-      chatResponse.conversationId,
-      cancellationToken,
-      forceUpdate: forceEndOfRunPersistence,
-    );
-
-    await _notifyProvidersOfNewMessagesAtEndOfRun(
-      safeSession,
-      _getInputMessages(inputMessagesForClient, continuationToken),
-      chatResponse.messages,
-      chatOpts,
-      cancellationToken,
-      forceNotify: forceEndOfRunPersistence,
-    );
   }
 
   @override
@@ -294,23 +332,28 @@ final class ChatClientAgent extends AIAgent {
         (serviceType == AIAgentMetadata
             ? _agentMetadata
             : serviceType == ChatClient
-                ? chatClient
-                : serviceType == ChatOptions
-                    ? _agentOptions?.chatOptions
-                    : serviceType == ChatClientAgentOptions
-                        ? _agentOptions
-                        : aiContextProviders
-                                ?.map((p) => p.getService(serviceType,
-                                    serviceKey: serviceKey))
-                                .where((s) => s != null)
-                                .firstOrNull ??
-                            chatHistoryProvider?.getService(serviceType,
-                                serviceKey: serviceKey));
+            ? chatClient
+            : serviceType == ChatOptions
+            ? _agentOptions?.chatOptions
+            : serviceType == ChatClientAgentOptions
+            ? _agentOptions
+            : aiContextProviders
+                      ?.map(
+                        (p) =>
+                            p.getService(serviceType, serviceKey: serviceKey),
+                      )
+                      .where((s) => s != null)
+                      .firstOrNull ??
+                  chatHistoryProvider?.getService(
+                    serviceType,
+                    serviceKey: serviceKey,
+                  ));
   }
 
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
+    // ignore: non_constant_identifier_names
     dynamic JsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async {
@@ -323,6 +366,7 @@ final class ChatClientAgent extends AIAgent {
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
+    // ignore: non_constant_identifier_names
     dynamic JsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async {
@@ -339,15 +383,13 @@ final class ChatClientAgent extends AIAgent {
   @override
   Future<AgentSession> createSessionCore({
     CancellationToken? cancellationToken,
-  }) async =>
-      ChatClientAgentSession();
+  }) async => ChatClientAgentSession();
 
   /// Creates a session that continues an existing conversation by id.
   Future<ChatClientAgentSession> createSessionWithConversationId(
     String conversationId, {
     CancellationToken? cancellationToken,
-  }) async =>
-      ChatClientAgentSession(conversationId: conversationId);
+  }) async => ChatClientAgentSession(conversationId: conversationId);
 
   // ---------------------------------------------------------------------------
   // Internal helpers (accessible to PerServiceCallChatHistoryPersistingChatClient)
@@ -489,9 +531,8 @@ final class ChatClientAgent extends AIAgent {
     return client;
   }
 
-  (ChatOptions?, ChatClientAgentContinuationToken?) _createConfiguredChatOptions(
-    AgentRunOptions? runOptions,
-  ) {
+  (ChatOptions?, ChatClientAgentContinuationToken?)
+  _createConfiguredChatOptions(AgentRunOptions? runOptions) {
     ChatOptions? requestChatOptions;
     if (runOptions is ChatClientAgentRunOptions) {
       requestChatOptions = runOptions.chatOptions?.clone();
@@ -508,7 +549,8 @@ final class ChatClientAgent extends AIAgent {
     }
 
     final agentOpts = _agentOptions!.chatOptions!;
-    requestChatOptions.allowMultipleToolCalls ??= agentOpts.allowMultipleToolCalls;
+    requestChatOptions.allowMultipleToolCalls ??=
+        agentOpts.allowMultipleToolCalls;
     requestChatOptions.conversationId ??= agentOpts.conversationId;
     requestChatOptions.frequencyPenalty ??= agentOpts.frequencyPenalty;
     requestChatOptions.maxOutputTokens ??= agentOpts.maxOutputTokens;
@@ -541,8 +583,9 @@ final class ChatClientAgent extends AIAgent {
         );
       }
     } else {
-      requestChatOptions.additionalProperties ??=
-          agentAdditional != null ? Map.of(agentAdditional) : null;
+      requestChatOptions.additionalProperties ??= agentAdditional != null
+          ? Map.of(agentAdditional)
+          : null;
     }
 
     final agentFactory = agentOpts.rawRepresentationFactory;
@@ -558,12 +601,8 @@ final class ChatClientAgent extends AIAgent {
       final reqStop = requestChatOptions.stopSequences;
       if (reqStop == null || reqStop.isEmpty) {
         requestChatOptions.stopSequences = List.of(agentStop);
-      } else if (reqStop is List<String>) {
-        reqStop.addAll(agentStop);
       } else {
-        for (final s in agentStop) {
-          requestChatOptions.stopSequences!.add(s);
-        }
+        reqStop.addAll(agentStop);
       }
     }
 
@@ -572,12 +611,8 @@ final class ChatClientAgent extends AIAgent {
       final reqTools = requestChatOptions.tools;
       if (reqTools == null || reqTools.isEmpty) {
         requestChatOptions.tools = List.of(agentTools);
-      } else if (reqTools is List<AITool>) {
-        reqTools.addAll(agentTools);
       } else {
-        for (final t in agentTools) {
-          requestChatOptions.tools!.add(t);
-        }
+        reqTools.addAll(agentTools);
       }
     }
 
@@ -585,13 +620,14 @@ final class ChatClientAgent extends AIAgent {
   }
 
   static (ChatOptions?, ChatClientAgentContinuationToken?)
-      _applyAgentRunOptionsOverrides(
+  _applyAgentRunOptionsOverrides(
     ChatOptions? chatOptions,
     AgentRunOptions? agentRunOptions,
   ) {
     if (agentRunOptions?.allowBackgroundResponses != null) {
       chatOptions ??= ChatOptions();
-      chatOptions.allowBackgroundResponses = agentRunOptions!.allowBackgroundResponses;
+      chatOptions.allowBackgroundResponses =
+          agentRunOptions!.allowBackgroundResponses;
     }
 
     if (agentRunOptions?.responseFormat != null) {
@@ -603,7 +639,9 @@ final class ChatClientAgent extends AIAgent {
     final rawToken =
         agentRunOptions?.continuationToken ?? chatOptions?.continuationToken;
     if (rawToken != null) {
-      agentContinuationToken = ChatClientAgentContinuationToken.fromToken(rawToken);
+      agentContinuationToken = ChatClientAgentContinuationToken.fromToken(
+        rawToken,
+      );
       chatOptions ??= ChatOptions();
       chatOptions.continuationToken = agentContinuationToken.innerToken;
     }
@@ -621,19 +659,22 @@ final class ChatClientAgent extends AIAgent {
   }
 
   Future<
-      (
-        ChatClientAgentSession,
-        ChatOptions?,
-        List<ChatMessage>,
-        ChatClientAgentContinuationToken?,
-      )> _prepareSessionAndMessages(
+    (
+      ChatClientAgentSession,
+      ChatOptions?,
+      List<ChatMessage>,
+      ChatClientAgentContinuationToken?,
+    )
+  >
+  _prepareSessionAndMessages(
     AgentSession? session,
     Iterable<ChatMessage> inputMessages,
     AgentRunOptions? runOptions,
     CancellationToken? cancellationToken,
   ) async {
-    final (chatOpts, continuationToken) =
-        _createConfiguredChatOptions(runOptions);
+    var (chatOpts, continuationToken) = _createConfiguredChatOptions(
+      runOptions,
+    );
 
     if (chatOpts?.allowBackgroundResponses == true && session == null) {
       throw StateError(
@@ -653,7 +694,8 @@ final class ChatClientAgent extends AIAgent {
     }
 
     final resolvedSession =
-        session ?? await createSessionCore(cancellationToken: cancellationToken);
+        session ??
+        await createSessionCore(cancellationToken: cancellationToken);
     if (resolvedSession is! ChatClientAgentSession) {
       throw StateError(
         "The provided session type ${resolvedSession.runtimeType} is not "
@@ -685,8 +727,8 @@ final class ChatClientAgent extends AIAgent {
     if (sessionConvId != null &&
         sessionConvId.isNotEmpty &&
         sessionConvId != chatOpts?.conversationId) {
-      final updated = chatOpts ?? ChatOptions();
-      updated.conversationId = sessionConvId;
+      chatOpts ??= ChatOptions();
+      chatOpts.conversationId = sessionConvId;
     }
 
     Iterable<ChatMessage> messagesForClient = inputMessages;
@@ -711,8 +753,10 @@ final class ChatClientAgent extends AIAgent {
 
         for (final provider in providers) {
           final ctx = acp.InvokingContext(this, typedSession, aiContext);
-          aiContext =
-              await provider.invoking(ctx, cancellationToken: cancellationToken);
+          aiContext = await provider.invoking(
+            ctx,
+            cancellationToken: cancellationToken,
+          );
         }
 
         messagesForClient = aiContext.messages ?? [];
@@ -720,13 +764,13 @@ final class ChatClientAgent extends AIAgent {
         final tools = aiContext.tools;
         if ((chatOpts?.tools != null && chatOpts!.tools!.isNotEmpty) ||
             (tools != null && tools.isNotEmpty)) {
-          final updated = chatOpts ?? ChatOptions();
-          updated.tools = tools?.toList();
+          chatOpts ??= ChatOptions();
+          chatOpts.tools = tools?.toList();
         }
 
         if (chatOpts?.instructions != null || aiContext.instructions != null) {
-          final updated = chatOpts ?? ChatOptions();
-          updated.instructions = aiContext.instructions;
+          chatOpts ??= ChatOptions();
+          chatOpts.instructions = aiContext.instructions;
         }
       }
     }
@@ -745,7 +789,11 @@ final class ChatClientAgent extends AIAgent {
     bool forceUpdate = false,
   }) {
     if (!forceUpdate && _requiresPerServiceCallChatHistoryPersistence) return;
-    updateSessionConversationId(session, responseConversationId, cancellationToken);
+    updateSessionConversationId(
+      session,
+      responseConversationId,
+      cancellationToken,
+    );
   }
 
   Future<void> _notifyProvidersOfNewMessagesAtEndOfRun(
@@ -788,20 +836,13 @@ final class ChatClientAgent extends AIAgent {
   bool get _requiresPerServiceCallChatHistoryPersistence =>
       _agentOptions?.requirePerServiceCallChatHistoryPersistence == true;
 
-  static void _ensureRunContextHasSession(ChatClientAgentSession safeSession) {
-    // TODO: update AIAgent.currentRunContext once AgentRunContext is fully
-    // implemented (requires ReadOnlyCollection and other C# artifacts to be
-    // ported).
-  }
-
-  static ChatResponse _buildChatResponse(
-    List<ChatResponseUpdate> updates,
-  ) {
+  static ChatResponse _buildChatResponse(List<ChatResponseUpdate> updates) {
     final messages = <ChatMessage>[];
     ChatMessage? current;
 
     for (final update in updates) {
-      final needsNew = current == null ||
+      final needsNew =
+          current == null ||
           current.role != (update.role ?? ChatRole.assistant) ||
           current.authorName != update.authorName;
       if (needsNew) {
@@ -812,7 +853,7 @@ final class ChatClientAgent extends AIAgent {
         );
         messages.add(current);
       }
-      current!.contents.addAll(update.contents);
+      current.contents.addAll(update.contents);
     }
 
     return ChatResponse(
@@ -828,8 +869,8 @@ final class ChatClientAgent extends AIAgent {
     if (_agentOptions?.requirePerServiceCallChatHistoryPersistence != true) {
       return;
     }
-    final persistingClient =
-        chatClient.getService<PerServiceCallChatHistoryPersistingChatClient>();
+    final persistingClient = chatClient
+        .getService<PerServiceCallChatHistoryPersistingChatClient>();
     if (persistingClient == null && _logger.isEnabled(LogLevel.warning)) {
       _logger.logAgentChatClientMissingPersistingClient(
         id,
@@ -839,8 +880,9 @@ final class ChatClientAgent extends AIAgent {
   }
 
   ChatHistoryProvider? _resolveChatHistoryProvider(ChatOptions? chatOpts) {
-    ChatHistoryProvider? provider =
-        chatOpts?.conversationId == null ? chatHistoryProvider : null;
+    ChatHistoryProvider? provider = chatOpts?.conversationId == null
+        ? chatHistoryProvider
+        : null;
 
     // Check additionalProperties for a ChatHistoryProvider override.
     final overrideProvider =
@@ -879,11 +921,13 @@ final class ChatClientAgent extends AIAgent {
   }) {
     if (continuationToken == null) return null;
     return ChatClientAgentContinuationToken(continuationToken)
-      ..inputMessages = (inputMessages?.isNotEmpty == true) ? inputMessages : null
+      ..inputMessages = (inputMessages?.isNotEmpty == true)
+          ? inputMessages
+          : null
       ..responseUpdates =
           (responseUpdates != null && responseUpdates.isNotEmpty)
-              ? responseUpdates
-              : null;
+          ? responseUpdates
+          : null;
   }
 
   static Iterable<ChatMessage> _getInputMessages(
@@ -896,8 +940,7 @@ final class ChatClientAgent extends AIAgent {
 
   static List<ChatResponseUpdate> _getResponseUpdates(
     ChatClientAgentContinuationToken? token,
-  ) =>
-      token?.responseUpdates?.toList() ?? [];
+  ) => token?.responseUpdates?.toList() ?? [];
 
   String _getLoggingAgentName() => name ?? 'UnnamedAgent';
 
@@ -943,5 +986,39 @@ final class ChatClientAgent extends AIAgent {
     }
 
     return stateKeys;
+  }
+
+  static ChatClient _withDefaultAgentMiddleware(
+    ChatClient chatClient,
+    ChatClientAgentOptions? options,
+    LoggerFactory? loggerFactory,
+  ) {
+    final chatBuilder = ChatClientBuilder(chatClient);
+
+    if (chatClient.getService<FunctionInvokingChatClient>() == null) {
+      chatBuilder.use(
+        (innerClient) => FunctionInvokingChatClient(
+          innerClient,
+          logger: loggerFactory?.createLogger('FunctionInvokingChatClient'),
+        ),
+      );
+    }
+
+    if (options?.requirePerServiceCallChatHistoryPersistence == true) {
+      chatBuilder.use(
+        (innerClient) =>
+            PerServiceCallChatHistoryPersistingChatClient(innerClient),
+      );
+    }
+
+    final agentChatClient = chatBuilder.build();
+    final tools = options?.chatOptions?.tools;
+    if (tools != null && tools.isNotEmpty) {
+      final functionService = agentChatClient
+          .getService<FunctionInvokingChatClient>();
+      functionService?.additionalTools = List<AITool>.of(tools);
+    }
+
+    return agentChatClient;
   }
 }

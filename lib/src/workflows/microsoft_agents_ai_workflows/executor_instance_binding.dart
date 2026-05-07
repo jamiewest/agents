@@ -2,54 +2,34 @@ import 'executor.dart';
 import 'executor_binding.dart';
 import 'resettable_executor.dart';
 
-/// Represents the workflow binding details for a shared executor instance,
-/// including configuration options for event emission.
-///
-/// [ExecutorInstance] The executor instance to bind. Cannot be null.
+/// Binds a workflow executor to an existing shared instance.
 class ExecutorInstanceBinding extends ExecutorBinding {
-  /// Represents the workflow binding details for a shared executor instance,
-  /// including configuration options for event emission.
-  ///
-  /// [ExecutorInstance] The executor instance to bind. Cannot be null.
-  ExecutorInstanceBinding(Executor ExecutorInstance)
-      : executorInstance = ExecutorInstance,
-        super(ExecutorInstance.id, null, ExecutorInstance.runtimeType,
-            RawValue: ExecutorInstance);
+  /// Creates an executor instance binding.
+  ExecutorInstanceBinding(this.executor) : super(executor.id);
 
-  /// The executor instance to bind. Cannot be null.
-  Executor executorInstance;
-
-  bool get supportsConcurrentSharedExecution {
-    return this.executorInstance.isCrossRunShareable;
-  }
-
-  bool get supportsResetting {
-    return this.executorInstance is ResettableExecutor;
-  }
-
-  bool get isSharedInstance {
-    return true;
-  }
+  /// Gets the shared executor instance.
+  final Executor<dynamic, dynamic> executor;
 
   @override
-  Future<bool> resetCore() async {
-    if (this.executorInstance is ResettableExecutor) {
-      final resettable = this.executorInstance as ResettableExecutor;
-      await resettable.reset();
-      return true;
+  bool get isSharedInstance => true;
+
+  @override
+  bool get supportsConcurrentSharedExecution =>
+      executor.options.supportsConcurrentSharedExecution;
+
+  @override
+  bool get supportsResetting =>
+      executor.options.supportsResetting || executor is ResettableExecutor;
+
+  @override
+  Future<Executor<dynamic, dynamic>> createInstance() async => executor;
+
+  @override
+  Future<bool> tryReset() async {
+    final maybeResettable = executor;
+    if (maybeResettable is ResettableExecutor) {
+      return (maybeResettable as ResettableExecutor).reset();
     }
     return false;
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is ExecutorInstanceBinding &&
-        executorInstance == other.executorInstance;
-  }
-
-  @override
-  int get hashCode {
-    return executorInstance.hashCode;
   }
 }

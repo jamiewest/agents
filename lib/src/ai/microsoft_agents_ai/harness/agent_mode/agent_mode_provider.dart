@@ -1,7 +1,7 @@
-import 'package:extensions/system.dart';
 import 'package:extensions/ai.dart';
+import 'package:extensions/system.dart';
+
 import '../../../../abstractions/microsoft_agents_ai_abstractions/agent_session.dart';
-import '../../../../abstractions/microsoft_agents_ai_abstractions/agent_session_state_bag.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/ai_context.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/ai_context_provider.dart';
 import '../../../../abstractions/microsoft_agents_ai_abstractions/provider_session_state_t_state_.dart';
@@ -15,165 +15,206 @@ import 'agent_mode_state.dart';
 ///
 /// Remarks: The [AgentModeProvider] enables agents to operate in distinct
 /// modes during long-running complex tasks. The current mode is persisted in
-/// the session's [AgentSessionStateBag] and is included in the instructions
-/// provided to the agent on each invocation. The set of available modes is
-/// configurable via [Modes]. By default, two modes are provided: `"plan"`
-/// (interactive planning) and `"execute"` (autonomous execution). This
-/// provider exposes the following tools to the agent: `AgentMode_Set` —
-/// Switch the agent's operating mode. `AgentMode_Get` — Retrieve the agent's
-/// current operating mode. Public helper methods [AgentSession)] and
-/// [String)] allow external code to programmatically read and change the
-/// mode.
+/// the session state and is included in the instructions provided to the agent
+/// on each invocation.
 class AgentModeProvider extends AIContextProvider {
   /// Initializes a new instance of the [AgentModeProvider] class.
-  ///
-  /// [options] Optional settings that control provider behavior. When `null`,
-  /// defaults are used.
-  AgentModeProvider({AgentModeProviderOptions? options = null}) {
-    this._modes = options?.modes ?? s_defaultModes;
-    if (this._modes.length == 0) {
-      throw ArgumentError("At least one mode must be configured.", 'options');
+  AgentModeProvider({AgentModeProviderOptions? options}) {
+    _modes = options?.modes ?? defaultModes;
+    if (_modes.isEmpty) {
+      throw ArgumentError('At least one mode must be configured.', 'options');
     }
-    this._instructions = options?.instructions ?? DefaultInstructions;
-    this._validModeNames = Set<String>();
-    var modeNamesList = List<String>(this._modes.length);
-    for (var i = 0; i < this._modes.length; i++) {
-      var mode = this._modes[i];
+
+    _instructions = options?.instructions ?? defaultInstructions;
+
+    _validModeNames = <String>{};
+    final modeNamesList = <String>[];
+    for (var i = 0; i < _modes.length; i++) {
+      final mode = _modes[i];
       if (mode == null) {
-        throw ArgumentError('Configured mode at index ${i} must not be null.', 'options');
-      }
-      if ((mode.name == null || mode.name.isEmpty)) {
         throw ArgumentError(
-          'Configured mode at index ${i} must have a non-empty name.',
+          'Configured mode at index $i must not be null.',
           'options',
         );
       }
-      if (!this._validModeNames.add(mode.name)) {
+
+      if (mode.name.isEmpty) {
         throw ArgumentError(
-          'Configured modes contain a duplicate mode name \"${mode.name}\".',
+          'Configured mode at index $i must have a non-empty name.',
           'options',
         );
       }
+
+      if (!_validModeNames.add(mode.name)) {
+        throw ArgumentError(
+          'Configured modes contain a duplicate mode name "${mode.name}".',
+          'options',
+        );
+      }
+
       modeNamesList.add(mode.name);
     }
-    _modeNamesDisplay = '"${modeNamesList.join('", "')}"';
-    this._defaultMode = options?.defaultMode ?? modeNamesList[0];
-    if (!this._validModeNames.contains(this._defaultMode)) {
+
+    _modeNamesDisplay = modeNamesList.join('", "');
+    _defaultMode = options?.defaultMode ?? modeNamesList[0];
+    if (!_validModeNames.contains(_defaultMode)) {
       throw ArgumentError(
-        'Default mode \"${this._defaultMode}\" is! in the configured modes list.',
+        'Default mode "$_defaultMode" is not in the configured modes list.',
         'options',
       );
     }
-    this._sessionState = ProviderSessionState<AgentModeState>(
-            (_) => agentModeState(),
-            this.runtimeType.toString(),
-            AgentJsonUtilities.defaultOptions);
+
+    _sessionState = ProviderSessionState<AgentModeState>(
+      (_) => AgentModeState()..currentMode = _defaultMode,
+      runtimeType.toString(),
+      JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
+    );
   }
 
-  static final List<AgentMode> s_defaultModes;
+  static const String defaultInstructions = '''
+## Agent Mode
+
+You can operate in different modes. Depending on the mode you are in, you will be required to follow different processes.
+
+Use the AgentMode_Get tool to check your current operating mode.
+Use the AgentMode_Set tool to switch between modes as your work progresses. Only use AgentMode_Set if the user explicitly instructs/allows you to change modes.
+
+{available_modes}
+
+You are currently operating in the {current_mode} mode.
+''';
+
+  static final List<AgentMode> defaultModes = [
+    AgentMode(
+      'plan',
+      'Use this mode when analyzing requirements, breaking down tasks, and creating plans. This is the interactive mode - ask clarifying questions, discuss options, and get user approval before proceeding.',
+    ),
+    AgentMode(
+      'execute',
+      'Use this mode when carrying out approved plans. Work autonomously using your best judgement - do not ask the user questions or wait for feedback. Make reasonable decisions on your own so that there is a complete, useful result when the user returns. If you encounter ambiguity, choose the most reasonable option and note your choice.',
+    ),
+  ];
 
   late final ProviderSessionState<AgentModeState> _sessionState;
-
-  late final List<AgentMode> _modes;
-
+  late final List<AgentMode?> _modes;
   late final String _defaultMode;
-
-  late final String? _instructions;
-
+  late final String _instructions;
   late final Set<String> _validModeNames;
-
   late final String _modeNamesDisplay;
-
   List<String>? _stateKeys;
 
-  List<String> get stateKeys {
-    return this._stateKeys ??= [this._sessionState.stateKey];
-  }
+  @override
+  List<String> get stateKeys => _stateKeys ??= [_sessionState.stateKey];
 
   /// Gets the current operating mode from the session state.
-  ///
-  /// Returns: The current mode String.
-  ///
-  /// [session] The agent session to read the mode from.
   String getMode(AgentSession? session) {
-    return this._sessionState.getOrInitializeState(session).currentMode;
+    return _sessionState.getOrInitializeState(session).currentMode;
   }
 
   /// Sets the operating mode in the session state.
-  ///
-  /// [session] The agent session to update the mode in.
-  ///
-  /// [mode] The new mode to set.
-  void setMode(AgentSession? session, String mode, ) {
-    this.validateMode(mode);
-    var state = this._sessionState.getOrInitializeState(session);
-    var previousMode = state.currentMode;
+  void setMode(AgentSession? session, String mode) {
+    validateMode(mode);
+
+    final state = _sessionState.getOrInitializeState(session);
+    final previousMode = state.currentMode;
     state.currentMode = mode;
-    if (!(previousMode == mode)) {
+
+    if (previousMode != mode) {
       state.previousModeForNotification = previousMode;
     }
-    this._sessionState.saveState(session, state);
+
+    _sessionState.saveState(session, state);
   }
 
   @override
   Future<AIContext> provideAIContext(
-    InvokingContext context,
-    {CancellationToken? cancellationToken, }
-  ) {
-    var state = this._sessionState.getOrInitializeState(context.session);
-    var instructions = this.buildInstructions(state.currentMode);
-    var aiContext = AIContext();
+    InvokingContext context, {
+    CancellationToken? cancellationToken,
+  }) {
+    final state = _sessionState.getOrInitializeState(context.session);
+    final instructions = buildInstructions(state.currentMode);
+
+    final aiContext = AIContext()
+      ..instructions = instructions
+      ..tools = createTools(state, context.session);
+
     if (state.previousModeForNotification != null) {
-      var previousMode = state.previousModeForNotification;
+      final previousMode = state.previousModeForNotification!;
       state.previousModeForNotification = null;
-      aiContext.messages =
-            [
-                ChatMessage.fromText(ChatRole.user, '[Mode changed: The operating mode has been switched from \"${previousMode}\" to \"${state.currentMode}\". You must now adjust your behavior to match the \"${state.currentMode}\" mode.]',),
-            ];
+
+      aiContext.messages = [
+        ChatMessage.fromText(
+          ChatRole.user,
+          '[Mode changed: The operating mode has been switched from "$previousMode" to "${state.currentMode}". You must now adjust your behavior to match the "${state.currentMode}" mode.]',
+        ),
+      ];
     }
-    return Future<AIContext>(aiContext);
+
+    return Future.value(aiContext);
   }
 
   String buildInstructions(String currentMode) {
-    var modesListBuilder = StringBuffer();
-    for (final mode in this._modes) {
-      modesListBuilder.writeln('- \"${mode.name}\": ${mode.description}');
+    final modesListBuilder = StringBuffer();
+    for (final mode in _modes) {
+      modesListBuilder.writeln('- "${mode!.name}": ${mode.description}');
     }
-    var modesListText = modesListBuilder.toString();
-    return stringBuilder(this._instructions)
-            .replaceAll("{available_modes}", modesListText)
-            .replaceAll("{current_mode}", currentMode)
-            .toString();
+    final modesListText = modesListBuilder.toString();
+    return _instructions
+        .replaceAll('{available_modes}', modesListText)
+        .replaceAll('{current_mode}', currentMode);
   }
 
   void validateMode(String mode) {
-    if (!this._validModeNames.contains(mode)) {
+    if (!_validModeNames.contains(mode)) {
       throw ArgumentError(
-        'Invalid mode: \"${mode}\". Supported modes are: \"${this._modeNamesDisplay}\".',
+        'Invalid mode: "$mode". Supported modes are: "$_modeNamesDisplay".',
         'mode',
       );
     }
   }
 
-  List<AITool> createTools(AgentModeState state, AgentSession? session, ) {
-    var serializerOptions = AgentJsonUtilities.defaultOptions;
+  List<AITool> createTools(AgentModeState state, AgentSession? session) {
     return [
-            AIFunctionFactory.create(
-                (String mode) {
-                
-                    this.validateMode(mode);
+      AIFunctionFactory.create(
+        name: 'AgentMode_Set',
+        description:
+            'Switch the agent\'s operating mode. Supported modes: "$_modeNamesDisplay".',
+        parametersSchema: _objectSchema({
+          'mode': 'The operating mode to switch to.',
+        }),
+        callback: (arguments, {cancellationToken}) async {
+          final mode = _getRequiredString(arguments, 'mode');
+          validateMode(mode);
 
-                    state.currentMode = mode;
-                    this._sessionState.saveState(session, state);
-                    return 'Mode changed to \"${mode}\".';
-                },
-                AIFunctionFactoryOptions()\".',
-                    SerializerOptions = serializerOptions,
-                }),
+          state.currentMode = mode;
+          _sessionState.saveState(session, state);
+          return 'Mode changed to "$mode".';
+        },
+      ),
+      AIFunctionFactory.create(
+        name: 'AgentMode_Get',
+        description: 'Get the agent\'s current operating mode.',
+        callback: (arguments, {cancellationToken}) async => state.currentMode,
+      ),
+    ];
+  }
 
-            AIFunctionFactory.create(
-                () => state.currentMode,
-                AIFunctionFactoryOptions()),
-        ];
+  static String _getRequiredString(AIFunctionArguments arguments, String name) {
+    final value = arguments[name];
+    if (value is String) {
+      return value;
+    }
+    throw ArgumentError.value(value, name, 'Expected a string value.');
+  }
+
+  static Map<String, dynamic> _objectSchema(Map<String, String> properties) {
+    return {
+      'type': 'object',
+      'properties': {
+        for (final entry in properties.entries)
+          entry.key: {'description': entry.value},
+      },
+      'required': properties.keys.toList(),
+    };
+  }
 }
- }

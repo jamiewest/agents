@@ -1,11 +1,10 @@
 import 'workflow_event.dart';
 
-/// Event triggered when a workflow encounters a warning-condition.
-///
-/// [message] The warning message.
+/// Event emitted for a non-fatal workflow warning.
 class WorkflowWarningEvent extends WorkflowEvent {
-  /// Event triggered when a workflow encounters a warning-condition.
-  ///
-  /// [message] The warning message.
-  WorkflowWarningEvent(String message);
+  /// Creates a workflow warning event.
+  const WorkflowWarningEvent(this.message) : super(data: message);
+
+  /// Gets the warning message.
+  final String message;
 }

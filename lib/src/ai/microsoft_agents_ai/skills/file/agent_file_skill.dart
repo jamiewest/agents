@@ -18,27 +18,20 @@ class AgentFileSkill extends AgentSkill {
   ///
   /// [scripts] Scripts discovered for this skill.
   AgentFileSkill(
-    AgentSkillFrontmatter frontmatter,
-    String content,
-    String path, {
-    List<AgentSkillResource>? resources = null,
-    List<AgentSkillScript>? scripts = null,
-  }) : frontmatter = frontmatter,
-       content = content,
-       path = path {
-    this._originalContent = content;
-    this._resources = resources ?? [];
-    this._scripts = scripts ?? [];
-  }
+    this.frontmatter,
+    this._originalContent,
+    this.path, {
+    List<AgentSkillResource>? resources,
+    List<AgentSkillScript>? scripts,
+  }) : _resources = resources ?? [],
+       _scripts = scripts ?? [];
 
-  late final List<AgentSkillResource> _resources;
-
-  late final List<AgentSkillScript> _scripts;
-
-  late final String _originalContent;
-
+  final List<AgentSkillResource> _resources;
+  final List<AgentSkillScript> _scripts;
+  final String _originalContent;
   String? _content;
 
+  @override
   final AgentSkillFrontmatter frontmatter;
 
   /// Returns the raw SKILL.md content. When the skill has scripts, a
@@ -52,16 +45,37 @@ class AgentFileSkill extends AgentSkill {
   /// name="..."&gt;&lt;parameters_schema&gt;...&lt;/parameters_schema&gt;&lt;/script&gt;&lt;/scripts&gt;`
   /// block is appended with a per-script entry describing the expected argument
   /// format. The result is cached after the first access.
-  final String content;
+  @override
+  String get content => _content ??= _scripts.isEmpty
+      ? _originalContent
+      : '$_originalContent\n${_buildScriptsBlock()}';
 
   /// Gets the directory path where the skill was discovered.
   final String path;
 
+  @override
   List<AgentSkillResource> get resources {
-    return this._resources;
+    return _resources;
   }
 
+  @override
   List<AgentSkillScript> get scripts {
-    return this._scripts;
+    return _scripts;
+  }
+
+  String _buildScriptsBlock() {
+    final buffer = StringBuffer('\n<scripts>\n');
+    for (final script in _scripts) {
+      final schema = script.parametersSchema;
+      if (schema == null) {
+        buffer.writeln('  <script name="${script.name}"/>');
+      } else {
+        buffer.writeln('  <script name="${script.name}">');
+        buffer.writeln('    <parameters_schema>$schema</parameters_schema>');
+        buffer.writeln('  </script>');
+      }
+    }
+    buffer.write('</scripts>');
+    return buffer.toString();
   }
 }

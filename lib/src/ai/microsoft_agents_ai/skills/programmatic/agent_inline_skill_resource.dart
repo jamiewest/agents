@@ -1,45 +1,53 @@
-import 'package:extensions/system.dart';
 import 'package:extensions/dependency_injection.dart';
-import '../agent_skill_resource.dart';
+import 'package:extensions/system.dart';
+
 import '../../../../json_stubs.dart';
+import '../agent_skill_resource.dart';
 
 /// A skill resource defined in code, backed by either a static value or a
 /// delegate.
 class AgentInlineSkillResource extends AgentSkillResource {
-  /// Initializes a new instance of the [AgentInlineSkillResource] class with a
-  /// static value. The value is returned as-is when [CancellationToken)] is
-  /// called.
-  ///
-  /// [name] The resource name.
-  ///
-  /// [value] The static resource value.
-  ///
-  /// [description] An optional description of the resource.
   AgentInlineSkillResource(
     String name,
     String? description, {
-    Object? value = null,
-    Function? method = null,
-    JsonSerializerOptions? serializerOptions = null,
-    Object? target = null,
-  }) : super(name, description: description) {
-    this._value = value;
-  }
+    Object? value,
+    Future<Object?> Function({
+      ServiceProvider? serviceProvider,
+      CancellationToken? cancellationToken,
+    })?
+    callback,
+    Function? method,
+    JsonSerializerOptions? serializerOptions,
+  }) : _value = value,
+       _callback = callback,
+       _method = method,
+       super(name, description: description);
 
-  late final Object? _value;
-
-  final AIFunction? _function;
+  final Object? _value;
+  final Future<Object?> Function({
+    ServiceProvider? serviceProvider,
+    CancellationToken? cancellationToken,
+  })?
+  _callback;
+  final Function? _method;
 
   @override
   Future<Object?> read({
     ServiceProvider? serviceProvider,
     CancellationToken? cancellationToken,
   }) async {
-    if (this._function != null) {
-      return await this._function
-          .invokeAsync(aiFunctionArguments(), cancellationToken)
-          ;
+    final callback = _callback;
+    if (callback != null) {
+      return callback(
+        serviceProvider: serviceProvider,
+        cancellationToken: cancellationToken,
+      );
     }
-    return this._value;
+    final method = _method;
+    if (method != null) {
+      final result = Function.apply(method, const []);
+      return result is Future ? await result : result;
+    }
+    return _value;
   }
 }

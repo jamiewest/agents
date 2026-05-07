@@ -8,7 +8,7 @@ class SubAgentState {
   SubAgentState();
 
   /// Gets or sets the next ID to assign to a new sub-task.
-  int nextFutureId = 1;
+  int nextTaskId = 1;
 
   /// Gets the list of sub-task metadata entries.
   List<SubTaskInfo> tasks = [];

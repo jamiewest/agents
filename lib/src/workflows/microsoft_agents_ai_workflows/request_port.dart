@@ -1,92 +1,69 @@
-import 'workflow.dart';
+import 'identified.dart';
 
-/// An external request port for a [Workflow] with the specified request and
-/// response types.
-///
-/// [Id]
-///
-/// [Request]
-///
-/// [Response]
-class RequestPort {
-  /// An external request port for a [Workflow] with the specified request and
-  /// response types.
-  ///
-  /// [Id]
-  ///
-  /// [Request]
-  ///
-  /// [Response]
-  const RequestPort(
-    String Id,
-    Type Request,
-    Type Response,
-  ) :
-      id = Id,
-      request = Request,
-      response = Response;
+/// Describes an external request/response port available to an executor.
+class RequestPort<TRequest, TResponse> implements Identified {
+  /// Creates a request port with the supplied [id].
+  const RequestPort(this.id, {this.description});
 
-  ///
-  String id;
+  /// Gets the port identifier.
+  @override
+  final String id;
 
-  ///
-  Type request;
+  /// Gets an optional human-readable description for the port.
+  final String? description;
 
-  ///
-  Type response;
+  /// Gets the request payload type.
+  Type get requestType => TRequest;
 
-  /// Creates a new [RequestPort] instance configured for the specified request
-  /// and response types.
-  ///
-  /// Returns: An [RequestPort] instance associated with the specified `id`,
-  /// configured to handle requests of type `TRequest` and responses of type
-  /// `TResponse`.
-  ///
-  /// [id] The unique identifier for the input port.
-  ///
-  /// [TRequest] The type of the request messages that the input port will
-  /// accept.
-  ///
-  /// [TResponse] The type of the response messages that the input port will
-  /// produce.
-  static RequestPort<TRequest, TResponse> create<TRequest,TResponse>(String id) {
-    return new(id, TRequest, TResponse);
-  }
+  /// Gets the response payload type.
+  Type get responseType => TResponse;
+
+  /// Creates a non-generic view of this port.
+  RequestPortDescriptor toDescriptor() => RequestPortDescriptor(
+    id,
+    requestType: requestType,
+    responseType: responseType,
+    description: description,
+  );
 
   @override
-  bool operator ==(Object other) { if (identical(this, other)) return true;
-    return other is RequestPort &&
-    id == other.id &&
-    request == other.request &&
-    response == other.response; }
-  @override
-  int get hashCode { return Object.hash(id, request, response); }
+  String toString() => id;
 }
-/// An external request port for a [Workflow] with the specified request and
-/// response types.
-///
-/// [Id]
-///
-/// [Request]
-///
-/// [Response]
-///
-/// [AllowWrapped]
-class RequestPort<TRequest,TResponse> extends RequestPort {
-  /// An external request port for a [Workflow] with the specified request and
-  /// response types.
-  ///
-  /// [Id]
-  ///
-  /// [Request]
-  ///
-  /// [Response]
-  ///
-  /// [AllowWrapped]
-  RequestPort(String Id, Type Request, Type Response, {bool? allowWrapped})
-      : super(Id, Request, Response);
 
-  ///
-  bool allowWrapped;
+/// Non-generic description for a [RequestPort].
+class RequestPortDescriptor implements Identified {
+  /// Creates a request port descriptor.
+  const RequestPortDescriptor(
+    this.id, {
+    required this.requestType,
+    required this.responseType,
+    this.description,
+  });
 
+  /// Gets the port identifier.
+  @override
+  final String id;
+
+  /// Gets the request payload type.
+  final Type requestType;
+
+  /// Gets the response payload type.
+  final Type responseType;
+
+  /// Gets an optional human-readable description for the port.
+  final String? description;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RequestPortDescriptor &&
+      other.id == id &&
+      other.requestType == requestType &&
+      other.responseType == responseType &&
+      other.description == description;
+
+  @override
+  int get hashCode => Object.hash(id, requestType, responseType, description);
+
+  @override
+  String toString() => id;
 }

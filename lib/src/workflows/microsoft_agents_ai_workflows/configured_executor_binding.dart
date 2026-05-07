@@ -1,42 +1,40 @@
+import 'executor.dart';
 import 'executor_binding.dart';
+import 'executor_config.dart';
+import 'protocol_descriptor.dart';
 
+/// Executor binding decorated with configuration metadata.
 class ConfiguredExecutorBinding extends ExecutorBinding {
-  const ConfiguredExecutorBinding(
-    Configured<Executor> ConfiguredExecutor,
-    Type ExecutorType,
-  ) : configuredExecutor = ConfiguredExecutor;
+  /// Creates a configured executor binding.
+  ConfiguredExecutorBinding(this.innerBinding, this.config)
+    : super(config.id ?? innerBinding.id);
 
-  Configured<Executor> configuredExecutor;
+  /// Gets the wrapped executor binding.
+  final ExecutorBinding innerBinding;
 
-  final bool isSharedInstance = ConfiguredExecutor.Raw is Executor;
-
-  @override
-  Future<bool> resetCore() async {
-    if (this.configuredExecutor.raw is ResettableExecutor) {
-      final resettable = this.configuredExecutor.raw as ResettableExecutor;
-      await resettable.resetAsync();
-    }
-    return false;
-  }
-
-  bool get supportsConcurrentSharedExecution {
-    return true;
-  }
-
-  bool get supportsResetting {
-    return false;
-  }
+  /// Gets the binding configuration.
+  final ExecutorConfig config;
 
   @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is ConfiguredExecutorBinding &&
-        configuredExecutor == other.configuredExecutor &&
-        isSharedInstance == other.isSharedInstance;
-  }
+  bool get isSharedInstance => innerBinding.isSharedInstance;
 
   @override
-  int get hashCode {
-    return Object.hash(configuredExecutor, isSharedInstance);
-  }
+  bool get supportsConcurrentSharedExecution =>
+      config.options?.supportsConcurrentSharedExecution ??
+      innerBinding.supportsConcurrentSharedExecution;
+
+  @override
+  bool get supportsResetting =>
+      config.options?.supportsResetting ?? innerBinding.supportsResetting;
+
+  @override
+  Future<ProtocolDescriptor> describeProtocol() =>
+      innerBinding.describeProtocol();
+
+  @override
+  Future<Executor<dynamic, dynamic>> createInstance() =>
+      innerBinding.createInstance();
+
+  @override
+  Future<bool> tryReset() => innerBinding.tryReset();
 }

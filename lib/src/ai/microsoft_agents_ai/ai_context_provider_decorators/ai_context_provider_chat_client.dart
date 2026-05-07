@@ -1,239 +1,259 @@
-import 'package:extensions/system.dart';
 import 'package:extensions/ai.dart';
+import 'package:extensions/system.dart';
+
 import '../../../abstractions/microsoft_agents_ai_abstractions/agent_run_context.dart';
+import '../../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
 import '../../../abstractions/microsoft_agents_ai_abstractions/ai_context.dart';
 import '../../../abstractions/microsoft_agents_ai_abstractions/ai_context_provider.dart';
 
 /// A delegating chat client that enriches input messages, tools, and
-/// instructions by invoking a pipeline of [AIContextProvider] instances
-/// before delegating to the inner chat client, and notifies those providers
-/// after the inner client completes.
-///
-/// Remarks: This chat client must be used within the context of a running
-/// [AIAgent]. It retrieves the current agent and session from
-/// [CurrentRunContext], which is set automatically when an agent's
-/// [CancellationToken)] or [CancellationToken)] method is called. An
-/// [InvalidOperationException] is thrown if no run context is available.
+/// instructions by invoking a pipeline of [AIContextProvider] instances before
+/// delegating to the inner chat client.
 class AIContextProviderChatClient extends DelegatingChatClient {
-  /// Initializes a new instance of the [AIContextProviderChatClient] class.
-  ///
-  /// [innerClient] The underlying chat client that will handle the core
-  /// operations.
-  ///
-  /// [providers] The AI context providers to invoke before and after the inner
-  /// chat client.
   AIContextProviderChatClient(
-    ChatClient innerClient,
-    List<AIContextProvider> providers,
-  ) : _providers = providers,
-      super(innerClient) {
-    if (providers.isEmpty) {
-      throw ArgumentError('At least one AIContextProvider must be provided.', 'providers');
-    }
-  }
+    ChatClient? innerClient,
+    List<AIContextProvider>? providers,
+  ) : _providers = _validateProviders(providers),
+      super(innerClient ?? (throw ArgumentError.notNull('innerClient')));
 
   final List<AIContextProvider> _providers;
 
   @override
-  Future<ChatResponse> getResponse(
-    Iterable<ChatMessage> messages,
-    {ChatOptions? options, CancellationToken? cancellationToken, }
-  ) async {
-    var runContext = getRequiredRunContext();
-    var (
-      enrichedMessages,
-      enrichedOptions,
-    ) = await this.invokeProvidersAsync(runContext, messages, options, cancellationToken);
+  Future<ChatResponse> getResponse({
+    required Iterable<ChatMessage> messages,
+    ChatOptions? options,
+    CancellationToken? cancellationToken,
+  }) async {
+    final runContext = getRequiredRunContext();
+    final enriched = await invokeProviders(
+      runContext,
+      messages,
+      options,
+      cancellationToken,
+    );
+
     ChatResponse response;
     try {
-      response = await super.getResponseAsync(
-        enrichedMessages,
-        enrichedOptions,
+      response = await innerClient.getResponse(
+        messages: enriched.messages,
+        options: enriched.options,
+        cancellationToken: cancellationToken,
+      );
+    } on Exception catch (ex) {
+      await notifyProvidersOfFailure(
+        runContext,
+        enriched.messages,
+        ex,
         cancellationToken,
-      ) ;
-    } catch (e, s) {
-      if (e is Exception) {
-        final ex = e as Exception;
-        {
-          await this.notifyProvidersOfFailureAsync(
-            runContext,
-            enrichedMessages,
-            ex,
-            cancellationToken,
-          ) ;
-          rethrow;
-        }
-      } else {
-        rethrow;
-      }
+      );
+      rethrow;
     }
-    await this.notifyProvidersOfSuccessAsync(
+
+    await notifyProvidersOfSuccess(
       runContext,
-      enrichedMessages,
+      enriched.messages,
       response.messages,
       cancellationToken,
-    ) ;
+    );
     return response;
   }
 
   @override
-  Stream<ChatResponseUpdate> getStreamingResponse(
-    Iterable<ChatMessage> messages,
-    {ChatOptions? options, CancellationToken? cancellationToken, }
-  ) async* {
-    var runContext = getRequiredRunContext();
-    var (
-      enrichedMessages,
-      enrichedOptions,
-    ) = await this.invokeProvidersAsync(runContext, messages, options, cancellationToken);
-    var responseUpdates = [];
-    Stream<ChatResponseUpdate> enumerator;
-    try {
-      enumerator = super.getStreamingResponseAsync(
-        enrichedMessages,
-        enrichedOptions,
-        cancellationToken,
-      ) .getAsyncEnumerator(cancellationToken);
-    } catch (e, s) {
-      if (e is Exception) {
-        final ex = e as Exception;
-        {
-          await this.notifyProvidersOfFailureAsync(
-            runContext,
-            enrichedMessages,
-            ex,
-            cancellationToken,
-          ) ;
-          rethrow;
-        }
-      } else {
-        rethrow;
-      }
-    }
-    bool hasUpdates;
-    try {
-      hasUpdates = await enumerator.moveNextAsync();
-    } catch (e, s) {
-      if (e is Exception) {
-        final ex = e as Exception;
-        {
-          await this.notifyProvidersOfFailureAsync(
-            runContext,
-            enrichedMessages,
-            ex,
-            cancellationToken,
-          ) ;
-          rethrow;
-        }
-      } else {
-        rethrow;
-      }
-    }
-    while (hasUpdates) {
-      var update = enumerator.current;
-      responseUpdates.add(update);
-      yield update;
-      try {
-        hasUpdates = await enumerator.moveNextAsync();
-      } catch (e, s) {
-        if (e is Exception) {
-          final ex = e as Exception;
-          {
-            await this.notifyProvidersOfFailureAsync(
-              runContext,
-              enrichedMessages,
-              ex,
-              cancellationToken,
-            ) ;
-            rethrow;
-          }
-        } else {
-          rethrow;
-        }
-      }
-    }
-    var chatResponse = responseUpdates.toChatResponse();
-    await this.notifyProvidersOfSuccessAsync(
+  Stream<ChatResponseUpdate> getStreamingResponse({
+    required Iterable<ChatMessage> messages,
+    ChatOptions? options,
+    CancellationToken? cancellationToken,
+  }) async* {
+    final runContext = getRequiredRunContext();
+    final enriched = await invokeProviders(
       runContext,
-      enrichedMessages,
+      messages,
+      options,
+      cancellationToken,
+    );
+
+    final responseUpdates = <ChatResponseUpdate>[];
+    try {
+      await for (final update in innerClient.getStreamingResponse(
+        messages: enriched.messages,
+        options: enriched.options,
+        cancellationToken: cancellationToken,
+      )) {
+        responseUpdates.add(update);
+        yield update;
+      }
+    } on Exception catch (ex) {
+      await notifyProvidersOfFailure(
+        runContext,
+        enriched.messages,
+        ex,
+        cancellationToken,
+      );
+      rethrow;
+    }
+
+    final chatResponse = _toChatResponse(responseUpdates);
+    await notifyProvidersOfSuccess(
+      runContext,
+      enriched.messages,
       chatResponse.messages,
       cancellationToken,
-    ) ;
+    );
   }
 
-  /// Gets the current [AgentRunContext], throwing if not available.
   static AgentRunContext getRequiredRunContext() {
-    return AIAgent.currentRunContext
-            ?? throw StateError(
-                '${'AIContextProviderChatClient'} can only be used within the context of a running AIAgent. ' +
-                "Ensure that the chat client is being invoked as part of an AIAgent.runAsync or AIAgent.runStreamingAsync call.");
+    return AIAgent.currentRunContext ??
+        (throw StateError(
+          'AIContextProviderChatClient can only be used within the context of '
+          'a running AIAgent. Ensure that the chat client is being invoked as '
+          'part of an AIAgent.run or AIAgent.runStreaming call.',
+        ));
   }
 
-  /// Invokes each provider's [CancellationToken)] in sequence, accumulating
-  /// context (messages, tools, instructions) from each.
-  Future<EnumerableChatMessageMessages, ChatOptionsOptions> invokeProviders(
+  Future<({Iterable<ChatMessage> messages, ChatOptions? options})>
+  invokeProviders(
     AgentRunContext runContext,
     Iterable<ChatMessage> messages,
     ChatOptions? options,
-    CancellationToken cancellationToken,
+    CancellationToken? cancellationToken,
   ) async {
-    var aiContext = AIContext();
-    for (final provider in this._providers) {
-      var invokingContext = invokingContext(runContext.agent, runContext.session, aiContext);
+    var aiContext = AIContext()
+      ..instructions = options?.instructions
+      ..messages = messages
+      ..tools = options?.tools;
+
+    for (final provider in _providers) {
+      final invokingContext = InvokingContext(
+        runContext.agent,
+        runContext.session,
+        aiContext,
+      );
       aiContext = await provider.invoking(
         invokingContext,
-        cancellationToken,
-      ) ;
+        cancellationToken: cancellationToken,
+      );
     }
-    // Materialize the accumulated context back into messages and options.
-        // Clone options to avoid mutating the caller's instance across calls.
-        options = options?.clone();
-    var enrichedMessages = aiContext.messages ?? [];
-    var tools = aiContext.tools is List<AITool> ? aiContext.tools as List<AITool> : aiContext.tools?.toList();
-    if (options?.tools ?.isNotEmpty == true || tools ?.isNotEmpty == true) {
-      options ??= ChatOptions();
-      options.tools = tools;
+
+    final enrichedOptions = options?.clone();
+    final enrichedMessages = aiContext.messages ?? const <ChatMessage>[];
+    var materializedOptions = enrichedOptions;
+
+    final tools = aiContext.tools?.toList();
+    if ((enrichedOptions?.tools?.isNotEmpty ?? false) ||
+        (tools?.isNotEmpty ?? false)) {
+      materializedOptions ??= ChatOptions();
+      materializedOptions.tools = tools;
     }
-    if (options?.instructions != null|| aiContext.instructions != null) {
-      options ??= ChatOptions();
-      options.instructions = aiContext.instructions;
+
+    if (enrichedOptions?.instructions != null ||
+        aiContext.instructions != null) {
+      materializedOptions ??= ChatOptions();
+      materializedOptions.instructions = aiContext.instructions;
     }
-    return (enrichedMessages, options);
+
+    return (messages: enrichedMessages, options: materializedOptions);
   }
 
-  /// Notifies each provider of a successful invocation.
-  Future notifyProvidersOfSuccess(
+  Future<void> notifyProvidersOfSuccess(
     AgentRunContext runContext,
     Iterable<ChatMessage> requestMessages,
     Iterable<ChatMessage> responseMessages,
-    CancellationToken cancellationToken,
+    CancellationToken? cancellationToken,
   ) async {
-    var invokedContext = invokedContext(
+    final invokedContext = InvokedContext(
       runContext.agent,
       runContext.session,
       requestMessages,
-      responseMessages,
+      responseMessages: responseMessages,
     );
-    for (final provider in this._providers) {
-      await provider.invoked(invokedContext, cancellationToken);
+
+    for (final provider in _providers) {
+      await provider.invoked(
+        invokedContext,
+        cancellationToken: cancellationToken,
+      );
     }
   }
 
-  /// Notifies each provider of a failed invocation.
-  Future notifyProvidersOfFailure(
+  Future<void> notifyProvidersOfFailure(
     AgentRunContext runContext,
     Iterable<ChatMessage> requestMessages,
     Exception exception,
-    CancellationToken cancellationToken,
+    CancellationToken? cancellationToken,
   ) async {
-    var invokedContext = invokedContext(
+    final invokedContext = InvokedContext(
       runContext.agent,
       runContext.session,
       requestMessages,
-      exception,
+      invokeException: exception,
     );
-    for (final provider in this._providers) {
-      await provider.invoked(invokedContext, cancellationToken);
+
+    for (final provider in _providers) {
+      await provider.invoked(
+        invokedContext,
+        cancellationToken: cancellationToken,
+      );
     }
+  }
+
+  static List<AIContextProvider> _validateProviders(
+    List<AIContextProvider>? providers,
+  ) {
+    if (providers == null) {
+      throw ArgumentError.notNull('providers');
+    }
+    if (providers.isEmpty) {
+      throw ArgumentError(
+        'At least one AIContextProvider must be provided.',
+        'providers',
+      );
+    }
+    return List<AIContextProvider>.of(providers);
+  }
+
+  static ChatResponse _toChatResponse(List<ChatResponseUpdate> updates) {
+    final response = ChatResponse();
+    ChatMessage? currentMessage;
+
+    for (final update in updates) {
+      if (_needsNewMessage(currentMessage, update)) {
+        currentMessage = ChatMessage(
+          role: update.role ?? ChatRole.assistant,
+          authorName: update.authorName,
+          contents: [],
+        );
+        currentMessage.messageId = update.messageId;
+        currentMessage.createdAt = update.createdAt;
+        currentMessage.rawRepresentation = update.rawRepresentation;
+        response.messages.add(currentMessage);
+      }
+
+      currentMessage!.contents.addAll(update.contents);
+
+      response.responseId = update.responseId ?? response.responseId;
+      response.conversationId =
+          update.conversationId ?? response.conversationId;
+      response.createdAt = response.createdAt ?? update.createdAt;
+      response.finishReason = update.finishReason ?? response.finishReason;
+      response.modelId = update.modelId ?? response.modelId;
+      response.usage = update.usage ?? response.usage;
+      response.continuationToken =
+          update.continuationToken ?? response.continuationToken;
+      response.rawRepresentation =
+          update.rawRepresentation ?? response.rawRepresentation;
+      response.additionalProperties =
+          update.additionalProperties ?? response.additionalProperties;
+    }
+
+    return response;
+  }
+
+  static bool _needsNewMessage(
+    ChatMessage? currentMessage,
+    ChatResponseUpdate update,
+  ) {
+    return currentMessage == null ||
+        currentMessage.role != (update.role ?? ChatRole.assistant) ||
+        currentMessage.authorName != update.authorName;
   }
 }

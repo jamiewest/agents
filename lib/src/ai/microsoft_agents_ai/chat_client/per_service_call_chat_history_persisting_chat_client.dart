@@ -2,7 +2,6 @@ import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
 import '../../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
-import '../../../abstractions/microsoft_agents_ai_abstractions/agent_run_context.dart';
 import 'chat_client_agent.dart';
 import 'chat_client_agent_session.dart';
 
@@ -35,12 +34,14 @@ class PerServiceCallChatHistoryPersistingChatClient
 
     final isServiceManaged =
         options?.conversationId != null && options!.conversationId!.isNotEmpty;
-    final isContinuationOrBackground = options?.continuationToken != null ||
+    final isContinuationOrBackground =
+        options?.continuationToken != null ||
         options?.allowBackgroundResponses == true;
     final skipSimulation = isServiceManaged || isContinuationOrBackground;
 
-    final newMessages =
-        messages is List<ChatMessage> ? messages : messages.toList();
+    final newMessages = messages is List<ChatMessage>
+        ? messages
+        : messages.toList();
 
     final messagesForService = skipSimulation
         ? newMessages
@@ -82,7 +83,10 @@ class PerServiceCallChatHistoryPersistingChatClient
           (response.conversationId != null &&
               response.conversationId!.isNotEmpty)) {
         agent.updateSessionConversationId(
-            session, response.conversationId, cancellationToken);
+          session,
+          response.conversationId,
+          cancellationToken,
+        );
       } else {
         setSentinelConversationId(response, session);
       }
@@ -102,12 +106,14 @@ class PerServiceCallChatHistoryPersistingChatClient
 
     var isServiceManaged =
         options?.conversationId != null && options!.conversationId!.isNotEmpty;
-    final isContinuationOrBackground = options?.continuationToken != null ||
+    final isContinuationOrBackground =
+        options?.continuationToken != null ||
         options?.allowBackgroundResponses == true;
     final skipSimulation = isServiceManaged || isContinuationOrBackground;
 
-    final newMessages =
-        messages is List<ChatMessage> ? messages : messages.toList();
+    final newMessages = messages is List<ChatMessage>
+        ? messages
+        : messages.toList();
 
     final Iterable<ChatMessage> messagesForService;
     try {
@@ -171,7 +177,10 @@ class PerServiceCallChatHistoryPersistingChatClient
     if (!isContinuationOrBackground) {
       if (isServiceManaged) {
         agent.updateSessionConversationId(
-            session, chatResponse.conversationId, cancellationToken);
+          session,
+          chatResponse.conversationId,
+          cancellationToken,
+        );
       } else {
         session.conversationId = localHistoryConversationId;
       }
@@ -193,7 +202,7 @@ class PerServiceCallChatHistoryPersistingChatClient
   /// Throws [StateError] if called outside an agent run or with an
   /// incompatible agent/session type.
   static (ChatClientAgent, ChatClientAgentSession)
-      _getRequiredAgentAndSession() {
+  _getRequiredAgentAndSession() {
     final runContext = AIAgent.currentRunContext;
     if (runContext == null) {
       throw StateError(
@@ -234,7 +243,8 @@ class PerServiceCallChatHistoryPersistingChatClient
     final messages = <ChatMessage>[];
     ChatMessage? current;
     for (final update in updates) {
-      final needsNew = current == null ||
+      final needsNew =
+          current == null ||
           current.role != (update.role ?? ChatRole.assistant) ||
           current.authorName != update.authorName;
       if (needsNew) {
@@ -245,7 +255,7 @@ class PerServiceCallChatHistoryPersistingChatClient
         );
         messages.add(current);
       }
-      current!.contents.addAll(update.contents);
+      current.contents.addAll(update.contents);
     }
     return ChatResponse(
       messages: messages,

@@ -2,6 +2,7 @@ import 'package:extensions/system.dart';
 import 'package:extensions/logging.dart';
 import 'compaction_message_index.dart';
 import 'compaction_strategy.dart';
+import 'compaction_trigger.dart';
 
 /// A compaction strategy that executes a sequential pipeline of
 /// [CompactionStrategy] instances against the same [CompactionMessageIndex].
@@ -15,10 +16,11 @@ class PipelineCompactionStrategy extends CompactionStrategy {
   /// Initializes a new instance of the [PipelineCompactionStrategy] class.
   ///
   /// [strategies] The ordered sequence of strategies to execute.
-  PipelineCompactionStrategy(Iterable<CompactionStrategy> strategies, [CompactionTrigger? trigger])
-      : super(trigger ?? ((_) => false)) {
-    this.strategies = [...strategies];
-  }
+  PipelineCompactionStrategy(
+    Iterable<CompactionStrategy> strategies, [
+    CompactionTrigger? trigger,
+  ]) : strategies = List<CompactionStrategy>.of(strategies),
+       super(trigger ?? ((_) => true));
 
   /// Gets the ordered list of strategies in this pipeline.
   final List<CompactionStrategy> strategies;
@@ -30,12 +32,12 @@ class PipelineCompactionStrategy extends CompactionStrategy {
     CancellationToken cancellationToken,
   ) async {
     var anyCompacted = false;
-    for (final strategy in this.strategies) {
-      var compacted = await strategy.compactAsync(
+    for (final strategy in strategies) {
+      final compacted = await strategy.compact(
         index,
-        logger,
-        cancellationToken,
-      ) ;
+        logger: logger,
+        cancellationToken: cancellationToken,
+      );
       if (compacted) {
         anyCompacted = true;
       }

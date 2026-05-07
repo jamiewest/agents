@@ -1,89 +1,105 @@
-import 'package:path/path.dart' as p;
-import '../file_memory/file_memory_provider.dart';
+import 'dart:io';
+
 import 'agent_file_store.dart';
 
 /// Internal helper for normalizing and validating relative store paths and
-/// matching glob patterns. Shared across [AgentFileStore] implementations and
-/// [FileMemoryProvider].
+/// matching glob patterns. Shared across [AgentFileStore] implementations.
 class StorePaths {
-  StorePaths();
+  StorePaths._();
 
   /// Normalizes a relative path by replacing backslashes with forward slashes,
   /// trimming leading and trailing separators, and collapsing consecutive
   /// separators. Also validates that the path does not contain rooted paths,
   /// drive roots, or `.`/`..` traversal segments.
-  ///
-  /// Returns: The normalized forward-slash path.
-  ///
-  /// [path] The relative path to normalize.
-  ///
-  /// [isDirectory] When `true`, the path represents a directory and an empty
-  /// result (meaning root) is allowed. When `false` (default), the path
-  /// represents a file and an empty result is rejected.
-  static String normalizeRelativePath(String path, {bool? isDirectory, }) {
-    if ((path == null || path.trim().isEmpty)) {
+  static String normalizeRelativePath(String path, {bool isDirectory = false}) {
+    if (path.trim().isEmpty) {
       if (!isDirectory) {
-        throw ArgumentError("A file path must not be empty or whitespace-only.", 'path');
+        throw ArgumentError(
+          'A file path must not be empty or whitespace-only.',
+          'path',
+        );
       }
+
       return '';
     }
-    var normalized = path.replaceAll('\\', '/').trim('/');
-    if (p.isAbsolute(path) ||
-            path.startsWith("/") ||
-            path.startsWith("\\") ||
-            (normalized.length >= 2 && char.isLetter(normalized[0]) && normalized[1] == ':')) {
+
+    final normalized = path
+        .replaceAll('\\', '/')
+        .replaceAll(RegExp(r'^/+|/+$'), '');
+
+    if (path.startsWith('/') ||
+        path.startsWith('\\') ||
+        path.startsWith(Platform.pathSeparator) ||
+        RegExp(r'^[A-Za-z]:').hasMatch(normalized)) {
       throw ArgumentError(
-                "Invalid path: ${path}. Paths must be relative and must not start with "/', '\\', or a drive root.',
-                'path');
+        "Invalid path: '$path'. Paths must be relative and must not start with '/', '\\', or a drive root.",
+        'path',
+      );
     }
-    var segments = normalized.split('/');
-    var cleanSegments = List<String>(segments.length);
-    for (final segment in segments) {
-      if (segment.length == 0) {
+
+    final cleanSegments = <String>[];
+    for (final segment in normalized.split('/')) {
+      if (segment.isEmpty) {
         continue;
       }
-      if (segment == "." || segment == "..") {
+
+      if (segment == '.' || segment == '..') {
         throw ArgumentError(
-                    "Invalid path: ${path}. Paths must not contain ".' or '..' segments.',
-                    'path');
+          "Invalid path: '$path'. Paths must not contain '.' or '..' segments.",
+          'path',
+        );
       }
+
       cleanSegments.add(segment);
     }
-    var result = cleanSegments.join("/");
-    if (!isDirectory && result.length == 0) {
-      throw ArgumentError("A file path must not be empty.", 'path');
+
+    final result = cleanSegments.join('/');
+    if (!isDirectory && result.isEmpty) {
+      throw ArgumentError('A file path must not be empty.', 'path');
     }
+
     return result;
   }
 
-  /// Creates a [Matcher] for the specified glob pattern. Use the returned
-  /// instance to test multiple file names without allocating a new matcher for
-  /// each one.
-  ///
-  /// Returns: A [Matcher] configured with the specified pattern.
-  ///
-  /// [filePattern] The glob pattern to match against (e.g., `"*.md"`,
-  /// `"research*"`).
-  static Matcher createGlobMatcher(String filePattern) {
-    var matcher = matcher();
-    matcher.addInclude(filePattern);
-    return matcher;
+  /// Creates a [StorePathGlobMatcher] for the specified glob pattern.
+  static StorePathGlobMatcher createGlobMatcher(String filePattern) {
+    return StorePathGlobMatcher(filePattern);
   }
 
-  /// Determines whether a file name matches a pre-built glob [Matcher].
-  ///
-  /// Returns: `true` if the file name matches the pattern or if the matcher is
-  /// `null`; otherwise, `false`.
-  ///
-  /// [fileName] The file name to test (not a full path — just the name).
-  ///
-  /// [matcher] A pre-built [Matcher] to test against. When `null`, this method
-  /// returns `true` for any file name.
-  static bool matchesGlob(String fileName, Matcher? matcher, ) {
+  /// Determines whether a file name matches a pre-built glob matcher.
+  static bool matchesGlob(String fileName, StorePathGlobMatcher? matcher) {
     if (matcher == null) {
       return true;
     }
-    var result = matcher.match(fileName);
-    return result.hasMatches;
+
+    return matcher.matches(fileName);
+  }
+}
+
+/// Minimal case-insensitive glob matcher for file names.
+class StorePathGlobMatcher {
+  StorePathGlobMatcher(String pattern)
+    : _regex = RegExp('^${_globToRegex(pattern)}\$', caseSensitive: false);
+
+  final RegExp _regex;
+
+  bool matches(String fileName) {
+    return _regex.hasMatch(fileName);
+  }
+
+  static String _globToRegex(String pattern) {
+    final buffer = StringBuffer();
+    for (var i = 0; i < pattern.length; i++) {
+      final char = pattern[i];
+      switch (char) {
+        case '*':
+          buffer.write('.*');
+        case '?':
+          buffer.write('.');
+        default:
+          buffer.write(RegExp.escape(char));
+      }
+    }
+    return buffer.toString();
   }
 }

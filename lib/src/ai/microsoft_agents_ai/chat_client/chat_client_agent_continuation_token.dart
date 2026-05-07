@@ -11,7 +11,7 @@ const String _tokenTypeName = 'ChatClientAgentContinuationToken';
 class ChatClientAgentContinuationToken extends ResponseContinuationToken {
   /// Creates a [ChatClientAgentContinuationToken] wrapping [innerToken].
   ChatClientAgentContinuationToken(this.innerToken)
-      : super.fromBytes(Uint8List(0));
+    : super.fromBytes(Uint8List(0));
 
   /// The continuation token provided by the underlying [ChatClient].
   final ResponseContinuationToken innerToken;
@@ -60,8 +60,7 @@ class ChatClientAgentContinuationToken extends ResponseContinuationToken {
           'Token is not of type $_tokenTypeName (found: $type).',
         );
       }
-      final innerBytes =
-          base64.decode(map['innerToken'] as String);
+      final innerBytes = base64.decode(map['innerToken'] as String);
       final innerToken = ResponseContinuationToken.fromBytes(
         Uint8List.fromList(innerBytes),
       );

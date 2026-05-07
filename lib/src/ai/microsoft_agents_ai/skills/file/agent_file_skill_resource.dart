@@ -12,9 +12,8 @@ class AgentFileSkillResource extends AgentSkillResource {
   ///
   /// [fullPath] The absolute file path to the resource.
   AgentFileSkillResource(String name, String fullPath)
-      : fullPath = fullPath,
-        super(name) {
-  }
+    : fullPath = fullPath,
+      super(name) {}
 
   /// Gets the absolute file path to the resource.
   final String fullPath;

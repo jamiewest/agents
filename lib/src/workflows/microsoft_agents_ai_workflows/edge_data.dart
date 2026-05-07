@@ -1,19 +1,16 @@
 import 'edge_id.dart';
-import 'execution/edge_connection.dart';
 
-/// A base class for edge data, providing access to the [EdgeConnection]
-/// representation of the edge.
+/// Base data for a workflow edge.
 abstract class EdgeData {
-  EdgeData(EdgeId id, {String? label = null}) : id = id {
-    this.label = label;
-  }
+  /// Creates edge data.
+  const EdgeData(this.id);
 
-  /// Gets the connection representation of the edge.
-  late final EdgeConnection connection;
-
+  /// Gets the edge identifier.
   final EdgeId id;
 
-  /// An optional label for the edge, allowing for arbitrary metadata to be
-  /// associated with it.
-  late final String? label;
+  /// Gets the source executor identifiers.
+  Iterable<String> get sourceExecutorIds;
+
+  /// Gets the target executor identifiers.
+  Iterable<String> get targetExecutorIds;
 }

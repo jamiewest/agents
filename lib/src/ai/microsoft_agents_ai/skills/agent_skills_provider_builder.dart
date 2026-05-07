@@ -1,3 +1,5 @@
+import 'package:extensions/logging.dart';
+
 import '../../../func_typedefs.dart';
 import 'agent_in_memory_skills_source.dart';
 import 'agent_skill.dart';
@@ -10,204 +12,138 @@ import 'decorators/filtering_agent_skills_source.dart';
 import 'file/agent_file_skill_script_runner.dart';
 import 'file/agent_file_skills_source.dart';
 import 'file/agent_file_skills_source_options.dart';
-import 'programmatic/agent_class_skill.dart';
-import 'programmatic/agent_inline_skill.dart';
 
 /// Fluent builder for constructing an [AgentSkillsProvider] backed by a
-/// composite source. Intended for advanced scenarios where the simple
-/// [AgentSkillsProvider] constructors are insufficient.
-///
-/// Remarks: For simple, single-source scenarios, prefer the
-/// [AgentSkillsProvider] constructors directly (e.g., passing a skill
-/// directory path or a set of skills). Use this builder when you need one or
-/// more of the following advanced capabilities: Mixed skill types — combine
-/// file-based, code-defined ([AgentInlineSkill]), and class-based
-/// ([AgentClassSkill]) skills in a single provider. Multiple file script
-/// runners — use different script runners for different file skill
-/// directories via per-source `scriptRunner` parameters on
-/// [AgentFileSkillScriptRunner)] / [AgentFileSkillScriptRunner)]. Skill
-/// filtering — include or exclude skills using a predicate via [Boolean})].
-/// Example — combining file-based and code-defined skills: var provider = new
-/// AgentSkillsProviderBuilder() .UseFileSkills("/path/to/skills")
-/// .UseSkills(myInlineSkill1, myInlineSkill2)
-/// .UseFileScriptRunner(SubprocessScriptRunner.RunAsync) .Build();
+/// composite source.
 class AgentSkillsProviderBuilder {
   AgentSkillsProviderBuilder();
 
-  final List<Func2<AgentFileSkillScriptRunner?, LoggerFactory?, AgentSkillsSource>> _sourceFactories = [];
+  final List<
+    AgentSkillsSource Function(
+      AgentFileSkillScriptRunner? scriptRunner,
+      LoggerFactory? loggerFactory,
+    )
+  >
+  _sourceFactories = [];
 
   AgentSkillsProviderOptions? _options;
+  LoggerFactory? _loggerFactory;
+  AgentFileSkillScriptRunner? _scriptRunner;
+  Func<AgentSkill, bool>? _filter;
 
-  late LoggerFactory? _loggerFactory;
-
-  late AgentFileSkillScriptRunner? _scriptRunner;
-
-  late Func<AgentSkill, bool>? _filter;
-
-  /// Adds a file-based skill source that discovers skills from a filesystem
-  /// directory.
-  ///
-  /// Returns: This builder instance for chaining.
-  ///
-  /// [skillPath] Path to search for skills.
-  ///
-  /// [options] Optional options that control skill discovery behavior.
-  ///
-  /// [scriptRunner] Optional runner for file-based scripts. When provided,
-  /// overrides the builder-level runner set via [AgentFileSkillScriptRunner)].
   AgentSkillsProviderBuilder useFileSkill(
-    String skillPath,
-    {AgentFileSkillsSourceOptions? options, AgentFileSkillScriptRunner? scriptRunner, }
-  ) {
-    return this.useFileSkills([skillPath], options, scriptRunner);
+    String skillPath, {
+    AgentFileSkillsSourceOptions? options,
+    AgentFileSkillScriptRunner? scriptRunner,
+  }) {
+    return useFileSkills(
+      [skillPath],
+      options: options,
+      scriptRunner: scriptRunner,
+    );
   }
 
-  /// Adds a file-based skill source that discovers skills from multiple
-  /// filesystem directories.
-  ///
-  /// Returns: This builder instance for chaining.
-  ///
-  /// [skillPaths] Paths to search for skills.
-  ///
-  /// [options] Optional options that control skill discovery behavior.
-  ///
-  /// [scriptRunner] Optional runner for file-based scripts. When provided,
-  /// overrides the builder-level runner set via [AgentFileSkillScriptRunner)].
   AgentSkillsProviderBuilder useFileSkills(
-    Iterable<String> skillPaths,
-    {AgentFileSkillsSourceOptions? options, AgentFileSkillScriptRunner? scriptRunner, }
-  ) {
-    this._sourceFactories.add((builderScriptRunner, loggerFactory) {
-        
-            var resolvedRunner = scriptRunner
-                ?? builderScriptRunner
-                ?? throw StateError('File-based skill sources require a script runner. Call ${'useFileScriptRunner'} or pass a runner to ${'useFileSkill'}/${'useFileSkills'}.');
-            return agentFileSkillsSource(skillPaths, resolvedRunner, options, loggerFactory);
-        });
+    Iterable<String> skillPaths, {
+    AgentFileSkillsSourceOptions? options,
+    AgentFileSkillScriptRunner? scriptRunner,
+  }) {
+    final paths = List<String>.of(skillPaths);
+    _sourceFactories.add((builderScriptRunner, loggerFactory) {
+      final resolvedRunner = scriptRunner ?? builderScriptRunner;
+      return AgentFileSkillsSource(
+        paths,
+        scriptRunner: resolvedRunner,
+        options: options,
+        loggerFactory: loggerFactory,
+      );
+    });
     return this;
   }
 
-  /// Adds a single skill.
-  ///
-  /// Returns: This builder instance for chaining.
-  ///
-  /// [skill] The skill to add.
-  AgentSkillsProviderBuilder useSkill(AgentSkill skill) {
-    return this.useSkills(skill);
-  }
+  AgentSkillsProviderBuilder useSkill(AgentSkill skill) => useSkills([skill]);
 
-  /// Adds one or more skills.
-  ///
-  /// Returns: This builder instance for chaining.
-  ///
-  /// [skills] The skills to add.
-  AgentSkillsProviderBuilder useSkills({List<AgentSkill>? skills}) {
-    var source = agentInMemorySkillsSource(skills);
-    this._sourceFactories.add((_, _) => source);
+  AgentSkillsProviderBuilder useSkills(Iterable<AgentSkill> skills) {
+    final source = AgentInMemorySkillsSource(skills);
+    _sourceFactories.add((_, _) => source);
     return this;
   }
 
-  /// Adds a custom skill source.
-  ///
-  /// Returns: This builder instance for chaining.
-  ///
-  /// [source] The custom skill source.
   AgentSkillsProviderBuilder useSource(AgentSkillsSource source) {
-    source;
-    this._sourceFactories.add((_, _) => source);
+    _sourceFactories.add((_, _) => source);
     return this;
   }
 
-  /// Sets a custom system prompt template.
-  ///
-  /// Returns: This builder instance for chaining.
-  ///
-  /// [promptTemplate] The prompt template with `{skills}` placeholder for the
-  /// skills list, `{resource_instructions}` for optional resource instructions,
-  /// and `{script_instructions}` for optional script instructions.
   AgentSkillsProviderBuilder usePromptTemplate(String promptTemplate) {
-    this.getOrCreateOptions().skillsInstructionPrompt = promptTemplate;
+    getOrCreateOptions().skillsInstructionPrompt = promptTemplate;
     return this;
   }
 
-  /// Enables or disables the script approval gate.
-  ///
-  /// Returns: This builder instance for chaining.
-  ///
-  /// [enabled] Whether script execution requires approval.
-  AgentSkillsProviderBuilder useScriptApproval({bool? enabled}) {
-    this.getOrCreateOptions().scriptApproval = enabled;
+  AgentSkillsProviderBuilder useScriptApproval({bool enabled = true}) {
+    getOrCreateOptions().scriptApproval = enabled;
     return this;
   }
 
-  /// Sets the runner for file-based skill scripts.
-  ///
-  /// Returns: This builder instance for chaining.
-  ///
-  /// [runner] The delegate that runs file-based scripts.
-  AgentSkillsProviderBuilder useFileScriptRunner(AgentFileSkillScriptRunner runner) {
-    this._scriptRunner = runner;
+  AgentSkillsProviderBuilder useFileScriptRunner(
+    AgentFileSkillScriptRunner runner,
+  ) {
+    _scriptRunner = runner;
     return this;
   }
 
-  /// Sets the logger factory.
-  ///
-  /// Returns: This builder instance for chaining.
-  ///
-  /// [loggerFactory] The logger factory.
   AgentSkillsProviderBuilder useLoggerFactory(LoggerFactory loggerFactory) {
-    this._loggerFactory = loggerFactory;
+    _loggerFactory = loggerFactory;
     return this;
   }
 
-  /// Sets a filter predicate that controls which skills are included.
-  ///
-  /// Remarks: Skills for which the predicate returns `true` are kept; others
-  /// are excluded. Only one filter is supported; calling this method again
-  /// replaces any previously set filter.
-  ///
-  /// Returns: This builder instance for chaining.
-  ///
-  /// [predicate] A predicate that determines which skills to include.
   AgentSkillsProviderBuilder useFilter(Func<AgentSkill, bool> predicate) {
-    predicate;
-    this._filter = predicate;
+    _filter = predicate;
     return this;
   }
 
-  /// Configures the [AgentSkillsProviderOptions] using the provided delegate.
-  ///
-  /// Returns: This builder instance for chaining.
-  ///
-  /// [configure] A delegate to configure the options.
-  AgentSkillsProviderBuilder useOptions(Action<AgentSkillsProviderOptions> configure) {
-    configure;
-    configure(this.getOrCreateOptions());
+  AgentSkillsProviderBuilder useOptions(
+    void Function(AgentSkillsProviderOptions options) configure,
+  ) {
+    configure(getOrCreateOptions());
     return this;
   }
 
-  /// Builds the [AgentSkillsProvider].
-  ///
-  /// Returns: A configured [AgentSkillsProvider].
   AgentSkillsProvider build() {
-    var resolvedSources = List<AgentSkillsSource>(this._sourceFactories.length);
-    for (final factory in this._sourceFactories) {
-      resolvedSources.add(factory(this._scriptRunner, this._loggerFactory));
-    }
+    final resolvedSources = _sourceFactories
+        .map((factory) => factory(_scriptRunner, _loggerFactory))
+        .toList();
+
     AgentSkillsSource source;
-    if (resolvedSources.length == 1) {
-      source = resolvedSources[0];
+    if (resolvedSources.isEmpty) {
+      source = AgentInMemorySkillsSource(const []);
+    } else if (resolvedSources.length == 1) {
+      source = resolvedSources.single;
     } else {
-      source = aggregatingAgentSkillsSource(resolvedSources);
+      source = AggregatingAgentSkillsSource(resolvedSources);
     }
-    if (this._filter != null) {
-      source = filteringAgentSkillsSource(source, this._filter, this._loggerFactory);
+
+    final filter = _filter;
+    if (filter != null) {
+      source = FilteringAgentSkillsSource(
+        source,
+        filter,
+        loggerFactory: _loggerFactory,
+      );
     }
-    source = deduplicatingAgentSkillsSource(source, this._loggerFactory);
-    return agentSkillsProvider(source, this._options, this._loggerFactory);
+
+    source = DeduplicatingAgentSkillsSource(
+      source,
+      loggerFactory: _loggerFactory,
+    );
+
+    return AgentSkillsProvider(
+      source: source,
+      options: _options,
+      loggerFactory: _loggerFactory,
+    );
   }
 
   AgentSkillsProviderOptions getOrCreateOptions() {
-    return this._options ??= agentSkillsProviderOptions();
+    return _options ??= AgentSkillsProviderOptions();
   }
 }

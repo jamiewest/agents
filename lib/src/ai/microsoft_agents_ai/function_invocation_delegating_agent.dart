@@ -9,20 +9,22 @@ import '../../abstractions/microsoft_agents_ai_abstractions/delegating_ai_agent.
 import 'chat_client/chat_client_agent_run_options.dart';
 import '../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
 
-typedef FunctionInvocationDelegateFunc = Func4<
-    AIAgent,
-    FunctionInvocationContext,
-    Func2<FunctionInvocationContext, CancellationToken, Future<Object?>>,
-    CancellationToken,
-    Future<Object?>>;
+typedef FunctionInvocationDelegateFunc =
+    Func4<
+      AIAgent,
+      FunctionInvocationContext,
+      Func2<FunctionInvocationContext, CancellationToken, Future<Object?>>,
+      CancellationToken,
+      Future<Object?>
+    >;
 
 /// Internal agent decorator that adds function invocation middleware logic.
 class FunctionInvocationDelegatingAgent extends DelegatingAIAgent {
   FunctionInvocationDelegatingAgent(
     AIAgent innerAgent,
     FunctionInvocationDelegateFunc delegateFunc,
-  )   : _delegateFunc = delegateFunc,
-        super(innerAgent);
+  ) : _delegateFunc = delegateFunc,
+      super(innerAgent);
 
   final FunctionInvocationDelegateFunc _delegateFunc;
 
@@ -57,7 +59,8 @@ class FunctionInvocationDelegatingAgent extends DelegatingAIAgent {
   }
 
   AgentRunOptions? agentRunOptionsWithFunctionMiddleware(
-      AgentRunOptions? options) {
+    AgentRunOptions? options,
+  ) {
     if (options == null || options.runtimeType == AgentRunOptions) {
       options = ChatClientAgentRunOptions();
     }
@@ -107,9 +110,11 @@ class FunctionInvocationDelegatingAgent extends DelegatingAIAgent {
   ) {
     if (opts?.tools == null) return;
     opts!.tools = opts.tools!
-        .map((tool) => tool is AIFunction
-            ? MiddlewareEnabledFunction(agent, tool, delegateFunc)
-            : tool)
+        .map(
+          (tool) => tool is AIFunction
+              ? MiddlewareEnabledFunction(agent, tool, delegateFunc)
+              : tool,
+        )
         .toList();
   }
 }
@@ -136,10 +141,7 @@ class MiddlewareEnabledFunction extends DelegatingAIFunction {
       arguments: Map<String, Object?>.from(arguments),
     );
     final ctx = FunctionInvocationContext(
-      message: ChatMessage(
-        role: ChatRole.assistant,
-        contents: [callContent],
-      ),
+      message: ChatMessage(role: ChatRole.assistant, contents: [callContent]),
       callContent: callContent,
       function_: innerFunction,
       iteration: 0,
@@ -157,9 +159,8 @@ class MiddlewareEnabledFunction extends DelegatingAIFunction {
   Future<Object?> _coreLogicAsync(
     FunctionInvocationContext ctx,
     CancellationToken cancellationToken,
-  ) =>
-      super.invokeCore(
-        AIFunctionArguments(ctx.callContent.arguments ?? {}),
-        cancellationToken: cancellationToken,
-      );
+  ) => super.invokeCore(
+    AIFunctionArguments(ctx.callContent.arguments ?? {}),
+    cancellationToken: cancellationToken,
+  );
 }

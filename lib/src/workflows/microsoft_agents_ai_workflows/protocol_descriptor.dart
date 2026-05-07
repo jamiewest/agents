@@ -1,28 +1,36 @@
-/// Describes the protocol for communication with a [Workflow] or [Executor].
+import 'request_port.dart';
+
+/// Describes the message protocol supported by an executor or workflow.
 class ProtocolDescriptor {
-  ProtocolDescriptor(
-    Iterable<Type> acceptedTypes,
-    Iterable<Type> yieldedTypes,
-    Iterable<Type> sentTypes,
-    bool acceptsAll,
-  )   : accepts = acceptedTypes.toList(),
-        yields = yieldedTypes.toList(),
-        sends = sentTypes.toList(),
-        acceptsAll = acceptsAll;
+  /// Creates a protocol descriptor.
+  ProtocolDescriptor({
+    Iterable<Type> acceptedTypes = const <Type>[],
+    Iterable<Type> producedTypes = const <Type>[],
+    Iterable<RequestPortDescriptor> requestPorts =
+        const <RequestPortDescriptor>[],
+    this.acceptsAll = false,
+  }) : acceptedTypes = List<Type>.unmodifiable(acceptedTypes),
+       producedTypes = List<Type>.unmodifiable(producedTypes),
+       requestPorts = List<RequestPortDescriptor>.unmodifiable(requestPorts);
 
-  /// Get the collection of types explicitly accepted by the [Workflow] or
-  /// [Executor].
-  final List<Type> accepts;
+  /// Gets the accepted input message types.
+  final List<Type> acceptedTypes;
 
-  /// Gets the collection of types that could be yielded as output by the
-  /// [Workflow] or [Executor].
-  final List<Type> yields;
+  /// Gets the produced output message types.
+  final List<Type> producedTypes;
 
-  /// Gets the collection of types that could be sent from the [Executor]. This
-  /// is always empty for a [Workflow].
-  final List<Type> sends;
+  /// Gets the external request ports exposed by the protocol.
+  final List<RequestPortDescriptor> requestPorts;
 
-  /// Gets a value indicating whether the [Workflow] or [Executor] has a
-  /// "catch-all" handler.
-  bool acceptsAll;
+  /// Gets whether all input message types are accepted.
+  final bool acceptsAll;
+
+  /// Gets whether [type] can be accepted by this protocol.
+  bool accepts(Type type) => acceptsAll || acceptedTypes.contains(type);
+
+  /// Gets whether [type] can be produced by this protocol.
+  bool produces(Type type) => producedTypes.contains(type);
+
+  /// Creates an empty protocol descriptor.
+  static final ProtocolDescriptor empty = ProtocolDescriptor();
 }

@@ -18,21 +18,17 @@ abstract class AgentClassSkill<TSelf> extends AgentSkill {
 
   String? _content;
 
-  bool _resourcesDiscovered = false;
-  bool _scriptsDiscovered = false;
-
-  List<AgentSkillResource>? _reflectedResources;
-  List<AgentSkillScript>? _reflectedScripts;
-
   /// Gets the raw instructions text for this skill.
   String get instructions;
 
   /// Returns resources for this skill. Override to provide explicit resources,
   /// or rely on [discoverResources] for reflection-based discovery.
+  @override
   List<AgentSkillResource>? get resources => null;
 
   /// Returns scripts for this skill. Override to provide explicit scripts,
   /// or rely on [discoverScripts] for reflection-based discovery.
+  @override
   List<AgentSkillScript>? get scripts => null;
 
   /// Gets the [JsonSerializerOptions] used to marshal parameters and return
@@ -41,13 +37,15 @@ abstract class AgentClassSkill<TSelf> extends AgentSkill {
 
   /// Returns a synthesized XML document containing name, description,
   /// instructions, resources, and scripts. Cached after first access.
+  @override
   String get content {
     return _content ??= AgentInlineSkillContentBuilder.build(
-        frontmatter.name,
-        frontmatter.description,
-        instructions,
-        resources,
-        scripts);
+      frontmatter.name,
+      frontmatter.description,
+      instructions,
+      resources,
+      scripts,
+    );
   }
 
   /// Creates a skill resource backed by a static value.

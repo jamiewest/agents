@@ -1,5 +1,6 @@
 import 'package:extensions/system.dart';
 import 'package:extensions/dependency_injection.dart';
+
 /// Abstract base class for skill resources. A resource provides supplementary
 /// content (references, assets) to a skill.
 abstract class AgentSkillResource {
@@ -16,7 +17,7 @@ abstract class AgentSkillResource {
   final String name;
 
   /// Gets the optional resource description.
-  late final String? description;
+  String? description;
 
   /// Reads the resource content asynchronously.
   ///

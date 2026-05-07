@@ -13,18 +13,17 @@ class AggregatingAgentSkillsSource extends AgentSkillsSource {
   ///
   /// [sources] The child sources to aggregate.
   AggregatingAgentSkillsSource(Iterable<AgentSkillsSource> sources)
-    : _sources = sources {
-  }
+    : _sources = List<AgentSkillsSource>.of(sources);
 
-  final Iterable<AgentSkillsSource> _sources;
+  final List<AgentSkillsSource> _sources;
 
   @override
   Future<List<AgentSkill>> getSkills({
     CancellationToken? cancellationToken,
   }) async {
     var allSkills = <AgentSkill>[];
-    for (final source in this._sources) {
-      var skills = await source.getSkills(
+    for (final source in _sources) {
+      final skills = await source.getSkills(
         cancellationToken: cancellationToken,
       );
       allSkills.addAll(skills);

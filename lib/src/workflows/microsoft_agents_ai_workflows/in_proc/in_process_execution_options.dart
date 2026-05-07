@@ -1,9 +1,1 @@
-import '../execution/execution_mode.dart';
-
-class InProcessExecutionOptions {
-  InProcessExecutionOptions();
-
-  ExecutionMode executionMode = ExecutionMode.offThread;
-
-  bool allowSharedWorkflow = false;
-}
+// Placeholder for the C#-faithful workflow port slice: in_proc/in_process_execution_options.dart.

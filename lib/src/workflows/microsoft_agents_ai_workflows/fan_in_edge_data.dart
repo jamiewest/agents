@@ -1,28 +1,23 @@
 import 'edge_data.dart';
 import 'edge_id.dart';
-import 'execution/edge_connection.dart';
 
-/// Represents a connection from a set of nodes to a single node. It will
-/// trigger either when all edges have data.
+/// Edge data for multiple source executors synchronized into one target.
 class FanInEdgeData extends EdgeData {
-  FanInEdgeData(
-    List<String> sourceIds,
-    String sinkId,
-    EdgeId id,
-    String? label,
-  ) :
-      sourceIds = sourceIds,
-      sinkId = sinkId,
-      super(id, label: label) {
-    this.connection = EdgeConnection(sourceIds, [sinkId]);
-  }
+  /// Creates fan-in edge data.
+  FanInEdgeData({
+    required EdgeId id,
+    required Iterable<String> sourceExecutorIds,
+    required this.targetExecutorId,
+  }) : sourceExecutorIds = List<String>.unmodifiable(sourceExecutorIds),
+       super(id);
 
-  /// The ordered list of Ids of the source [Executor] nodes.
-  final List<String> sourceIds;
+  /// Gets the source executor identifiers.
+  @override
+  final List<String> sourceExecutorIds;
 
-  /// The Id of the destination [Executor] node.
-  final String sinkId;
+  /// Gets the target executor identifier.
+  final String targetExecutorId;
 
-  late final EdgeConnection connection;
-
+  @override
+  Iterable<String> get targetExecutorIds => <String>[targetExecutorId];
 }

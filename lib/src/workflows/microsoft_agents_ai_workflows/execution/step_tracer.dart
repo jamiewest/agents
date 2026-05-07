@@ -1,8 +1,1 @@
-import '../checkpoint_info.dart';
-
-abstract class StepTracer {
-  void traceActivated(String executorId);
-  void traceCheckpointCreated(CheckpointInfo checkpoint);
-  void traceIntantiated(String executorId);
-  void traceStatePublished();
-}
+// Placeholder for the C#-faithful workflow port slice: execution/step_tracer.dart.

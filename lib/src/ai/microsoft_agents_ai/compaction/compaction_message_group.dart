@@ -32,19 +32,19 @@ class CompactionMessageGroup {
   /// [turnIndex] The user turn this group belongs to, or `null` for [System].
   CompactionMessageGroup(
     this.kind,
-    this.messages,
-    int messageCount,
+    List<ChatMessage> messages,
     this.byteCount,
     this.tokenCount, {
     this.turnIndex,
-  }) : messageCount = messages.length;
+  }) : messages = List<ChatMessage>.of(messages),
+       messageCount = messages.length;
 
   /// The [AdditionalProperties] key used to identify a message as a compaction
   /// summary.
   ///
   /// Remarks: When this key is present with a value of `true`, the message is
   /// classified as [Summary] by [Nullable{Tokenizer})].
-  static final String summaryPropertyKey = "_is_summary";
+  static const String summaryPropertyKey = '_is_summary';
 
   /// Gets the kind of this message group.
   final CompactionGroupKind kind;

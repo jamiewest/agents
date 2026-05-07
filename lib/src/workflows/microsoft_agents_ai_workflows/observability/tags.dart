@@ -1,3 +1,1 @@
-class Tags {
-  Tags();
-}
+// Placeholder for the C#-faithful workflow port slice: observability/tags.dart.

@@ -1,18 +1,7 @@
 import 'executor_event.dart';
 
-/// Event triggered when an executor handler has completed.
-///
-/// [executorId] The unique identifier of the executor that has completed.
-///
-/// [result] The result produced by the executor upon completion, or `null` if
-/// no result is available.
+/// Event emitted when an executor completes.
 class ExecutorCompletedEvent extends ExecutorEvent {
-  /// Event triggered when an executor handler has completed.
-  ///
-  /// [executorId] The unique identifier of the executor that has completed.
-  ///
-  /// [result] The result produced by the executor upon completion, or `null` if
-  /// no result is available.
-  ExecutorCompletedEvent(String executorId, Object? result)
-      : super(executorId, result);
+  /// Creates an executor-completed event.
+  const ExecutorCompletedEvent({required super.executorId, super.data});
 }

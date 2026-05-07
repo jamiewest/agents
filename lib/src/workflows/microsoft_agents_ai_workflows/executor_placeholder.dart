@@ -1,36 +1,13 @@
+import 'executor.dart';
 import 'executor_binding.dart';
 
-/// Represents a placeholder entry for an [ExecutorBinding], identified by a
-/// unique ID.
-///
-/// [Id] The unique identifier for the placeholder registration.
+/// Placeholder binding used while a workflow is being assembled.
 class ExecutorPlaceholder extends ExecutorBinding {
-  /// Represents a placeholder entry for an [ExecutorBinding], identified by a
-  /// unique ID.
-  ///
-  /// [Id] The unique identifier for the placeholder registration.
-  ExecutorPlaceholder(String Id) : super(Id, null, ExecutorPlaceholder);
-
-  bool get supportsConcurrentSharedExecution {
-    return false;
-  }
-
-  bool get supportsResetting {
-    return false;
-  }
-
-  bool get isSharedInstance {
-    return false;
-  }
+  /// Creates an executor placeholder.
+  const ExecutorPlaceholder(super.id);
 
   @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is ExecutorPlaceholder;
-  }
-
-  @override
-  int get hashCode {
-    return runtimeType.hashCode;
+  Future<Executor<dynamic, dynamic>> createInstance() {
+    throw StateError('Executor placeholder "$id" has not been bound.');
   }
 }

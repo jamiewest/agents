@@ -1,299 +1,340 @@
-import 'package:extensions/system.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
-import '../../func_typedefs.dart';
+import 'package:extensions/system.dart';
+
 import '../../abstractions/microsoft_agents_ai_abstractions/ai_context.dart';
 import '../../abstractions/microsoft_agents_ai_abstractions/ai_context_provider.dart';
 import '../../abstractions/microsoft_agents_ai_abstractions/message_ai_context_provider.dart';
 import '../../abstractions/microsoft_agents_ai_abstractions/provider_session_state_t_state_.dart';
-// TODO: import not yet ported
 import 'agent_json_utilities.dart';
+import 'memory/chat_history_memory_provider_options.dart';
 import 'text_search_provider_options.dart';
 
+typedef TextSearchAsync =
+    Future<Iterable<TextSearchResult>> Function(
+      String input,
+      CancellationToken cancellationToken,
+    );
+
 /// A text search context provider that performs a search over external
-/// knowledge and injects the formatted results into the AI invocation
-/// context, or exposes a search tool for on-demand use. This provider can be
-/// used to enable Retrieval Augmented Generation (RAG) on an agent.
-///
-/// Remarks: The provider supports two behaviors controlled via [SearchTime]:
-/// [BeforeAIInvoke] – Automatically performs a search prior to every AI
-/// invocation and injects results as additional messages.
-/// [OnDemandFunctionCalling] – Exposes a function tool that the model may
-/// invoke to retrieve contextual information when needed. When
-/// [RecentMessageMemoryLimit] is greater than zero the provider will retain
-/// the most recent user and assistant messages (up to the configured limit)
-/// across invocations and prepend them (in chronological order) to the
-/// current request messages when forming the search input. This can improve
-/// search relevance by providing multi-turn context to the retrieval layer
-/// without permanently altering the conversation history. Security
-/// considerations: Search results retrieved from external sources are
-/// injected into the LLM context and may contain adversarial content designed
-/// to manipulate LLM behavior via indirect prompt injection. Developers
-/// should be aware that: The search query may be constructed from user input
-/// or LLM-generated content, both of which are untrusted. Implementers of the
-/// search delegate should validate search inputs and apply appropriate access
-/// controls to search results. Retrieved documents are formatted and injected
-/// as messages in the AI request context. If the external data source is
-/// compromised, adversarial content could influence the LLM's responses. When
-/// using [OnDemandFunctionCalling], the AI model controls when and what to
-/// search for — the search query text is AI-generated and should be treated
-/// as untrusted input by the search implementation.
+/// knowledge and injects formatted results into the AI invocation context, or
+/// exposes a search tool for on-demand use.
 class TextSearchProvider extends MessageAIContextProvider {
-  /// Initializes a new instance of the [TextSearchProvider] class.
-  ///
-  /// [searchAsync] Function that executes the search logic. Must not be `null`.
-  ///
-  /// [options] Optional configuration options.
-  ///
-  /// [loggerFactory] Optional logger factory.
   TextSearchProvider(
-    Func2<String, CancellationToken, Future<Iterable<TextSearchResult>>> searchAsync,
-    {TextSearchProviderOptions? options = null, LoggerFactory? loggerFactory = null, }
-  ) : _searchAsync = searchAsync {
-    this._sessionState = ProviderSessionState<TextSearchProviderState>(
-            (_) => textSearchProviderState(),
-            options?.stateKey ?? this.runtimeType.toString(),
-            AgentJsonUtilities.defaultOptions);
-    // Validate and assign parameters
-    this._logger = loggerFactory?.createLogger<TextSearchProvider>();
-    this._recentMessageMemoryLimit = options?.recentMessageMemoryLimit ?? 0;
-    this._recentMessageRolesIncluded = options?.recentMessageRolesIncluded ?? [ChatRole.user];
-    this._searchTime = options?.searchTime ?? TextSearchProviderOptions.textSearchBehavior.beforeAIInvoke;
-    this._contextPrompt = options?.contextPrompt ?? DefaultContextPrompt;
-    this._citationsPrompt = options?.citationsPrompt ?? DefaultCitationsPrompt;
-    this._contextFormatter = options?.contextFormatter;
-    this._redactor = options?.enableSensitiveTelemetryData == true ? NullRedactor.instance : (options?.redactor ?? replacingRedactor("<redacted>"));
-    // Create the on-demand search tool (only used if behavior is OnDemandFunctionCalling)
-        this._tools =
-        [
-            AIFunctionFactory.create(
-                this.searchAsync,
-                name: options?.functionToolName ?? DefaultPluginSearchFunctionName,
-                description: options?.functionToolDescription ?? DefaultPluginSearchFunctionDescription)
-        ];
+    TextSearchAsync? searchAsync, {
+    TextSearchProviderOptions? options,
+    LoggerFactory? loggerFactory,
+  }) : _searchAsync = _validateSearchAsync(searchAsync),
+       super(
+         provideInputMessageFilter: options?.searchInputMessageFilter,
+         storeInputRequestMessageFilter:
+             options?.storageInputRequestMessageFilter,
+         storeInputResponseMessageFilter:
+             options?.storageInputResponseMessageFilter,
+       ) {
+    final resolvedOptions = options ?? TextSearchProviderOptions();
+    if (resolvedOptions.recentMessageMemoryLimit < 0) {
+      throw ArgumentError.value(
+        resolvedOptions.recentMessageMemoryLimit,
+        'recentMessageMemoryLimit',
+        'Recent message memory limit must be greater than or equal to zero.',
+      );
+    }
+
+    _sessionState = ProviderSessionState<TextSearchProviderState>(
+      (_) => TextSearchProviderState(),
+      resolvedOptions.stateKey ?? runtimeType.toString(),
+      JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
+    );
+    _logger = loggerFactory?.createLogger('TextSearchProvider');
+    _recentMessageMemoryLimit = resolvedOptions.recentMessageMemoryLimit;
+    _recentMessageRolesIncluded =
+        resolvedOptions.recentMessageRolesIncluded ?? [ChatRole.user];
+    _searchTime = resolvedOptions.searchTime;
+    _contextPrompt = resolvedOptions.contextPrompt ?? defaultContextPrompt;
+    _citationsPrompt =
+        resolvedOptions.citationsPrompt ?? defaultCitationsPrompt;
+    _contextFormatter = resolvedOptions.contextFormatter;
+    _redactor = resolvedOptions.enableSensitiveTelemetryData
+        ? NullRedactor.instance
+        : (resolvedOptions.redactor ?? replacingRedactor('<redacted>'));
+    _tools = [
+      AIFunctionFactory.create(
+        name:
+            resolvedOptions.functionToolName ?? defaultPluginSearchFunctionName,
+        description:
+            resolvedOptions.functionToolDescription ??
+            defaultPluginSearchFunctionDescription,
+        parametersSchema: const {
+          'type': 'object',
+          'properties': {
+            'userQuestion': {
+              'type': 'string',
+              'description': 'The question or search query.',
+            },
+          },
+          'required': ['userQuestion'],
+        },
+        callback: (arguments, {CancellationToken? cancellationToken}) {
+          final userQuestion =
+              (arguments['userQuestion'] ??
+                      arguments['query'] ??
+                      arguments['input'] ??
+                      '')
+                  .toString();
+          return search(userQuestion, cancellationToken: cancellationToken);
+        },
+      ),
+    ];
   }
+
+  static const String defaultContextPrompt =
+      '## Search results\nUse the following retrieved context to help answer the user.';
+  static const String defaultCitationsPrompt =
+      'Cite the source document name or link when it is relevant.';
+  static const String defaultPluginSearchFunctionName = 'Search';
+  static const String defaultPluginSearchFunctionDescription =
+      'Allows searching for relevant information to help answer the user question.';
 
   late final ProviderSessionState<TextSearchProviderState> _sessionState;
-
   List<String>? _stateKeys;
 
-  final Func2<String, CancellationToken, Future<Iterable<TextSearchResult>>> _searchAsync;
-
-  late final Logger<TextSearchProvider>? _logger;
-
+  final TextSearchAsync _searchAsync;
+  late final Logger? _logger;
   late final List<AITool> _tools;
-
   late final List<ChatRole> _recentMessageRolesIncluded;
-
   late final int _recentMessageMemoryLimit;
-
   late final TextSearchBehavior _searchTime;
-
   late final String _contextPrompt;
-
   late final String _citationsPrompt;
-
-  final Func<List<TextSearchResult>, String>? _contextFormatter;
-
+  late final String Function(List<TextSearchResult>)? _contextFormatter;
   late final Redactor _redactor;
 
-  List<String> get stateKeys {
-    return this._stateKeys ??= [this._sessionState.stateKey];
-  }
+  @override
+  List<String> get stateKeys => _stateKeys ??= [_sessionState.stateKey];
 
   @override
   Future<AIContext> provideAIContext(
-    InvokingContext context,
-    {CancellationToken? cancellationToken, }
-  ) async {
-    if (this._searchTime != TextSearchProviderOptions.textSearchBehavior.beforeAIInvoke) {
-      return AIContext();
+    InvokingContext context, {
+    CancellationToken? cancellationToken,
+  }) async {
+    if (_searchTime == TextSearchBehavior.onDemandFunctionCalling) {
+      return AIContext()..tools = _tools;
     }
-    return AIContext();
+
+    final messages = await provideMessages(
+      MessageInvokingContext(
+        context.agent,
+        context.session,
+        context.aiContext.messages ?? const <ChatMessage>[],
+      ),
+      cancellationToken: cancellationToken,
+    );
+    return AIContext()..messages = messages;
   }
 
   @override
-  Future<Iterable<ChatMessage>> invokingCore(
-    InvokingContext context,
-    {CancellationToken? cancellationToken, }
-  ) {
-    if (this._searchTime != TextSearchProviderOptions.textSearchBehavior.beforeAIInvoke) {
-      throw StateError('Using the ${'TextSearchProvider'} as a ${'MessageAIContextProvider'} is! supported when ${'searchTime'} is set to ${TextSearchProviderOptions.textSearchBehavior.onDemandFunctionCalling}.');
+  Future<Iterable<ChatMessage>> invokingMessages(
+    MessageInvokingContext context, {
+    CancellationToken? cancellationToken,
+  }) {
+    if (_searchTime != TextSearchBehavior.beforeAIInvoke) {
+      throw StateError(
+        'Using the TextSearchProvider as a MessageAIContextProvider is not supported when searchTime is set to ${TextSearchBehavior.onDemandFunctionCalling}.',
+      );
     }
-    return super.invokingCore(context, cancellationToken);
+
+    return super.invokingMessages(
+      context,
+      cancellationToken: cancellationToken,
+    );
   }
 
   @override
   Future<Iterable<ChatMessage>> provideMessages(
-    InvokingContext context,
-    {CancellationToken? cancellationToken, }
-  ) async {
-    var recentMessagesText = this._sessionState.getOrInitializeState(context.session).recentMessagesText
-            ?? [];
-    var sbInput = StringBuffer();
-    var requestMessagesText = (context.requestMessages ?? [])
-            .where((x) => !(x?.text == null || x?.text.trim().isEmpty)).map((x) => x.text);
-    for (final messageText in recentMessagesText + requestMessagesText) {
-      if (sbInput.length > 0) {
-        sbInput.write('\n');
-      }
-      sbInput.write(messageText);
+    MessageInvokingContext context, {
+    CancellationToken? cancellationToken,
+  }) async {
+    final state = _sessionState.getOrInitializeState(context.session);
+    final input = _buildSearchInput(
+      state.recentMessagesText,
+      context.requestMessages,
+    );
+    if (input.trim().isEmpty) {
+      return const <ChatMessage>[];
     }
-    var input = sbInput.toString();
+
     try {
-      var results = await this._searchAsync(input, cancellationToken);
-      var materialized = results is List<TextSearchResult> ? results as List<TextSearchResult> : results.toList();
-      if (this._logger?.isEnabled(LogLevel.information) is true) {
-        this._logger?.logInformation(
-          "TextSearchProvider: Retrieved {Count} search results.",
-          materialized.length,
+      final results = await _searchAsync(
+        input,
+        cancellationToken ?? CancellationToken.none,
+      );
+      final materialized = results.toList();
+      if (_logger?.isEnabled(LogLevel.information) == true) {
+        _logger!.logInformation(
+          'TextSearchProvider: Retrieved ${materialized.length} search results.',
         );
       }
-      if (materialized.length == 0) {
-        return [];
+      if (materialized.isEmpty) {
+        return const <ChatMessage>[];
       }
-      var formatted = this.formatResults(materialized);
-      if (this._logger?.isEnabled(LogLevel.trace) is true) {
-        this._logger.logTrace(
-          "TextSearchProvider: Search Results\nInput:{Input}\nOutput:{MessageText}",
-          this.sanitizeLogData(input),
-          this.sanitizeLogData(formatted),
+
+      final formatted = formatResults(materialized);
+      if (formatted.trim().isEmpty) {
+        return const <ChatMessage>[];
+      }
+
+      if (_logger?.isEnabled(LogLevel.trace) == true) {
+        _logger!.logTrace(
+          'TextSearchProvider: Search Results\nInput:${sanitizeLogData(input)}\nOutput:${sanitizeLogData(formatted)}',
         );
       }
       return [ChatMessage.fromText(ChatRole.user, formatted)];
-    } catch (e, s) {
-      if (e is Exception) {
-        final ex = e as Exception;
-        {
-          this._logger?.logError(ex, "TextSearchProvider: Failed to search for data due to error");
-          return [];
-        }
-      } else {
-        rethrow;
-      }
+    } catch (error) {
+      _logger?.logError(
+        'TextSearchProvider: Failed to search for data due to error.',
+        error: error,
+      );
+      return const <ChatMessage>[];
     }
   }
 
   @override
-  Future storeAIContext(InvokedContext context, {CancellationToken? cancellationToken, }) {
-    var limit = this._recentMessageMemoryLimit;
-    if (limit <= 0) {
-      return Future.value();
+  Future<void> storeAIContext(
+    InvokedContext context, {
+    CancellationToken? cancellationToken,
+  }) async {
+    final limit = _recentMessageMemoryLimit;
+    if (limit <= 0 || context.session == null) {
+      return;
     }
-    if (context.session == null) {
-      return Future.value();
+
+    final state = _sessionState.getOrInitializeState(context.session);
+    final newMessagesText =
+        [...context.requestMessages, ...?context.responseMessages]
+            .where(
+              (message) => _recentMessageRolesIncluded.contains(message.role),
+            )
+            .map((message) => message.text.trim())
+            .where((text) => text.isNotEmpty)
+            .toList();
+
+    if (newMessagesText.isEmpty) {
+      return;
     }
-    var recentMessagesText = this._sessionState.getOrInitializeState(context.session).recentMessagesText
-            ?? [];
-    var newMessagesText = context.requestMessages
-             + context.responseMessages ?? []
-            .where((m) =>
-                this._recentMessageRolesIncluded.contains(m.role) &&
-                !(m.text == null || m.text.trim().isEmpty))
-            .map((m) => m.text);
-    var allMessages = recentMessagesText + newMessagesText.toList();
-    var updatedMessages = allMessages.length > limit
-            ? allMessages.skip(allMessages.length - limit).toList()
-            : allMessages;
-    // Store updated state back to the session.
-        this._sessionState.saveState(
-            context.session,
-            textSearchProviderState());
-    return Future.value();
+
+    final allMessages = [...state.recentMessagesText, ...newMessagesText];
+    state.recentMessagesText = allMessages.length > limit
+        ? allMessages.skip(allMessages.length - limit).toList()
+        : allMessages;
+    _sessionState.saveState(context.session, state);
   }
 
-  /// Function callable by the AI model (when enabled) to perform an ad-hoc
-  /// search.
-  ///
-  /// Returns: Formatted search results.
-  ///
-  /// [userQuestion] The query text.
-  ///
-  /// [cancellationToken] Cancellation token.
-  Future<String> search(String userQuestion, {CancellationToken? cancellationToken, }) async {
-    var results = await this._searchAsync(userQuestion, cancellationToken);
-    var materialized = results is List<TextSearchResult> ? results as List<TextSearchResult> : results.toList();
-    var outputText = this.formatResults(materialized);
-    if (this._logger?.isEnabled(LogLevel.information) is true) {
-      this._logger.logInformation(
-        "TextSearchProvider: Retrieved {Count} search results.",
-        materialized.length,
+  /// Function callable by the AI model in on-demand mode.
+  Future<String> search(
+    String userQuestion, {
+    CancellationToken? cancellationToken,
+  }) async {
+    if (userQuestion.trim().isEmpty) {
+      return '';
+    }
+
+    final results = await _searchAsync(
+      userQuestion,
+      cancellationToken ?? CancellationToken.none,
+    );
+    final materialized = results.toList();
+    final outputText = formatResults(materialized);
+    final logger = _logger;
+    if (logger?.isEnabled(LogLevel.information) == true) {
+      logger!.logInformation(
+        'TextSearchProvider: Retrieved ${materialized.length} search results.',
       );
-      if (this._logger.isEnabled(LogLevel.trace)) {
-        this._logger.logTrace(
-          "TextSearchProvider Input:{UserQuestion}\nOutput:{MessageText}",
-          this.sanitizeLogData(userQuestion),
-          this.sanitizeLogData(outputText),
+      if (logger.isEnabled(LogLevel.trace)) {
+        logger.logTrace(
+          'TextSearchProvider Input:${sanitizeLogData(userQuestion)}\nOutput:${sanitizeLogData(outputText)}',
         );
       }
     }
     return outputText;
   }
 
-  /// Formats search results into an output String for model consumption.
-  ///
-  /// Returns: Formatted String (may be empty).
-  ///
-  /// [results] The results.
+  /// Formats search results into model-consumable text.
   String formatResults(List<TextSearchResult> results) {
-    if (this._contextFormatter != null) {
-      return this._contextFormatter(results) ?? '';
+    final formatter = _contextFormatter;
+    if (formatter != null) {
+      return formatter(List<TextSearchResult>.unmodifiable(results));
     }
-    if (results.length == 0) {
+    if (results.isEmpty) {
       return '';
     }
-    var sb = StringBuffer();
-    sb.writeln(this._contextPrompt);
-    for (var i = 0; i < results.length; i++) {
-      var result = results[i];
-      if (!(result.sourceName == null || result.sourceName.trim().isEmpty)) {
-        sb.writeln('SourceDocName: ${result.sourceName}');
+
+    final sb = StringBuffer()..writeln(_contextPrompt);
+    for (final result in results) {
+      final sourceName = result.sourceName;
+      if (sourceName != null && sourceName.trim().isNotEmpty) {
+        sb.writeln('SourceDocName: $sourceName');
       }
-      if (!(result.sourceLink == null || result.sourceLink.trim().isEmpty)) {
-        sb.writeln('SourceDocLink: ${result.sourceLink}');
+      final sourceLink = result.sourceLink;
+      if (sourceLink != null && sourceLink.trim().isNotEmpty) {
+        sb.writeln('SourceDocLink: $sourceLink');
       }
       sb.writeln('Contents: ${result.text}');
-      sb.writeln("----");
+      sb.writeln('----');
     }
-    sb.writeln(this._citationsPrompt);
+    sb.writeln(_citationsPrompt);
     sb.writeln();
     return sb.toString();
   }
 
-  String sanitizeLogData(String? data) {
-    return this._redactor.redact(data);
+  String sanitizeLogData(String? data) => _redactor.redact(data);
+
+  String _buildSearchInput(
+    Iterable<String> recentMessagesText,
+    Iterable<ChatMessage> requestMessages,
+  ) {
+    final messageText = requestMessages
+        .map((message) => message.text.trim())
+        .where((text) => text.isNotEmpty);
+    return [...recentMessagesText, ...messageText].join('\n');
+  }
+
+  static TextSearchAsync _validateSearchAsync(TextSearchAsync? searchAsync) {
+    if (searchAsync == null) {
+      throw ArgumentError.notNull('searchAsync');
+    }
+    return searchAsync;
   }
 }
-/// Represents the per-session state of a [TextSearchProvider] stored in the
-/// [StateBag].
+
+/// Represents the per-session state of a [TextSearchProvider].
 class TextSearchProviderState {
-  TextSearchProviderState();
+  TextSearchProviderState({List<String>? recentMessagesText})
+    : recentMessagesText = recentMessagesText ?? [];
 
   /// Gets or sets the list of recent message texts retained for multi-turn
   /// search context.
-  List<String>? recentMessagesText;
-
+  List<String> recentMessagesText;
 }
+
 /// Represents a single retrieved text search result.
 class TextSearchResult {
-  TextSearchResult();
+  TextSearchResult({
+    this.sourceName,
+    this.sourceLink,
+    this.text = '',
+    this.rawRepresentation,
+  });
 
-  /// Gets or sets the display name of the source document (optional).
+  /// Gets or sets the display name of the source document.
   String? sourceName;
 
-  /// Gets or sets a link/URL to the source document (optional).
+  /// Gets or sets a link/URL to the source document.
   String? sourceLink;
 
   /// Gets or sets the textual content of the retrieved chunk.
-  String text = '';
+  String text;
 
-  /// Gets or sets the raw representation of the search result from the data
-  /// source.
-  ///
-  /// Remarks: If a [TextSearchResult] is created to represent some underlying
-  /// Object from another Object model, this property can be used to store that
-  /// original Object. This can be useful for debugging or for enabling the
-  /// [ContextFormatter] to access the underlying Object model if needed.
+  /// Gets or sets the raw representation of the search result.
   Object? rawRepresentation;
-
 }

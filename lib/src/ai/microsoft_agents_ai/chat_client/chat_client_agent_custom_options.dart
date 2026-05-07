@@ -21,7 +21,8 @@ extension ChatClientAgentRunOptionsExtension on ChatClientAgent {
     Iterable<ChatMessage>? messages,
   }) {
     final allMessages = [
-      if (message != null) ChatMessage(role: ChatRole.user, contents: [TextContent(message)]),
+      if (message != null)
+        ChatMessage(role: ChatRole.user, contents: [TextContent(message)]),
       ...?messages,
     ];
     return runCore(
@@ -41,7 +42,8 @@ extension ChatClientAgentRunOptionsExtension on ChatClientAgent {
     Iterable<ChatMessage>? messages,
   }) {
     final allMessages = [
-      if (message != null) ChatMessage(role: ChatRole.user, contents: [TextContent(message)]),
+      if (message != null)
+        ChatMessage(role: ChatRole.user, contents: [TextContent(message)]),
       ...?messages,
     ];
     return runCoreStreaming(

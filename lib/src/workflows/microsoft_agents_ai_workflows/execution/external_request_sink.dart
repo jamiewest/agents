@@ -1,5 +1,1 @@
-import '../external_request.dart';
-
-abstract class ExternalRequestSink {
-  Future post(ExternalRequest request);
-}
+// Placeholder for the C#-faithful workflow port slice: execution/external_request_sink.dart.

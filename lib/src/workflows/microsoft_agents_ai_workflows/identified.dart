@@ -1,6 +1,5 @@
-/// A tag interface for objects that have a unique identifier within an
-/// appropriate namespace.
-abstract class Identified {
-  /// The unique identifier.
+/// Identifies a workflow component by stable string identifier.
+abstract interface class Identified {
+  /// Gets the component identifier.
   String get id;
 }

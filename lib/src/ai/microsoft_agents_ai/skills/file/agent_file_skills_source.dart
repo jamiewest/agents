@@ -1,8 +1,11 @@
 import 'dart:convert';
-import 'package:path/path.dart' as p;
 import 'dart:io';
-import 'package:extensions/system.dart';
+
+import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
+import 'package:extensions/system.dart';
+import 'package:path/path.dart' as p;
+
 import '../agent_skill.dart';
 import '../agent_skill_frontmatter.dart';
 import '../agent_skills_source.dart';
@@ -14,372 +17,375 @@ import 'agent_file_skills_source_options.dart';
 
 /// A skill source that discovers skills from filesystem directories
 /// containing SKILL.md files.
-///
-/// Remarks: Searches directories recursively (up to 2 levels deep) for
-/// SKILL.md files. Each file is validated for YAML frontmatter. Resource and
-/// script files are discovered by scanning the skill directory for files with
-/// matching extensions. Invalid resources are skipped with logged warnings.
-/// Resource and script paths are checked against path traversal and symlink
-/// escape attacks.
 class AgentFileSkillsSource extends AgentSkillsSource {
-  /// Initializes a new instance of the [AgentFileSkillsSource] class.
-  ///
-  /// [skillPath] Path to search for skills.
-  ///
-  /// [scriptRunner] Optional runner for file-based scripts. Required only when
-  /// skills contain scripts.
-  ///
-  /// [options] Optional options that control skill discovery behavior.
-  ///
-  /// [loggerFactory] Optional logger factory.
   AgentFileSkillsSource(
+    Iterable<String> skillPaths, {
     AgentFileSkillScriptRunner? scriptRunner,
     AgentFileSkillsSourceOptions? options,
     LoggerFactory? loggerFactory,
-    {String? skillPath = null, Iterable<String>? skillPaths = null, }
-  ) : _scriptRunner = scriptRunner;
+  }) : _skillPaths = List<String>.of(skillPaths),
+       _scriptRunner = scriptRunner,
+       _logger = (loggerFactory ?? NullLoggerFactory.instance).createLogger(
+         'AgentFileSkillsSource',
+       ) {
+    validateExtensions(options?.allowedResourceExtensions);
+    validateExtensions(options?.allowedScriptExtensions);
+    _allowedResourceExtensions =
+        (options?.allowedResourceExtensions ?? defaultResourceExtensions)
+            .map((extension) => extension.toLowerCase())
+            .toSet();
+    _allowedScriptExtensions =
+        (options?.allowedScriptExtensions ?? defaultScriptExtensions)
+            .map((extension) => extension.toLowerCase())
+            .toSet();
+    _scriptDirectories = validateAndNormalizeDirectoryNames(
+      options?.scriptDirectories ?? defaultScriptDirectories,
+      _logger,
+    ).toList();
+    _resourceDirectories = validateAndNormalizeDirectoryNames(
+      options?.resourceDirectories ?? defaultResourceDirectories,
+      _logger,
+    ).toList();
+  }
 
-  static final List<String> s_defaultScriptExtensions = [".py", ".js", ".sh", ".ps1", ".cs", ".csx"];
+  static const String skillFileName = 'SKILL.md';
+  static const int maxSearchDepth = 2;
+  static const String rootDirectoryIndicator = '.';
+  static const List<String> defaultScriptExtensions = [
+    '.py',
+    '.js',
+    '.sh',
+    '.ps1',
+    '.cs',
+    '.csx',
+  ];
+  static const List<String> defaultResourceExtensions = [
+    '.md',
+    '.json',
+    '.yaml',
+    '.yml',
+    '.csv',
+    '.xml',
+    '.txt',
+  ];
+  static const List<String> defaultScriptDirectories = ['scripts'];
+  static const List<String> defaultResourceDirectories = [
+    'references',
+    'assets',
+  ];
 
-  static final List<String> s_defaultResourceExtensions = [".md", ".json", ".yaml", ".yml", ".csv", ".xml", ".txt"];
-
-  static final List<String> s_defaultScriptDirectories = ["scripts"];
-
-  static final List<String> s_defaultResourceDirectories = ["references", "assets"];
-
-  static final RegExp s_frontmatterRegex = new(
-    @"\A\uFEFF?^---\s*$(.+?)^---\s*$",
-    TimeSpan.FromSeconds(5),
-  );
-
-  static final RegExp s_yamlKeyValueRegex = new(
-    @"^([\w-]+)\s*:\s*(?:[""'](.+?)[""']|(.+?))\s*$",
-    TimeSpan.FromSeconds(5),
-  );
-
-  static final RegExp s_yamlMetadataBlockRegex = new(
-    @"^metadata\s*:\s*$\n((?:[ \t]+\S.*\n?)+)",
-    TimeSpan.FromSeconds(5),
-  );
-
-  static final RegExp s_yamlIndentedKeyValueRegex = new(
-    @"^\s+([\w-]+)\s*:\s*(?:[""'](.+?)[""']|(.+?))\s*$",
-    TimeSpan.FromSeconds(5),
-  );
-
-  final Iterable<String> _skillPaths;
-
-  final Set<String> _allowedResourceExtensions;
-
-  final Set<String> _allowedScriptExtensions;
-
-  final List<String> _scriptDirectories;
-
-  final List<String> _resourceDirectories;
-
+  final List<String> _skillPaths;
+  late final Set<String> _allowedResourceExtensions;
+  late final Set<String> _allowedScriptExtensions;
+  late final List<String> _scriptDirectories;
+  late final List<String> _resourceDirectories;
   final AgentFileSkillScriptRunner? _scriptRunner;
-
   final Logger _logger;
 
   @override
-  Future<List<AgentSkill>> getSkills({CancellationToken? cancellationToken}) {
-    var discoveredPaths = discoverSkillDirectories(this._skillPaths);
-    logSkillsDiscovered(this._logger, discoveredPaths.length);
-    var skills = List<AgentSkill>();
+  Future<List<AgentSkill>> getSkills({
+    CancellationToken? cancellationToken,
+  }) async {
+    final discoveredPaths = discoverSkillDirectories(_skillPaths);
+    logSkillsDiscovered(_logger, discoveredPaths.length);
+    final skills = <AgentSkill>[];
     for (final skillPath in discoveredPaths) {
-      var skill = this.parseSkillDirectory(skillPath);
-      if (skill == null) {
-        continue;
+      final skill = parseSkillDirectory(skillPath);
+      if (skill != null) {
+        skills.add(skill);
+        logSkillLoaded(_logger, skill.frontmatter.name);
       }
-      skills.add(skill);
-      logSkillLoaded(this._logger, skill.frontmatter.name);
     }
-    logSkillsLoadedTotal(this._logger, skills.length);
-    return Future.value(skills as List<AgentSkill>);
+    logSkillsLoadedTotal(_logger, skills.length);
+    return skills;
   }
 
   static List<String> discoverSkillDirectories(Iterable<String> skillPaths) {
-    var discoveredPaths = List<String>();
+    final discoveredPaths = <String>[];
     for (final rootDirectory in skillPaths) {
-      if ((rootDirectory == null || rootDirectory.trim().isEmpty) || !Directory.exists(rootDirectory)) {
+      if (rootDirectory.trim().isEmpty ||
+          !Directory(rootDirectory).existsSync()) {
         continue;
       }
-      searchDirectoriesForSkills(rootDirectory, discoveredPaths, currentDepth: 0);
+      searchDirectoriesForSkills(
+        p.canonicalize(rootDirectory),
+        discoveredPaths,
+        currentDepth: 0,
+      );
     }
     return discoveredPaths;
   }
 
   static void searchDirectoriesForSkills(
     String directory,
-    List<String> results,
-    int currentDepth,
-  ) {
-    var skillFilePath = p.join(directory, SkillFileName);
-    if (File.exists(skillFilePath)) {
+    List<String> results, {
+    required int currentDepth,
+  }) {
+    final skillFilePath = p.join(directory, skillFileName);
+    if (File(skillFilePath).existsSync()) {
       results.add(p.canonicalize(directory));
     }
-    if (currentDepth >= MaxSearchDepth) {
+    if (currentDepth >= maxSearchDepth) {
       return;
     }
-    for (final subdirectory in Directory.enumerateDirectories(directory)) {
-      searchDirectoriesForSkills(subdirectory, results, currentDepth + 1);
+    for (final entry in Directory(directory).listSync(followLinks: false)) {
+      if (entry is Directory) {
+        searchDirectoriesForSkills(
+          entry.path,
+          results,
+          currentDepth: currentDepth + 1,
+        );
+      }
     }
   }
 
   AgentFileSkill? parseSkillDirectory(String skillDirectoryFullPath) {
-    var skillFilePath = p.join(skillDirectoryFullPath, SkillFileName);
-    var content = File.readAllText(skillFilePath, const Utf8Codec());
-    AgentSkillFrontmatter frontmatter;
-    if (!this.tryParseFrontmatter(content, skillFilePath)) {
+    final skillFilePath = p.join(skillDirectoryFullPath, skillFileName);
+    final content = File(skillFilePath).readAsStringSync(encoding: utf8);
+    final (valid, frontmatter) = tryParseFrontmatter(content, skillFilePath);
+    if (!valid || frontmatter == null) {
       return null;
     }
-    var normalizedSkillDirectoryFullPath = skillDirectoryFullPath + p.separator;
-    var resources = this.discoverResourceFiles(normalizedSkillDirectoryFullPath, frontmatter.name);
-    var scripts = this.discoverScriptFiles(normalizedSkillDirectoryFullPath, frontmatter.name);
-    return agentFileSkill(
-            frontmatter: frontmatter,
-            content: content,
-            path: skillDirectoryFullPath,
-            resources: resources,
-            scripts: scripts);
+
+    final normalizedSkillDirectoryFullPath =
+        '${p.canonicalize(skillDirectoryFullPath)}${p.separator}';
+    final resources = discoverResourceFiles(
+      normalizedSkillDirectoryFullPath,
+      frontmatter.name,
+    );
+    final scripts = discoverScriptFiles(
+      normalizedSkillDirectoryFullPath,
+      frontmatter.name,
+    );
+    return AgentFileSkill(
+      frontmatter,
+      content,
+      skillDirectoryFullPath,
+      resources: resources,
+      scripts: scripts,
+    );
   }
 
-  (bool, AgentSkillFrontmatter?) tryParseFrontmatter(String content, String skillFilePath, ) {
-    var frontmatter = null;
-    frontmatter = null;
-    var match = s_frontmatterRegex.match(content);
-    if (!match.success) {
-      logInvalidFrontmatter(this._logger, skillFilePath);
-      return (false, frontmatter);
+  (bool, AgentSkillFrontmatter?) tryParseFrontmatter(
+    String content,
+    String skillFilePath,
+  ) {
+    final match = RegExp(
+      r'^\uFEFF?---\s*\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n|$)',
+    ).firstMatch(content);
+    if (match == null) {
+      logInvalidFrontmatter(_logger, skillFilePath);
+      return (false, null);
     }
-    var yamlContent = match.groups[1].value.trim();
-    var name = null;
-    var description = null;
-    var license = null;
-    var compatibility = null;
-    var allowedTools = null;
-    for (final kvMatch in s_yamlKeyValueRegex.matches(yamlContent)) {
-      var key = kvMatch.groups[1].value;
-      var value = kvMatch.groups[2].success ? kvMatch.groups[2].value : kvMatch.groups[3].value;
-      if ((key == "name")) {
-        name = value;
-      } else if ((key == "description")) {
-        description = value;
-      } else if ((key == "license")) {
-        license = value;
-      } else if ((key == "compatibility")) {
-        compatibility = value;
-      } else if ((key == "allowed-tools")) {
-        allowedTools = value;
-      }
+
+    final yamlContent = match.group(1) ?? '';
+    final values = _parseYamlFrontmatter(yamlContent);
+    final name = values['name'];
+    final description = values['description'];
+    final compatibility = values['compatibility'];
+
+    final (validName, nameReason) = AgentSkillFrontmatter.validateName(name);
+    if (!validName) {
+      logInvalidFieldValue(_logger, skillFilePath, 'name', nameReason ?? '');
+      return (false, null);
     }
-    var metadata = null;
-    var metadataMatch = s_yamlMetadataBlockRegex.match(yamlContent);
-    if (metadataMatch.success) {
-      metadata = [];
-      for (final kvMatch in s_yamlIndentedKeyValueRegex.matches(metadataMatch.groups[1].value)) {
-        metadata[kvMatch.groups[1].value] = kvMatch.groups[2].success ? kvMatch.groups[2].value : kvMatch.groups[3].value;
-      }
+    final (validDescription, descriptionReason) =
+        AgentSkillFrontmatter.validateDescription(description);
+    if (!validDescription) {
+      logInvalidFieldValue(
+        _logger,
+        skillFilePath,
+        'description',
+        descriptionReason ?? '',
+      );
+      return (false, null);
     }
-    var validationReason = null;
-    if (!AgentSkillFrontmatter.validateName(name, validationReason) ||
-            !AgentSkillFrontmatter.validateDescription(description, validationReason)) {
-      logInvalidFieldValue(this._logger, skillFilePath, "frontmatter", validationReason);
-      return (false, frontmatter);
+
+    final directoryName = p.basename(p.dirname(skillFilePath));
+    if (name != directoryName) {
+      logNameDirectoryMismatch(_logger, skillFilePath, name!, directoryName);
+      return (false, null);
     }
-    frontmatter = agentSkillFrontmatter(name!, description!, compatibility);
-    var directoryName = p.basename(p.dirname(skillFilePath)) ?? '';
-    if (!(frontmatter.name == directoryName)) {
-      if (this._logger.isEnabled(LogLevel.error)) {
-        logNameDirectoryMismatch(
-          this._logger,
-          sanitizePathForLog(skillFilePath),
-          frontmatter.name,
-          sanitizePathForLog(directoryName),
-        );
-      }
-      frontmatter = null;
-      return (false, frontmatter);
-    }
-    return (true, frontmatter);
+
+    return (
+      true,
+      AgentSkillFrontmatter(
+        name!,
+        description!,
+        compatibility: compatibility,
+        license: values['license'],
+        allowedTools: values['allowed-tools'],
+        metadata: _parseMetadataBlock(yamlContent),
+      ),
+    );
   }
 
-  /// Scans configured resource directories within a skill directory for
-  /// resource files matching the configured extensions.
-  ///
-  /// Remarks: By default, scans `references/` and `assets/` subdirectories as
-  /// specified by the Agent Skills specification . Configure
-  /// [ResourceDirectories] to scan different or additional directories,
-  /// including `"."` for the skill root itself. Each file is validated against
-  /// path-traversal and symlink-escape checks; unsafe files are skipped.
   List<AgentFileSkillResource> discoverResourceFiles(
     String skillDirectoryFullPath,
     String skillName,
   ) {
-    var resources = List<AgentFileSkillResource>();
-    for (final directory in this._resourceDirectories.distinct()) {
-      var isRootDirectory = (directory == RootDirectoryIndicator,
-        ,);
-      var targetDirectory = isRootDirectory
-                ? skillDirectoryFullPath
-                : p.canonicalize(p.join(skillDirectoryFullPath, directory)) + p.separator;
-      if (!Directory.exists(targetDirectory)) {
+    final resources = <AgentFileSkillResource>[];
+    for (final directory in _resourceDirectories.toSet()) {
+      final isRootDirectory = directory == rootDirectoryIndicator;
+      final targetDirectory = isRootDirectory
+          ? skillDirectoryFullPath
+          : '${p.canonicalize(p.join(skillDirectoryFullPath, directory))}${p.separator}';
+      if (!Directory(targetDirectory).existsSync()) {
         continue;
       }
-      if (!isRootDirectory && hasSymlinkInPath(targetDirectory, skillDirectoryFullPath)) {
-        if (this._logger.isEnabled(LogLevel.warning)) {
-          logResourceSymlinkDirectory(this._logger, skillName, sanitizePathForLog(directory));
-        }
-        continue;
-      }
-      for (final filePath in Directory.enumerateFiles(targetDirectory, "*", SearchOption.topDirectoryOnly)) {
-        var fileName = p.basename(filePath);
-        if ((fileName == SkillFileName)) {
+      for (final entry in Directory(
+        targetDirectory,
+      ).listSync(followLinks: false)) {
+        if (entry is! File) {
           continue;
         }
-        var extension = p.extension(filePath);
-        if ((extension == null || extension.isEmpty) || !this._allowedResourceExtensions.contains(extension)) {
-          if (this._logger.isEnabled(LogLevel.debug)) {
-            logResourceSkippedExtension(
-              this._logger,
-              skillName,
-              sanitizePathForLog(filePath),
-              extension,
-            );
-          }
+        final filePath = entry.path;
+        final fileName = p.basename(filePath);
+        if (fileName == skillFileName) {
           continue;
         }
-        var resolvedFilePath = p.canonicalize(filePath);
+        final extension = p.extension(filePath).toLowerCase();
+        if (extension.isEmpty ||
+            !_allowedResourceExtensions.contains(extension)) {
+          logResourceSkippedExtension(_logger, skillName, filePath, extension);
+          continue;
+        }
+        final resolvedFilePath = p.canonicalize(filePath);
         if (!resolvedFilePath.startsWith(targetDirectory)) {
-          if (this._logger.isEnabled(LogLevel.warning)) {
-            logResourcePathTraversal(this._logger, skillName, sanitizePathForLog(filePath));
-          }
+          logResourcePathTraversal(_logger, skillName, filePath);
           continue;
         }
-        if (hasSymlinkInPath(resolvedFilePath, targetDirectory)) {
-          if (this._logger.isEnabled(LogLevel.warning)) {
-            logResourceSymlinkEscape(this._logger, skillName, sanitizePathForLog(filePath));
-          }
-          continue;
-        }
-        var relativePath = normalizePath(resolvedFilePath.substring(skillDirectoryFullPath.length));
-        resources.add(agentFileSkillResource(relativePath, resolvedFilePath));
+        final relativePath = normalizePath(
+          resolvedFilePath.substring(skillDirectoryFullPath.length),
+        );
+        resources.add(AgentFileSkillResource(relativePath, resolvedFilePath));
       }
     }
     return resources;
   }
 
-  /// Scans configured script directories within a skill directory for script
-  /// files matching the configured extensions.
-  ///
-  /// Remarks: By default, scans the `scripts/` subdirectory as specified by the
-  /// Agent Skills specification . Configure [ScriptDirectories] to scan
-  /// different or additional directories, including `"."` for the skill root
-  /// itself. Each file is validated against path-traversal and symlink-escape
-  /// checks; unsafe files are skipped.
   List<AgentFileSkillScript> discoverScriptFiles(
     String skillDirectoryFullPath,
     String skillName,
   ) {
-    var scripts = List<AgentFileSkillScript>();
-    for (final directory in this._scriptDirectories.distinct()) {
-      var isRootDirectory = (directory == RootDirectoryIndicator,
-        ,);
-      var targetDirectory = isRootDirectory
-                ? skillDirectoryFullPath
-                : p.canonicalize(p.join(skillDirectoryFullPath, directory)) + p.separator;
-      if (!Directory.exists(targetDirectory)) {
+    final scripts = <AgentFileSkillScript>[];
+    for (final directory in _scriptDirectories.toSet()) {
+      final isRootDirectory = directory == rootDirectoryIndicator;
+      final targetDirectory = isRootDirectory
+          ? skillDirectoryFullPath
+          : '${p.canonicalize(p.join(skillDirectoryFullPath, directory))}${p.separator}';
+      if (!Directory(targetDirectory).existsSync()) {
         continue;
       }
-      if (!isRootDirectory && hasSymlinkInPath(targetDirectory, skillDirectoryFullPath)) {
-        if (this._logger.isEnabled(LogLevel.warning)) {
-          logScriptSymlinkDirectory(this._logger, skillName, sanitizePathForLog(directory));
-        }
-        continue;
-      }
-      for (final filePath in Directory.enumerateFiles(targetDirectory, "*", SearchOption.topDirectoryOnly)) {
-        var extension = p.extension(filePath);
-        if ((extension == null || extension.isEmpty) || !this._allowedScriptExtensions.contains(extension)) {
+      for (final entry in Directory(
+        targetDirectory,
+      ).listSync(followLinks: false)) {
+        if (entry is! File) {
           continue;
         }
-        var resolvedFilePath = p.canonicalize(filePath);
+        final filePath = entry.path;
+        final extension = p.extension(filePath).toLowerCase();
+        if (extension.isEmpty ||
+            !_allowedScriptExtensions.contains(extension)) {
+          continue;
+        }
+        final resolvedFilePath = p.canonicalize(filePath);
         if (!resolvedFilePath.startsWith(targetDirectory)) {
-          if (this._logger.isEnabled(LogLevel.warning)) {
-            logScriptPathTraversal(this._logger, skillName, sanitizePathForLog(filePath));
-          }
+          logScriptPathTraversal(_logger, skillName, filePath);
           continue;
         }
-        if (hasSymlinkInPath(resolvedFilePath, targetDirectory)) {
-          if (this._logger.isEnabled(LogLevel.warning)) {
-            logScriptSymlinkEscape(this._logger, skillName, sanitizePathForLog(filePath));
-          }
-          continue;
-        }
-        var relativePath = normalizePath(resolvedFilePath.substring(skillDirectoryFullPath.length));
-        scripts.add(agentFileSkillScript(relativePath, resolvedFilePath, this._scriptRunner));
+        final relativePath = normalizePath(
+          resolvedFilePath.substring(skillDirectoryFullPath.length),
+        );
+        scripts.add(
+          AgentFileSkillScript(
+            relativePath,
+            resolvedFilePath,
+            runner: _scriptRunner,
+          ),
+        );
       }
     }
     return scripts;
   }
 
-  /// Checks whether any segment in the path (relative to the directory) is a
-  /// symlink.
-  static bool hasSymlinkInPath(String pathToCheck, String trustedBasePath, ) {
-    var relativePath = pathToCheck.substring(trustedBasePath.length);
-    var segments = relativePath.split(
-            [p.separator, '/'],
-            StringSplitOptions.removeEmptyEntries);
-    var currentPath = trustedBasePath.trimRight(
-      p.separator,
-      '/',
+  static Map<String, String> _parseYamlFrontmatter(String yamlContent) {
+    final values = <String, String>{};
+    final lineRegex = RegExp(
+      r'''^([\w-]+)\s*:\s*(?:"([^"]*)"|'([^']*)'|(.+?))\s*$''',
     );
-    for (final segment in segments) {
-      currentPath = p.join(currentPath, segment);
-      if ((File.getAttributes(currentPath) & FileAttributes.reparsePoint) != 0) {
-        return true;
+    for (final line in const LineSplitter().convert(yamlContent)) {
+      final match = lineRegex.firstMatch(line);
+      if (match == null) {
+        continue;
       }
+      values[match.group(1)!] =
+          match.group(2) ?? match.group(3) ?? match.group(4)?.trim() ?? '';
     }
-    return false;
+    return values;
   }
 
-  /// Normalizes a relative path or directory name by stripping a leading
-  /// "./"/".\", trimming trailing separators, and replacing backslashes with
-  /// forward slashes.
+  static AdditionalPropertiesDictionary? _parseMetadataBlock(
+    String yamlContent,
+  ) {
+    final lines = const LineSplitter().convert(yamlContent);
+    final metadata = <String, Object?>{};
+    var inMetadata = false;
+    final valueRegex = RegExp(
+      r'''^\s+([\w-]+)\s*:\s*(?:"([^"]*)"|'([^']*)'|(.+?))\s*$''',
+    );
+    for (final line in lines) {
+      if (line.trim() == 'metadata:') {
+        inMetadata = true;
+        continue;
+      }
+      if (!inMetadata) {
+        continue;
+      }
+      if (line.trim().isEmpty) {
+        continue;
+      }
+      if (!line.startsWith(' ') && !line.startsWith('\t')) {
+        break;
+      }
+      final match = valueRegex.firstMatch(line);
+      if (match != null) {
+        metadata[match.group(1)!] =
+            match.group(2) ?? match.group(3) ?? match.group(4)?.trim() ?? '';
+      }
+    }
+    return metadata.isEmpty ? null : metadata;
+  }
+
   static String normalizePath(String path) {
-    if (path.startsWith("./") ||
-            path.startsWith(".\\")) {
-      path = path.substring(2);
+    var result = path;
+    if (result.startsWith('./') || result.startsWith('.\\')) {
+      result = result.substring(2);
     }
-    // Trim trailing directory separators
-        path = path.trimRight('/', '\\');
-    if (path.indexOf('\\') >= 0) {
-      path = path.replaceAll('\\', '/');
+    result = result.replaceAll('\\', '/');
+    while (result.endsWith('/')) {
+      result = result.substring(0, result.length - 1);
     }
-    return path;
+    return result;
   }
 
-  /// Replaces control characters in a file path with '?' to prevent log
-  /// injection.
   static String sanitizePathForLog(String path) {
-    var chars = null;
-    for (var i = 0; i < path.length; i++) {
-      if (char.isControl(path[i])) {
-        chars ??= path.toCharArray();
-        chars[i] = '?';
-      }
-    }
-    return chars == null ? path : String(chars);
+    return path.runes
+        .map((rune) => rune < 0x20 || rune == 0x7f ? 0x3f : rune)
+        .map(String.fromCharCode)
+        .join();
   }
 
   static void validateExtensions(Iterable<String>? extensions) {
     if (extensions == null) {
       return;
     }
-    for (final ext in extensions) {
-      if ((ext == null || ext.trim().isEmpty) || !ext.startsWith(".")) {
-        throw ArgumentError(
-          'Each extension must start with '.". Invalid value: ${ext}",
-          "allowedResourceExtensions",
+    for (final extension in extensions) {
+      if (extension.trim().isEmpty || !extension.startsWith('.')) {
+        throw ArgumentError.value(
+          extension,
+          'extensions',
+          'Each extension must start with ".".',
         );
       }
     }
@@ -388,19 +394,21 @@ class AgentFileSkillsSource extends AgentSkillsSource {
   static Iterable<String> validateAndNormalizeDirectoryNames(
     Iterable<String> directories,
     Logger logger,
-  ) {
+  ) sync* {
     for (final directory in directories) {
-      if ((directory == null || directory.trim().isEmpty)) {
-        throw ArgumentError(
-          "Directory names must not be null or whitespace.",
+      if (directory.trim().isEmpty) {
+        throw ArgumentError.value(
+          directory,
           'directories',
+          'Directory names must not be null or whitespace.',
         );
       }
-      if ((directory == RootDirectoryIndicator)) {
+      if (directory == rootDirectoryIndicator) {
         yield directory;
         continue;
       }
-      if (p.isAbsolute(directory) || containsParentTraversalSegment(directory)) {
+      if (p.isAbsolute(directory) ||
+          containsParentTraversalSegment(directory)) {
         logDirectoryNameSkippedInvalid(logger, directory);
         continue;
       }
@@ -409,36 +417,36 @@ class AgentFileSkillsSource extends AgentSkillsSource {
   }
 
   static bool containsParentTraversalSegment(String directory) {
-    for (final segment in directory.split('/', '\\')) {
-      if (segment == "..") {
-        return true;
-      }
+    return directory
+        .replaceAll('\\', '/')
+        .split('/')
+        .any((segment) => segment == '..');
+  }
+
+  static void logSkillsDiscovered(Logger logger, int count) {
+    if (logger.isEnabled(LogLevel.debug)) {
+      logger.logDebug('Discovered $count skill directories.');
     }
-    return false;
   }
 
-  static void logSkillsDiscovered(Logger logger, int count, ) {
-    // TODO: implement LogSkillsDiscovered
-    // C#:
-    throw UnimplementedError('LogSkillsDiscovered not implemented');
+  static void logSkillLoaded(Logger logger, String skillName) {
+    if (logger.isEnabled(LogLevel.debug)) {
+      logger.logDebug('Loaded skill $skillName.');
+    }
   }
 
-  static void logSkillLoaded(Logger logger, String skillName, ) {
-    // TODO: implement LogSkillLoaded
-    // C#:
-    throw UnimplementedError('LogSkillLoaded not implemented');
+  static void logSkillsLoadedTotal(Logger logger, int count) {
+    if (logger.isEnabled(LogLevel.debug)) {
+      logger.logDebug('Loaded $count skills.');
+    }
   }
 
-  static void logSkillsLoadedTotal(Logger logger, int count, ) {
-    // TODO: implement LogSkillsLoadedTotal
-    // C#:
-    throw UnimplementedError('LogSkillsLoadedTotal not implemented');
-  }
-
-  static void logInvalidFrontmatter(Logger logger, String skillFilePath, ) {
-    // TODO: implement LogInvalidFrontmatter
-    // C#:
-    throw UnimplementedError('LogInvalidFrontmatter not implemented');
+  static void logInvalidFrontmatter(Logger logger, String skillFilePath) {
+    if (logger.isEnabled(LogLevel.warning)) {
+      logger.logWarning(
+        'Invalid skill frontmatter: ${sanitizePathForLog(skillFilePath)}.',
+      );
+    }
   }
 
   static void logInvalidFieldValue(
@@ -447,9 +455,11 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     String fieldName,
     String reason,
   ) {
-    // TODO: implement LogInvalidFieldValue
-    // C#:
-    throw UnimplementedError('LogInvalidFieldValue not implemented');
+    if (logger.isEnabled(LogLevel.warning)) {
+      logger.logWarning(
+        'Invalid skill $fieldName in ${sanitizePathForLog(skillFilePath)}: $reason',
+      );
+    }
   }
 
   static void logNameDirectoryMismatch(
@@ -458,27 +468,23 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     String skillName,
     String directoryName,
   ) {
-    // TODO: implement LogNameDirectoryMismatch
-    // C#:
-    throw UnimplementedError('LogNameDirectoryMismatch not implemented');
+    if (logger.isEnabled(LogLevel.warning)) {
+      logger.logWarning(
+        'Skill name $skillName does not match directory $directoryName in ${sanitizePathForLog(skillFilePath)}.',
+      );
+    }
   }
 
-  static void logResourcePathTraversal(Logger logger, String skillName, String resourcePath, ) {
-    // TODO: implement LogResourcePathTraversal
-    // C#:
-    throw UnimplementedError('LogResourcePathTraversal not implemented');
-  }
-
-  static void logResourceSymlinkEscape(Logger logger, String skillName, String resourcePath, ) {
-    // TODO: implement LogResourceSymlinkEscape
-    // C#:
-    throw UnimplementedError('LogResourceSymlinkEscape not implemented');
-  }
-
-  static void logResourceSymlinkDirectory(Logger logger, String skillName, String directoryName, ) {
-    // TODO: implement LogResourceSymlinkDirectory
-    // C#:
-    throw UnimplementedError('LogResourceSymlinkDirectory not implemented');
+  static void logResourcePathTraversal(
+    Logger logger,
+    String skillName,
+    String resourcePath,
+  ) {
+    if (logger.isEnabled(LogLevel.warning)) {
+      logger.logWarning(
+        'Skipped unsafe resource for $skillName: $resourcePath.',
+      );
+    }
   }
 
   static void logResourceSkippedExtension(
@@ -487,32 +493,29 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     String filePath,
     String extensionValue,
   ) {
-    // TODO: implement LogResourceSkippedExtension
-    // C#:
-    throw UnimplementedError('LogResourceSkippedExtension not implemented');
+    if (logger.isEnabled(LogLevel.debug)) {
+      logger.logDebug(
+        'Skipped resource for $skillName due to extension $extensionValue: $filePath.',
+      );
+    }
   }
 
-  static void logScriptPathTraversal(Logger logger, String skillName, String scriptPath, ) {
-    // TODO: implement LogScriptPathTraversal
-    // C#:
-    throw UnimplementedError('LogScriptPathTraversal not implemented');
+  static void logScriptPathTraversal(
+    Logger logger,
+    String skillName,
+    String scriptPath,
+  ) {
+    if (logger.isEnabled(LogLevel.warning)) {
+      logger.logWarning('Skipped unsafe script for $skillName: $scriptPath.');
+    }
   }
 
-  static void logScriptSymlinkEscape(Logger logger, String skillName, String scriptPath, ) {
-    // TODO: implement LogScriptSymlinkEscape
-    // C#:
-    throw UnimplementedError('LogScriptSymlinkEscape not implemented');
-  }
-
-  static void logScriptSymlinkDirectory(Logger logger, String skillName, String directoryName, ) {
-    // TODO: implement LogScriptSymlinkDirectory
-    // C#:
-    throw UnimplementedError('LogScriptSymlinkDirectory not implemented');
-  }
-
-  static void logDirectoryNameSkippedInvalid(Logger logger, String directoryName, ) {
-    // TODO: implement LogDirectoryNameSkippedInvalid
-    // C#:
-    throw UnimplementedError('LogDirectoryNameSkippedInvalid not implemented');
+  static void logDirectoryNameSkippedInvalid(
+    Logger logger,
+    String directoryName,
+  ) {
+    if (logger.isEnabled(LogLevel.debug)) {
+      logger.logDebug('Skipped invalid directory name: $directoryName.');
+    }
   }
 }

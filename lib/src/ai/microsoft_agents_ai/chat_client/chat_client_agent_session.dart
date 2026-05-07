@@ -22,6 +22,7 @@ class ChatClientAgentSession extends AgentSession {
   /// Creates a [ChatClientAgentSession] from previously serialized JSON state.
   static ChatClientAgentSession deserialize(
     String serializedState, {
+    // ignore: non_constant_identifier_names
     Object? JsonSerializerOptions,
   }) {
     final map = jsonDecode(serializedState) as Map<String, dynamic>;
@@ -31,10 +32,10 @@ class ChatClientAgentSession extends AgentSession {
   }
 
   /// Serializes this session to a JSON String.
+  // ignore: non_constant_identifier_names
   String serialize({Object? JsonSerializerOptions}) =>
       jsonEncode({'conversationId': conversationId});
 
-  @override
   String get debuggerDisplay => conversationId != null
       ? 'conversationId = $conversationId'
       : 'No conversation ID';

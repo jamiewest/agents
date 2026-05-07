@@ -18,10 +18,10 @@ class MessageAIContextProviderAgent extends DelegatingAIAgent {
   /// Creates a [MessageAIContextProviderAgent] wrapping [innerAgent] with the
   /// given [providers].
   MessageAIContextProviderAgent(
-    AIAgent innerAgent,
-    List<MessageAIContextProvider> providers,
-  )   : _providers = List.of(providers),
-        super(innerAgent);
+    AIAgent? innerAgent,
+    List<MessageAIContextProvider>? providers,
+  ) : _providers = _validateProviders(providers),
+      super(innerAgent ?? (throw ArgumentError.notNull('innerAgent')));
 
   final List<MessageAIContextProvider> _providers;
 
@@ -32,20 +32,29 @@ class MessageAIContextProviderAgent extends DelegatingAIAgent {
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
   }) async {
-    final enriched = await _invokeProviders(messages, session, cancellationToken);
+    final enriched = await _invokeProviders(
+      messages,
+      session,
+      cancellationToken,
+    );
     AgentResponse response;
     try {
-      response = await innerAgent.runCore(
-        enriched,
-        session: session,
-        options: options,
-        cancellationToken: cancellationToken,
+      response = await innerAgent.run(
+        session,
+        options,
+        cancellationToken ?? CancellationToken.none,
+        messages: enriched,
       );
     } on Exception catch (ex) {
       await _notifyFailure(session, enriched, ex, cancellationToken);
       rethrow;
     }
-    await _notifySuccess(session, enriched, response.messages, cancellationToken);
+    await _notifySuccess(
+      session,
+      enriched,
+      response.messages,
+      cancellationToken,
+    );
     return response;
   }
 
@@ -56,14 +65,18 @@ class MessageAIContextProviderAgent extends DelegatingAIAgent {
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
   }) async* {
-    final enriched = await _invokeProviders(messages, session, cancellationToken);
+    final enriched = await _invokeProviders(
+      messages,
+      session,
+      cancellationToken,
+    );
     final updates = <AgentResponseUpdate>[];
     try {
-      await for (final update in innerAgent.runCoreStreaming(
-        enriched,
-        session: session,
-        options: options,
-        cancellationToken: cancellationToken,
+      await for (final update in innerAgent.runStreaming(
+        session,
+        options,
+        cancellationToken ?? CancellationToken.none,
+        messages: enriched,
       )) {
         updates.add(update);
         yield update;
@@ -74,7 +87,11 @@ class MessageAIContextProviderAgent extends DelegatingAIAgent {
     }
     final agentResponse = updates.toAgentResponse();
     await _notifySuccess(
-        session, enriched, agentResponse.messages, cancellationToken);
+      session,
+      enriched,
+      agentResponse.messages,
+      cancellationToken,
+    );
   }
 
   Future<Iterable<ChatMessage>> _invokeProviders(
@@ -99,8 +116,12 @@ class MessageAIContextProviderAgent extends DelegatingAIAgent {
     Iterable<ChatMessage> responseMessages,
     CancellationToken? cancellationToken,
   ) async {
-    final ctx = InvokedContext(this, session, requestMessages,
-        responseMessages: responseMessages);
+    final ctx = InvokedContext(
+      this,
+      session,
+      requestMessages,
+      responseMessages: responseMessages,
+    );
     for (final provider in _providers) {
       await provider.invoked(ctx, cancellationToken: cancellationToken);
     }
@@ -112,10 +133,32 @@ class MessageAIContextProviderAgent extends DelegatingAIAgent {
     Exception exception,
     CancellationToken? cancellationToken,
   ) async {
-    final ctx = InvokedContext(this, session, requestMessages,
-        invokeException: exception);
+    final ctx = InvokedContext(
+      this,
+      session,
+      requestMessages,
+      invokeException: exception,
+    );
     for (final provider in _providers) {
       await provider.invoked(ctx, cancellationToken: cancellationToken);
     }
+  }
+
+  static List<MessageAIContextProvider> _validateProviders(
+    List<MessageAIContextProvider>? providers,
+  ) {
+    if (providers == null) {
+      throw ArgumentError.notNull('providers');
+    }
+    if (providers.isEmpty) {
+      throw RangeError.range(
+        providers.length,
+        1,
+        null,
+        'providers',
+        'At least one MessageAIContextProvider must be provided.',
+      );
+    }
+    return List<MessageAIContextProvider>.of(providers);
   }
 }

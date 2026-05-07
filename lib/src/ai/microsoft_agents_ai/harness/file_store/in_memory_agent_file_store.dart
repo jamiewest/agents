@@ -1,116 +1,178 @@
-import 'dart:io';
 import 'dart:math';
+
 import 'package:extensions/system.dart';
+
 import 'agent_file_store.dart';
 import 'file_search_match.dart';
 import 'file_search_result.dart';
 import 'store_paths.dart';
-import '../../../../map_extensions.dart';
 
 /// An in-memory implementation of [AgentFileStore] that stores files in a
 /// dictionary.
 ///
 /// Remarks: This implementation is suitable for testing and lightweight
 /// scenarios where persistence is not required. Directory concepts are
-/// simulated using path prefixes — no explicit directory structure is
+/// simulated using path prefixes; no explicit directory structure is
 /// maintained.
 class InMemoryAgentFileStore extends AgentFileStore {
   InMemoryAgentFileStore();
 
-  final ConcurrentDictionary<String, String> _files = new();
+  final Map<String, _MemoryFile> _files = {};
 
   @override
-  Future writeFile(String path, String content, {CancellationToken? cancellationToken, }) {
-    path = StorePaths.normalizeRelativePath(path);
-    this._files[path] = content;
-    return Task.value(null);
+  Future<void> writeFileAsync(
+    String path,
+    String content, [
+    CancellationToken? cancellationToken,
+  ]) async {
+    final normalizedPath = StorePaths.normalizeRelativePath(path);
+    _files[_key(normalizedPath)] = _MemoryFile(normalizedPath, content);
   }
 
   @override
-  Future<String?> readFile(String path, {CancellationToken? cancellationToken, }) {
-    path = StorePaths.normalizeRelativePath(path);
-    this._files.tryGetValue(path);
-    return Future.value(content);
+  Future<String?> readFileAsync(
+    String path, [
+    CancellationToken? cancellationToken,
+  ]) async {
+    final normalizedPath = StorePaths.normalizeRelativePath(path);
+    return _files[_key(normalizedPath)]?.content;
   }
 
   @override
-  Future<bool> deleteFile(String path, {CancellationToken? cancellationToken, }) {
-    path = StorePaths.normalizeRelativePath(path);
-    return Future.value(this._files.tryRemoveKey(path));
+  Future<bool> deleteFileAsync(
+    String path, [
+    CancellationToken? cancellationToken,
+  ]) async {
+    final normalizedPath = StorePaths.normalizeRelativePath(path);
+    return _files.remove(_key(normalizedPath)) != null;
   }
 
   @override
-  Future<List<String>> listFiles(String directory, {CancellationToken? cancellationToken, }) {
+  Future<List<String>> listFilesAsync(
+    String directory, [
+    CancellationToken? cancellationToken,
+  ]) async {
     var prefix = StorePaths.normalizeRelativePath(directory, isDirectory: true);
-    if (prefix.length > 0 && !prefix.endsWith("/")) {
-      prefix += "/";
+    if (prefix.isNotEmpty && !prefix.endsWith('/')) {
+      prefix += '/';
     }
-    var files = this._files.keys
-            .where((k) => k.startsWith(prefix))
-            .map((k) => k.substring(prefix.length))
-            .where((k) => k.indexOf("/") < 0)
-            .toList();
-    return Future.value<List<String>>(files);
+    final prefixKey = _key(prefix);
+
+    return _files.values
+        .where((f) => _key(f.path).startsWith(prefixKey))
+        .map((f) => f.path.substring(prefix.length))
+        .where((name) => !name.contains('/'))
+        .toList();
   }
 
   @override
-  Future<bool> fileExists(String path, {CancellationToken? cancellationToken, }) {
-    path = StorePaths.normalizeRelativePath(path);
-    return Future.value(this._files.containsKey(path));
+  Future<bool> fileExistsAsync(
+    String path, [
+    CancellationToken? cancellationToken,
+  ]) async {
+    final normalizedPath = StorePaths.normalizeRelativePath(path);
+    return _files.containsKey(_key(normalizedPath));
   }
 
   @override
-  Future<List<FileSearchResult>> searchFiles(
+  Future<List<FileSearchResult>> searchFilesAsync(
     String directory,
-    String regexPattern,
-    {String? filePattern, CancellationToken? cancellationToken, }
-  ) {
+    String regexPattern, [
+    String? filePattern,
+    CancellationToken? cancellationToken,
+  ]) async {
     var prefix = StorePaths.normalizeRelativePath(directory, isDirectory: true);
-    if (prefix.length > 0 && !prefix.endsWith("/")) {
-      prefix += "/";
+    if (prefix.isNotEmpty && !prefix.endsWith('/')) {
+      prefix += '/';
     }
-    var regex = regex(regexPattern, TimeSpan.fromSeconds(5));
-    var matcher = filePattern != null ? StorePaths.createGlobMatcher(filePattern) : null;
-    var results = List<FileSearchResult>();
-    for (final kvp in this._files) {
-      if (!kvp.key.startsWith(prefix)) {
+    final prefixKey = _key(prefix);
+    final regex = RegExp(regexPattern, caseSensitive: false);
+    final matcher = filePattern != null
+        ? StorePaths.createGlobMatcher(filePattern)
+        : null;
+    final results = <FileSearchResult>[];
+
+    for (final file in _files.values) {
+      if (!_key(file.path).startsWith(prefixKey)) {
         continue;
       }
-      var relativeName = kvp.key.substring(prefix.length);
-      if (relativeName.indexOf("/") >= 0) {
+
+      final relativeName = file.path.substring(prefix.length);
+      if (relativeName.contains('/')) {
         continue;
       }
+
       if (!StorePaths.matchesGlob(relativeName, matcher)) {
         continue;
       }
-      var fileContent = kvp.value;
-      var lines = fileContent.split('\n');
-      var matchingLines = List<FileSearchMatch>();
-      var firstSnippet = null;
-      var lineStartOffset = 0;
-      for (var i = 0; i < lines.length; i++) {
-        var match = regex.match(lines[i]);
-        if (match.success) {
-          matchingLines.add(fileSearchMatch());
-          if (firstSnippet == null) {
-            var charIndex = lineStartOffset + match.index;
-            var snippetStart = max(0, charIndex - 50);
-            var snippetEnd = min(fileContent.length, charIndex + match.value.length + 50);
-            firstSnippet = fileContent.substring(snippetStart, snippetEnd - snippetStart);
-          }
-        }
-        // Advance the offset past this line (including the '\n' separator).
-                lineStartOffset += lines[i].length + 1;
-      }
-      if (matchingLines.length > 0) {
-        results.add(fileSearchResult());
+
+      final result = _searchFile(relativeName, file.content, regex);
+      if (result != null) {
+        results.add(result);
       }
     }
-    return Future.value<List<FileSearchResult>>(results);
+
+    return results;
   }
 
   @override
-  Future createDirectory(String path, {CancellationToken? cancellationToken, }) {
-    return Task.value(null);
+  Future<void> createDirectoryAsync(
+    String path, [
+    CancellationToken? cancellationToken,
+  ]) async {
+    StorePaths.normalizeRelativePath(path, isDirectory: true);
   }
+
+  static String _key(String path) => path.toLowerCase();
+
+  static FileSearchResult? _searchFile(
+    String fileName,
+    String fileContent,
+    RegExp regex,
+  ) {
+    final lines = fileContent.split('\n');
+    final matchingLines = <FileSearchMatch>[];
+    String? firstSnippet;
+    var lineStartOffset = 0;
+
+    for (var i = 0; i < lines.length; i++) {
+      final match = regex.firstMatch(lines[i]);
+      if (match != null) {
+        matchingLines.add(
+          FileSearchMatch()
+            ..lineNumber = i + 1
+            ..line = lines[i].replaceFirst(RegExp(r'\r$'), ''),
+        );
+
+        if (firstSnippet == null) {
+          final matchedValue = match.group(0) ?? '';
+          final charIndex = lineStartOffset + match.start;
+          final snippetStart = max(0, charIndex - 50);
+          final snippetEnd = min(
+            fileContent.length,
+            charIndex + matchedValue.length + 50,
+          );
+          firstSnippet = fileContent.substring(snippetStart, snippetEnd);
+        }
+      }
+
+      lineStartOffset += lines[i].length + 1;
+    }
+
+    if (matchingLines.isEmpty) {
+      return null;
+    }
+
+    return FileSearchResult()
+      ..fileName = fileName
+      ..snippet = firstSnippet!
+      ..matchingLines = matchingLines;
+  }
+}
+
+class _MemoryFile {
+  _MemoryFile(this.path, this.content);
+
+  final String path;
+  final String content;
 }

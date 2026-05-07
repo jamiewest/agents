@@ -7,7 +7,7 @@ import '../../../abstractions/microsoft_agents_ai_abstractions/agent_run_options
 class ChatClientAgentRunOptions extends AgentRunOptions {
   /// Creates a [ChatClientAgentRunOptions] with optional chat options.
   ChatClientAgentRunOptions({ChatOptions? chatOptions})
-      : chatOptions = chatOptions;
+    : chatOptions = chatOptions;
 
   /// Chat options to apply for this specific invocation.
   ///
@@ -20,6 +20,7 @@ class ChatClientAgentRunOptions extends AgentRunOptions {
   ChatClient Function(ChatClient)? chatClientFactory;
 
   @override
-  AgentRunOptions clone() => ChatClientAgentRunOptions(chatOptions: chatOptions)
-    ..chatClientFactory = chatClientFactory;
+  AgentRunOptions clone() =>
+      ChatClientAgentRunOptions(chatOptions: chatOptions?.clone())
+        ..chatClientFactory = chatClientFactory;
 }

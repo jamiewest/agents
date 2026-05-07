@@ -13,33 +13,40 @@ import '../../abstractions/microsoft_agents_ai_abstractions/delegating_ai_agent.
 ///
 /// The [innerInvoker] parameter is a callback that invokes the inner agent and
 /// returns its response (non-streaming).
-typedef SharedAgentRunDelegate = Future<AgentResponse> Function(
-  Iterable<ChatMessage> messages,
-  AgentSession? session,
-  AgentRunOptions? options,
-  Future<AgentResponse> Function(
-          Iterable<ChatMessage>, AgentSession?, AgentRunOptions?, CancellationToken?)
+typedef SharedAgentRunDelegate =
+    Future<AgentResponse> Function(
+      Iterable<ChatMessage> messages,
+      AgentSession? session,
+      AgentRunOptions? options,
+      Future<AgentResponse> Function(
+        Iterable<ChatMessage>,
+        AgentSession?,
+        AgentRunOptions?,
+        CancellationToken?,
+      )
       innerInvoker,
-  CancellationToken? cancellationToken,
-);
+      CancellationToken? cancellationToken,
+    );
 
 /// Function type for a custom non-streaming agent run delegate.
-typedef RunAgentDelegate = Future<AgentResponse> Function(
-  Iterable<ChatMessage> messages,
-  AgentSession? session,
-  AgentRunOptions? options,
-  AIAgent innerAgent,
-  CancellationToken? cancellationToken,
-);
+typedef RunAgentDelegate =
+    Future<AgentResponse> Function(
+      Iterable<ChatMessage> messages,
+      AgentSession? session,
+      AgentRunOptions? options,
+      AIAgent innerAgent,
+      CancellationToken? cancellationToken,
+    );
 
 /// Function type for a custom streaming agent run delegate.
-typedef RunStreamingAgentDelegate = Stream<AgentResponseUpdate> Function(
-  Iterable<ChatMessage> messages,
-  AgentSession? session,
-  AgentRunOptions? options,
-  AIAgent innerAgent,
-  CancellationToken? cancellationToken,
-);
+typedef RunStreamingAgentDelegate =
+    Stream<AgentResponseUpdate> Function(
+      Iterable<ChatMessage> messages,
+      AgentSession? session,
+      AgentRunOptions? options,
+      AIAgent innerAgent,
+      CancellationToken? cancellationToken,
+    );
 
 /// Represents a delegating AI agent that wraps an inner agent with
 /// implementations provided by delegates.
@@ -55,10 +62,10 @@ class AnonymousDelegatingAIAgent extends DelegatingAIAgent {
     SharedAgentRunDelegate? sharedFunc,
     RunAgentDelegate? runFunc,
     RunStreamingAgentDelegate? runStreamingFunc,
-  })  : _sharedFunc = sharedFunc,
-        _runFunc = runFunc,
-        _runStreamingFunc = runStreamingFunc,
-        super(innerAgent) {
+  }) : _sharedFunc = sharedFunc,
+       _runFunc = runFunc,
+       _runStreamingFunc = runStreamingFunc,
+       super(innerAgent) {
     throwIfBothDelegatesNull(runFunc, runStreamingFunc);
   }
 
@@ -78,14 +85,30 @@ class AnonymousDelegatingAIAgent extends DelegatingAIAgent {
         messages,
         session,
         options,
-        (m, s, o, ct) => innerAgent.runCore(m, session: s, options: o, cancellationToken: ct),
+        (m, s, o, ct) => innerAgent.runCore(
+          m,
+          session: s,
+          options: o,
+          cancellationToken: ct,
+        ),
         cancellationToken,
       );
     } else if (_runFunc != null) {
-      return _runFunc(messages, session, options, innerAgent, cancellationToken);
+      return _runFunc(
+        messages,
+        session,
+        options,
+        innerAgent,
+        cancellationToken,
+      );
     } else {
-      return _runStreamingFunc!(messages, session, options, innerAgent, cancellationToken)
-          .toAgentResponseAsync(cancellationToken: cancellationToken);
+      return _runStreamingFunc!(
+        messages,
+        session,
+        options,
+        innerAgent,
+        cancellationToken,
+      ).toAgentResponseAsync(cancellationToken: cancellationToken);
     }
   }
 
@@ -99,7 +122,13 @@ class AnonymousDelegatingAIAgent extends DelegatingAIAgent {
     if (_sharedFunc != null) {
       return _streamFromShared(messages, session, options, cancellationToken);
     } else if (_runStreamingFunc != null) {
-      return _runStreamingFunc(messages, session, options, innerAgent, cancellationToken);
+      return _runStreamingFunc(
+        messages,
+        session,
+        options,
+        innerAgent,
+        cancellationToken,
+      );
     } else {
       return _streamFromRun(
         _runFunc!(messages, session, options, innerAgent, cancellationToken),
@@ -117,7 +146,8 @@ class AnonymousDelegatingAIAgent extends DelegatingAIAgent {
       messages,
       session,
       options,
-      (m, s, o, ct) => innerAgent.runCore(m, session: s, options: o, cancellationToken: ct),
+      (m, s, o, ct) =>
+          innerAgent.runCore(m, session: s, options: o, cancellationToken: ct),
       cancellationToken,
     );
     for (final update in response.toAgentResponseUpdates()) {
@@ -126,7 +156,8 @@ class AnonymousDelegatingAIAgent extends DelegatingAIAgent {
   }
 
   static Stream<AgentResponseUpdate> _streamFromRun(
-      Future<AgentResponse> task) async* {
+    Future<AgentResponse> task,
+  ) async* {
     final response = await task;
     for (final update in response.toAgentResponseUpdates()) {
       yield update;

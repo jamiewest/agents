@@ -9,9 +9,13 @@ class SemaphoreSlim {
 
   int _count;
   final _waiters = <Completer<void>>[];
+  bool _disposed = false;
 
   /// Acquires the semaphore, waiting asynchronously if not available.
   Future<void> waitAsync([CancellationToken? cancellationToken]) async {
+    if (_disposed) {
+      throw StateError('SemaphoreSlim disposed');
+    }
     if (_count > 0) {
       _count--;
       return;
@@ -23,6 +27,9 @@ class SemaphoreSlim {
 
   /// Releases the semaphore, allowing one waiting caller to proceed.
   void release() {
+    if (_disposed) {
+      throw StateError('SemaphoreSlim disposed');
+    }
     if (_waiters.isNotEmpty) {
       final next = _waiters.removeAt(0);
       next.complete();
@@ -33,6 +40,10 @@ class SemaphoreSlim {
 
   /// Releases resources held by this semaphore.
   void dispose() {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
     for (final w in _waiters) {
       if (!w.isCompleted) w.completeError(StateError('SemaphoreSlim disposed'));
     }

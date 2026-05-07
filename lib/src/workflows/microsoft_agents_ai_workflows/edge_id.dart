@@ -1,21 +1,17 @@
-import 'edge.dart';
-import 'workflow.dart';
-
-/// A unique identifier of an [Edge] within a [Workflow].
+/// Identifies a workflow edge.
 class EdgeId {
-  /// Creates an [EdgeId] for the edge at [edgeIndex].
-  const EdgeId(this.edgeIndex);
+  /// Creates an edge identifier.
+  const EdgeId(this.value);
 
-  /// The zero-based position of this edge in the workflow.
-  final int edgeIndex;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) || (other is EdgeId && edgeIndex == other.edgeIndex);
+  /// Gets the string value of the identifier.
+  final String value;
 
   @override
-  int get hashCode => edgeIndex.hashCode;
+  bool operator ==(Object other) => other is EdgeId && other.value == value;
 
   @override
-  String toString() => edgeIndex.toString();
+  int get hashCode => value.hashCode;
+
+  @override
+  String toString() => value;
 }

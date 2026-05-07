@@ -1,13 +1,6 @@
-import 'package:extensions/ai.dart';
 import 'package:extensions/dependency_injection.dart';
-import 'package:extensions/system.dart';
 
-import '../../abstractions/microsoft_agents_ai_abstractions/agent_response.dart';
-import '../../abstractions/microsoft_agents_ai_abstractions/agent_response_update.dart';
-import '../../abstractions/microsoft_agents_ai_abstractions/agent_run_options.dart';
-import '../../abstractions/microsoft_agents_ai_abstractions/agent_session.dart';
 import '../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
-import '../../abstractions/microsoft_agents_ai_abstractions/delegating_ai_agent.dart';
 import '../../abstractions/microsoft_agents_ai_abstractions/message_ai_context_provider.dart';
 import 'ai_context_provider_decorators/message_ai_context_provider_agent.dart';
 import 'anonymous_delegating_ai_agent.dart';
@@ -31,20 +24,15 @@ class AIAgentBuilder {
     services ??= _EmptyServiceProvider.instance;
     var agent = _innerAgentFactory(services);
     for (var i = _agentFactories.length - 1; i >= 0; i--) {
-      final next = _agentFactories[i](agent, services);
-      if (next == null) {
-        throw StateError(
-          'AIAgentBuilder entry at index $i returned null. '
-          'Ensure callbacks passed to use() return non-null AIAgent instances.',
-        );
-      }
-      agent = next;
+      agent = _agentFactories[i](agent, services);
     }
     return agent;
   }
 
   /// Adds a decorator factory to the pipeline.
-  AIAgentBuilder useFactory(AIAgent Function(AIAgent, ServiceProvider) factory) {
+  AIAgentBuilder useFactory(
+    AIAgent Function(AIAgent, ServiceProvider) factory,
+  ) {
     _agentFactories.add(factory);
     return this;
   }
@@ -71,7 +59,8 @@ class AIAgentBuilder {
 
   /// Wraps the agent with [MessageAIContextProvider] instances.
   AIAgentBuilder useAIContextProviders(
-      List<MessageAIContextProvider> providers) {
+    List<MessageAIContextProvider> providers,
+  ) {
     return useFactory(
       (inner, _) => MessageAIContextProviderAgent(inner, providers),
     );
@@ -83,9 +72,6 @@ class _EmptyServiceProvider implements ServiceProvider {
   const _EmptyServiceProvider._();
 
   static const _EmptyServiceProvider instance = _EmptyServiceProvider._();
-
-  @override
-  Object? getService(Type serviceType) => null;
 
   @override
   Object? getServiceFromType(Type type) => null;

@@ -1,15 +1,14 @@
-/// Configuration options for Executor behavior.
+/// Options that describe runtime behavior for an executor registration.
 class ExecutorOptions {
-  ExecutorOptions();
+  /// Creates executor options.
+  const ExecutorOptions({
+    this.supportsConcurrentSharedExecution = true,
+    this.supportsResetting = false,
+  });
 
-  /// The default runner configuration.
-  static final ExecutorOptions defaultValue = ExecutorOptions();
+  /// Gets whether a shared executor instance can be used concurrently.
+  final bool supportsConcurrentSharedExecution;
 
-  /// If `true`, the result of a message handler that returns a value will be
-  /// sent as a message from the executor.
-  bool autoSendMessageHandlerResultObject = true;
-
-  /// If `true`, the result of a message handler that returns a value will be
-  /// yielded as an output of the executor.
-  bool autoYieldOutputHandlerResultObject = true;
+  /// Gets whether the executor can be reset between workflow runs.
+  final bool supportsResetting;
 }
