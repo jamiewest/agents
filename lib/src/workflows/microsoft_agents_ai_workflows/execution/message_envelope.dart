@@ -1,3 +1,6 @@
+import '../checkpointing/portable_message_envelope.dart';
+import '../checkpointing/wire_marshaller.dart';
+
 /// Wraps a workflow message with routing metadata.
 class MessageEnvelope {
   /// Creates a message envelope.
@@ -15,4 +18,23 @@ class MessageEnvelope {
 
   /// Gets the message payload.
   final Object? message;
+
+  /// Converts this envelope to a portable checkpoint envelope.
+  PortableMessageEnvelope toPortable({
+    WireMarshaller wireMarshaller = const WireMarshaller(),
+  }) => PortableMessageEnvelope(
+    sourceExecutorId: sourceExecutorId,
+    targetExecutorId: targetExecutorId,
+    message: wireMarshaller.serializeValue(message),
+  );
+
+  /// Creates an envelope from a portable checkpoint envelope.
+  factory MessageEnvelope.fromPortable(
+    PortableMessageEnvelope envelope, {
+    WireMarshaller wireMarshaller = const WireMarshaller(),
+  }) => MessageEnvelope(
+    sourceExecutorId: envelope.sourceExecutorId,
+    targetExecutorId: envelope.targetExecutorId,
+    message: wireMarshaller.deserializeValue(envelope.message),
+  );
 }

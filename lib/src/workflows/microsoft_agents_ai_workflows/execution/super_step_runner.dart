@@ -1,5 +1,9 @@
 import 'package:extensions/system.dart';
 
+import '../checkpoint_info.dart';
+import '../checkpoint_manager.dart';
+import '../checkpointing/checkpoint.dart';
+import '../checkpointing/workflow_info.dart';
 import '../executor_completed_event.dart';
 import '../executor_failed_event.dart';
 import '../executor_invoked_event.dart';
@@ -13,27 +17,48 @@ import '../super_step_started_event.dart';
 import '../workflow_error_event.dart';
 import '../workflow_output_event.dart';
 import 'message_delivery.dart';
+import 'message_envelope.dart';
 import 'runner_context.dart';
 import 'step_context.dart';
 
 /// Executes queued workflow messages in SuperStep order.
 class SuperStepRunner {
   /// Creates a super-step runner.
-  SuperStepRunner(this.context);
+  SuperStepRunner(
+    this.context, {
+    required this.sessionId,
+    this.checkpointManager,
+  });
 
   /// Gets the runner context.
   final RunnerContext context;
+
+  /// Gets the session identifier.
+  final String sessionId;
+
+  /// Gets the checkpoint manager, when checkpointing is enabled.
+  final CheckpointManager? checkpointManager;
+
+  /// Gets the last checkpoint produced by this runner.
+  CheckpointInfo? lastCheckpoint;
 
   /// Runs until no messages remain or a pending external request is emitted.
   Future<RunStatus> run(
     Object? input, {
     CancellationToken? cancellationToken,
+  }) => runDeliveries([
+    MessageDelivery(context.createInitialEnvelope(input)),
+  ], cancellationToken: cancellationToken);
+
+  /// Runs starting with existing [initialDeliveries].
+  Future<RunStatus> runDeliveries(
+    Iterable<MessageDelivery> initialDeliveries, {
+    int initialStepNumber = 0,
+    CancellationToken? cancellationToken,
   }) async {
     final token = cancellationToken ?? CancellationToken.none;
-    var deliveries = <MessageDelivery>[
-      MessageDelivery(context.createInitialEnvelope(input)),
-    ];
-    var stepNumber = 0;
+    var deliveries = List<MessageDelivery>.of(initialDeliveries);
+    var stepNumber = initialStepNumber;
     final router = MessageRouter(context.edgeMap, context.state);
 
     while (deliveries.isNotEmpty) {
@@ -120,6 +145,11 @@ class SuperStepRunner {
           ),
         ),
       );
+      await _createCheckpointAsync(
+        stepNumber,
+        next.map((delivery) => delivery.envelope),
+        token,
+      );
       if (hasPendingRequests) {
         return RunStatus.pendingRequests;
       }
@@ -128,5 +158,25 @@ class SuperStepRunner {
     }
 
     return RunStatus.ended;
+  }
+
+  Future<void> _createCheckpointAsync(
+    int stepNumber,
+    Iterable<MessageEnvelope> pendingMessages,
+    CancellationToken cancellationToken,
+  ) async {
+    final manager = checkpointManager;
+    if (manager == null) {
+      return;
+    }
+    cancellationToken.throwIfCancellationRequested();
+    final checkpoint = Checkpoint(
+      info: CheckpointInfo('$sessionId-superstep-$stepNumber'),
+      sessionId: sessionId,
+      superStep: stepNumber,
+      workflow: WorkflowInfo.fromWorkflow(context.workflow),
+      pendingMessages: pendingMessages.map((message) => message.toPortable()),
+    );
+    lastCheckpoint = await manager.saveCheckpointAsync(checkpoint);
   }
 }
