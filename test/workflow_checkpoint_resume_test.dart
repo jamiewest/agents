@@ -1,17 +1,17 @@
 import 'dart:io';
 
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/file_system_json_checkpoint_store.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/in_memory_checkpoint_manager.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/checkpoint_manager_impl.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpoint_info.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/executor_instance_binding.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/function_executor.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/in_process_execution.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/run_status.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_builder.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_builder_extensions.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_output_event.dart';
+import 'package:agents/src/workflows/checkpointing/file_system_json_checkpoint_store.dart';
+import 'package:agents/src/workflows/checkpointing/in_memory_checkpoint_manager.dart';
+import 'package:agents/src/workflows/checkpointing/checkpoint_manager_impl.dart';
+import 'package:agents/src/workflows/checkpoint_info.dart';
+import 'package:agents/src/workflows/executor_instance_binding.dart';
+import 'package:agents/src/workflows/function_executor.dart';
+import 'package:agents/src/workflows/in_process_execution.dart';
+import 'package:agents/src/workflows/run_status.dart';
+import 'package:agents/src/workflows/workflow.dart';
+import 'package:agents/src/workflows/workflow_builder.dart';
+import 'package:agents/src/workflows/workflow_builder_extensions.dart';
+import 'package:agents/src/workflows/workflow_output_event.dart';
 import 'package:test/test.dart';
 
 void main() {

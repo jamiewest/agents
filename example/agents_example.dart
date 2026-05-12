@@ -8,9 +8,9 @@ library;
 
 import 'dart:io';
 
-import 'package:agents/src/ai/microsoft_agents_ai/ai_agent_builder.dart';
-import 'package:agents/src/ai/microsoft_agents_ai/chat_client/chat_client_extensions.dart';
-import 'package:agents/src/ai/microsoft_agents_ai/logging_agent.dart';
+import 'package:agents/src/ai/ai_agent_builder.dart';
+import 'package:agents/src/ai/chat_client/chat_client_extensions.dart';
+import 'package:agents/src/ai/logging_agent.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
 import 'package:extensions/system.dart';
@@ -32,9 +32,9 @@ Future<void> main() async {
   final loggerFactory = NullLoggerFactory.instance;
   final logger = loggerFactory.createLogger('Assistant');
 
-  final agent = AIAgentBuilder(innerAgent: baseAgent)
-      .use(agentFactory: (inner) => LoggingAgent(inner, logger))
-      .build();
+  final agent = AIAgentBuilder(
+    innerAgent: baseAgent,
+  ).use(agentFactory: (inner) => LoggingAgent(inner, logger)).build();
 
   // ── 3. Multi-turn conversation with a session ────────────────────────────
   //

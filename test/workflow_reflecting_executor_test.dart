@@ -1,11 +1,11 @@
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/executor_instance_binding.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/in_proc/in_process_execution_environment.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/reflection/reflecting_executor.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/reflection/reflection_extensions.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/reflection/route_builder_extensions.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_builder.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_context.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_output_event.dart';
+import 'package:agents/src/workflows/executor_instance_binding.dart';
+import 'package:agents/src/workflows/in_proc/in_process_execution_environment.dart';
+import 'package:agents/src/workflows/reflection/reflecting_executor.dart';
+import 'package:agents/src/workflows/reflection/reflection_extensions.dart';
+import 'package:agents/src/workflows/reflection/route_builder_extensions.dart';
+import 'package:agents/src/workflows/workflow_builder.dart';
+import 'package:agents/src/workflows/workflow_context.dart';
+import 'package:agents/src/workflows/workflow_output_event.dart';
 import 'package:test/test.dart';
 
 // ── fakes ──────────────────────────────────────────────────────────────────
@@ -68,24 +68,27 @@ void main() {
       expect(edges, hasLength(2));
     });
 
-    test('workflow routes typed messages through reflecting executor', () async {
-      final dispatch = _DispatchExecutor();
-      final start = _PassthroughExecutor();
+    test(
+      'workflow routes typed messages through reflecting executor',
+      () async {
+        final dispatch = _DispatchExecutor();
+        final start = _PassthroughExecutor();
 
-      final workflow = WorkflowBuilder(ExecutorInstanceBinding(start))
-          .bindReflectingExecutor(dispatch)
-          .addEdgesForHandlers(start.id, dispatch)
-          .addOutput(dispatch.id)
-          .build();
+        final workflow = WorkflowBuilder(ExecutorInstanceBinding(start))
+            .bindReflectingExecutor(dispatch)
+            .addEdgesForHandlers(start.id, dispatch)
+            .addOutput(dispatch.id)
+            .build();
 
-      final run = await inProcExecution.runAsync(workflow, 'world');
+        final run = await inProcExecution.runAsync(workflow, 'world');
 
-      final outputs = run.outgoingEvents
-          .whereType<WorkflowOutputEvent>()
-          .map((e) => e.data)
-          .toList();
-      expect(outputs, ['str:world']);
-    });
+        final outputs = run.outgoingEvents
+            .whereType<WorkflowOutputEvent>()
+            .map((e) => e.data)
+            .toList();
+        expect(outputs, ['str:world']);
+      },
+    );
   });
 }
 

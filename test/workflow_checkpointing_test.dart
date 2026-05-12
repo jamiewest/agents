@@ -1,22 +1,22 @@
 import 'dart:io';
 
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpoint_info.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/checkpoint.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/checkpoint_manager_impl.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/checkpointing_handle.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/direct_edge_info.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/edge_info.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/executor_info.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/fan_in_edge_info.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/fan_out_edge_info.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/file_system_json_checkpoint_store.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/in_memory_checkpoint_manager.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/json_checkpoint_store.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/json_marshaller.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/json_wire_serialized_value.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/portable_message_envelope.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/session_checkpoint_cache.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/workflow_info.dart';
+import 'package:agents/src/workflows/checkpoint_info.dart';
+import 'package:agents/src/workflows/checkpointing/checkpoint.dart';
+import 'package:agents/src/workflows/checkpointing/checkpoint_manager_impl.dart';
+import 'package:agents/src/workflows/checkpointing/checkpointing_handle.dart';
+import 'package:agents/src/workflows/checkpointing/direct_edge_info.dart';
+import 'package:agents/src/workflows/checkpointing/edge_info.dart';
+import 'package:agents/src/workflows/checkpointing/executor_info.dart';
+import 'package:agents/src/workflows/checkpointing/fan_in_edge_info.dart';
+import 'package:agents/src/workflows/checkpointing/fan_out_edge_info.dart';
+import 'package:agents/src/workflows/checkpointing/file_system_json_checkpoint_store.dart';
+import 'package:agents/src/workflows/checkpointing/in_memory_checkpoint_manager.dart';
+import 'package:agents/src/workflows/checkpointing/json_checkpoint_store.dart';
+import 'package:agents/src/workflows/checkpointing/json_marshaller.dart';
+import 'package:agents/src/workflows/checkpointing/json_wire_serialized_value.dart';
+import 'package:agents/src/workflows/checkpointing/portable_message_envelope.dart';
+import 'package:agents/src/workflows/checkpointing/session_checkpoint_cache.dart';
+import 'package:agents/src/workflows/checkpointing/workflow_info.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -1,19 +1,19 @@
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/delayed_deserialization.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/type_id.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/execution/concurrent_event_sink.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/execution/execution_mode.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/execution/executor_identity.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/execution/state_update.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/execution/step_tracer.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/execution/update_key.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/observability/edge_runner_delivery_status.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/observability/workflow_telemetry_options.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/scope_id.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/scope_key.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/subworkflow_error_event.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/portable_value.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/subworkflow_warning_event.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_event.dart';
+import 'package:agents/src/workflows/checkpointing/delayed_deserialization.dart';
+import 'package:agents/src/workflows/checkpointing/type_id.dart';
+import 'package:agents/src/workflows/execution/concurrent_event_sink.dart';
+import 'package:agents/src/workflows/execution/execution_mode.dart';
+import 'package:agents/src/workflows/execution/executor_identity.dart';
+import 'package:agents/src/workflows/execution/state_update.dart';
+import 'package:agents/src/workflows/execution/step_tracer.dart';
+import 'package:agents/src/workflows/execution/update_key.dart';
+import 'package:agents/src/workflows/observability/edge_runner_delivery_status.dart';
+import 'package:agents/src/workflows/observability/workflow_telemetry_options.dart';
+import 'package:agents/src/workflows/scope_id.dart';
+import 'package:agents/src/workflows/scope_key.dart';
+import 'package:agents/src/workflows/subworkflow_error_event.dart';
+import 'package:agents/src/workflows/portable_value.dart';
+import 'package:agents/src/workflows/subworkflow_warning_event.dart';
+import 'package:agents/src/workflows/workflow_event.dart';
 import 'package:test/test.dart';
 
 void main() {

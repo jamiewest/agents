@@ -1,15 +1,15 @@
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/configured_executor_binding.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/direct_edge_data.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/executor_binding_extensions.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/executor_config.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/executor_instance_binding.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/executor_options.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/function_executor.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/stateful_executor.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/stateful_executor_options.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_builder.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_builder_extensions.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_context.dart';
+import 'package:agents/src/workflows/configured_executor_binding.dart';
+import 'package:agents/src/workflows/direct_edge_data.dart';
+import 'package:agents/src/workflows/executor_binding_extensions.dart';
+import 'package:agents/src/workflows/executor_config.dart';
+import 'package:agents/src/workflows/executor_instance_binding.dart';
+import 'package:agents/src/workflows/executor_options.dart';
+import 'package:agents/src/workflows/function_executor.dart';
+import 'package:agents/src/workflows/stateful_executor.dart';
+import 'package:agents/src/workflows/stateful_executor_options.dart';
+import 'package:agents/src/workflows/workflow_builder.dart';
+import 'package:agents/src/workflows/workflow_builder_extensions.dart';
+import 'package:agents/src/workflows/workflow_context.dart';
 import 'package:test/test.dart';
 
 void main() {

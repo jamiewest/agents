@@ -1,14 +1,13 @@
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/executor_instance_binding.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/function_executor.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/in_proc/in_process_execution_environment.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/observability/activity_extensions.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/observability/activity_names.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/observability/tags.dart'
-    as workflow_tags;
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/observability/workflow_telemetry_options.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/open_telemetry_workflow_builder_extensions.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_builder.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_execution_environment.dart';
+import 'package:agents/src/workflows/executor_instance_binding.dart';
+import 'package:agents/src/workflows/function_executor.dart';
+import 'package:agents/src/workflows/in_proc/in_process_execution_environment.dart';
+import 'package:agents/src/workflows/observability/activity_extensions.dart';
+import 'package:agents/src/workflows/observability/activity_names.dart';
+import 'package:agents/src/workflows/observability/tags.dart' as workflow_tags;
+import 'package:agents/src/workflows/observability/workflow_telemetry_options.dart';
+import 'package:agents/src/workflows/open_telemetry_workflow_builder_extensions.dart';
+import 'package:agents/src/workflows/workflow_builder.dart';
+import 'package:agents/src/workflows/workflow_execution_environment.dart';
 import 'package:opentelemetry/api.dart' hide SpanExporter;
 import 'package:opentelemetry/sdk.dart';
 import 'package:test/test.dart';
@@ -33,9 +32,9 @@ void main() {
         'echo',
         (input, ctx, ct) => input,
       );
-      final workflow = WorkflowBuilder(ExecutorInstanceBinding(exec))
-          .addOutput('echo')
-          .build();
+      final workflow = WorkflowBuilder(
+        ExecutorInstanceBinding(exec),
+      ).addOutput('echo').build();
 
       final run = await otelEnv.runAsync(
         workflow,
@@ -48,10 +47,7 @@ void main() {
 
       final span = exporter.spans.first;
       expect(span.name, ActivityNames.workflowInvoke);
-      expect(
-        span.attributes.get(workflow_tags.Tags.sessionId),
-        'sess-1',
-      );
+      expect(span.attributes.get(workflow_tags.Tags.sessionId), 'sess-1');
     });
 
     test('records error status when executor throws', () async {
@@ -75,9 +71,9 @@ void main() {
         'echo',
         (input, ctx, ct) => input,
       );
-      final workflow = WorkflowBuilder(ExecutorInstanceBinding(exec))
-          .addOutput('echo')
-          .build();
+      final workflow = WorkflowBuilder(
+        ExecutorInstanceBinding(exec),
+      ).addOutput('echo').build();
 
       final suppressedEnv = inProcExecution.withOpenTelemetry(
         tracer: tracerProvider.getTracer('test'),

@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:agents/src/ai/microsoft_agents_ai/harness/file_store/file_system_agent_file_store.dart';
+import 'package:agents/src/ai/harness/file_store/file_system_agent_file_store.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 

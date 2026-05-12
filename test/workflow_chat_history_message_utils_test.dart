@@ -1,22 +1,22 @@
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/agent_response.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/agent_response_update.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/agent_run_options.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/agent_session.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/agent_session_state_bag.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/chat_history_provider.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/ai_agent_id_equality_comparer.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/executor_instance_binding.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/external_request.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/function_executor.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/message_merger.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/request_port.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/streaming_aggregators.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/turn_token.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_builder.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_chat_history_provider.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_host_agent.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_hosting_extensions.dart';
+import 'package:agents/src/abstractions/agent_response.dart';
+import 'package:agents/src/abstractions/agent_response_update.dart';
+import 'package:agents/src/abstractions/agent_run_options.dart';
+import 'package:agents/src/abstractions/agent_session.dart';
+import 'package:agents/src/abstractions/agent_session_state_bag.dart';
+import 'package:agents/src/abstractions/ai_agent.dart';
+import 'package:agents/src/abstractions/chat_history_provider.dart';
+import 'package:agents/src/workflows/ai_agent_id_equality_comparer.dart';
+import 'package:agents/src/workflows/executor_instance_binding.dart';
+import 'package:agents/src/workflows/external_request.dart';
+import 'package:agents/src/workflows/function_executor.dart';
+import 'package:agents/src/workflows/message_merger.dart';
+import 'package:agents/src/workflows/request_port.dart';
+import 'package:agents/src/workflows/streaming_aggregators.dart';
+import 'package:agents/src/workflows/turn_token.dart';
+import 'package:agents/src/workflows/workflow_builder.dart';
+import 'package:agents/src/workflows/workflow_chat_history_provider.dart';
+import 'package:agents/src/workflows/workflow_host_agent.dart';
+import 'package:agents/src/workflows/workflow_hosting_extensions.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart' hide equals;
 import 'package:test/test.dart';
@@ -45,8 +45,10 @@ void main() {
     final comparer = AIAgentIdEqualityComparer.instance;
 
     test('instance is a singleton', () {
-      expect(AIAgentIdEqualityComparer.instance,
-          same(AIAgentIdEqualityComparer.instance));
+      expect(
+        AIAgentIdEqualityComparer.instance,
+        same(AIAgentIdEqualityComparer.instance),
+      );
     });
 
     test('equals returns true for the same agent instance', () {
@@ -82,9 +84,7 @@ void main() {
   group('StreamingAggregators', () {
     group('first / firstOf', () {
       test('first captures only the first converted value', () {
-        final agg = StreamingAggregators.first<int, String>(
-          (n) => 'item$n',
-        );
+        final agg = StreamingAggregators.first<int, String>((n) => 'item$n');
         var result = agg(null, 1);
         result = agg(result, 2);
         result = agg(result, 3);
@@ -102,9 +102,7 @@ void main() {
 
     group('last / lastOf', () {
       test('last returns the most recent converted value', () {
-        final agg = StreamingAggregators.last<int, String>(
-          (n) => 'item$n',
-        );
+        final agg = StreamingAggregators.last<int, String>((n) => 'item$n');
         var result = agg(null, 1);
         result = agg(result, 2);
         result = agg(result, 3);
@@ -122,9 +120,7 @@ void main() {
 
     group('union / unionOf', () {
       test('union accumulates converted results', () {
-        final agg = StreamingAggregators.union<int, String>(
-          (n) => 'item$n',
-        );
+        final agg = StreamingAggregators.union<int, String>((n) => 'item$n');
         var result = agg(null, 1);
         result = agg(result, 2);
         result = agg(result, 3);
@@ -175,8 +171,9 @@ void main() {
     });
 
     test('getAllMessages returns an unmodifiable view', () {
-      provider.addMessages(
-          session, [ChatMessage.fromText(ChatRole.user, 'msg')]);
+      provider.addMessages(session, [
+        ChatMessage.fromText(ChatRole.user, 'msg'),
+      ]);
 
       final messages = provider.getAllMessages(session);
       expect(
@@ -264,11 +261,11 @@ void main() {
     test('storeChatHistory is a no-op for different sessions', () async {
       final agent = _SimpleAgent();
       final session2 = _TestSession();
-      await provider.storeChatHistory(InvokedContext(
-        agent,
-        session2,
-        [ChatMessage.fromText(ChatRole.user, 'other')],
-      ));
+      await provider.storeChatHistory(
+        InvokedContext(agent, session2, [
+          ChatMessage.fromText(ChatRole.user, 'other'),
+        ]),
+      );
 
       expect(provider.getAllMessages(session).toList(), isEmpty);
     });
@@ -315,8 +312,7 @@ void main() {
           ..messageId = 'm1',
       );
 
-      final result =
-          merger.computeMerged(primaryResponseId: 'output-response');
+      final result = merger.computeMerged(primaryResponseId: 'output-response');
       expect(result.responseId, equals('output-response'));
     });
 
@@ -387,9 +383,9 @@ void main() {
         'start',
         (input, context, ct) => AgentResponse(messages: input),
       );
-      final workflow = WorkflowBuilder(ExecutorInstanceBinding(executor))
-          .addOutput('start')
-          .build();
+      final workflow = WorkflowBuilder(
+        ExecutorInstanceBinding(executor),
+      ).addOutput('start').build();
 
       final agent = workflow.asAIAgent(
         name: 'my-workflow',
@@ -406,10 +402,9 @@ void main() {
         'start',
         (input, context, ct) => AgentResponse(messages: input),
       );
-      final workflow = WorkflowBuilder(ExecutorInstanceBinding(executor))
-          .addOutput('start')
-          .withName('workflow-name')
-          .build();
+      final workflow = WorkflowBuilder(
+        ExecutorInstanceBinding(executor),
+      ).addOutput('start').withName('workflow-name').build();
 
       final agent = workflow.asAIAgent();
 
@@ -440,24 +435,21 @@ class _SimpleAgent extends AIAgent {
   @override
   Future<AgentSession> createSessionCore({
     CancellationToken? cancellationToken,
-  }) async =>
-      _TestSession();
+  }) async => _TestSession();
 
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
     Object? JsonSerializerOptions,
     CancellationToken? cancellationToken,
-  }) async =>
-      '{}';
+  }) async => '{}';
 
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedSession, {
     Object? JsonSerializerOptions,
     CancellationToken? cancellationToken,
-  }) async =>
-      _TestSession();
+  }) async => _TestSession();
 
   @override
   Future<AgentResponse> runCore(
@@ -465,8 +457,7 @@ class _SimpleAgent extends AIAgent {
     AgentSession? session,
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
-  }) async =>
-      AgentResponse(messages: []);
+  }) async => AgentResponse(messages: []);
 
   @override
   Stream<AgentResponseUpdate> runCoreStreaming(

@@ -1,13 +1,13 @@
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/direct_edge_data.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/executor_instance_binding.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/function_executor.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/in_proc/in_process_execution_environment.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/request_info_event.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/request_port.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/run_status.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_builder.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_builder_extensions.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_output_event.dart';
+import 'package:agents/src/workflows/direct_edge_data.dart';
+import 'package:agents/src/workflows/executor_instance_binding.dart';
+import 'package:agents/src/workflows/function_executor.dart';
+import 'package:agents/src/workflows/in_proc/in_process_execution_environment.dart';
+import 'package:agents/src/workflows/request_info_event.dart';
+import 'package:agents/src/workflows/request_port.dart';
+import 'package:agents/src/workflows/run_status.dart';
+import 'package:agents/src/workflows/workflow_builder.dart';
+import 'package:agents/src/workflows/workflow_builder_extensions.dart';
+import 'package:agents/src/workflows/workflow_output_event.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -21,11 +21,9 @@ void main() {
         'end',
         (input, context, cancellationToken) => 'length:$input',
       );
-      final workflow = WorkflowBuilder(ExecutorInstanceBinding(start))
-          .bindExecutor(end)
-          .addEdge('start', 'end')
-          .addOutput('end')
-          .build();
+      final workflow = WorkflowBuilder(
+        ExecutorInstanceBinding(start),
+      ).bindExecutor(end).addEdge('start', 'end').addOutput('end').build();
 
       final run = await inProcExecution.runAsync(
         workflow,
@@ -81,10 +79,9 @@ void main() {
         'end',
         (input, context, cancellationToken) => input.toUpperCase(),
       );
-      final workflow = WorkflowBuilder(ExecutorInstanceBinding(start))
-          .bindExecutor(end)
-          .addOutput('end')
-          .build();
+      final workflow = WorkflowBuilder(
+        ExecutorInstanceBinding(start),
+      ).bindExecutor(end).addOutput('end').build();
 
       final run = await inProcExecution.runAsync(workflow, 'hello');
 
@@ -138,16 +135,15 @@ void main() {
         'start',
         (input, context, cancellationToken) => 'output:$input',
       );
-      final workflow = WorkflowBuilder(ExecutorInstanceBinding(start))
-          .addOutput('start')
-          .build();
+      final workflow = WorkflowBuilder(
+        ExecutorInstanceBinding(start),
+      ).addOutput('start').build();
 
       final run = await inProcExecution.streamAsync(workflow, input: 'x');
 
       expect(await run.getStatusAsync(), RunStatus.ended);
       expect(_outputs(run.outgoingEvents), ['output:x']);
     });
-
   });
 }
 

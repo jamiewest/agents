@@ -1,4 +1,4 @@
-import 'package:agents/src/ai/microsoft_agents_ai/harness/file_store/store_paths.dart';
+import 'package:agents/src/ai/harness/file_store/store_paths.dart';
 import 'package:test/test.dart';
 
 void main() {

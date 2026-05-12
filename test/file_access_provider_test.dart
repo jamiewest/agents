@@ -2,17 +2,17 @@ import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 import 'package:test/test.dart';
 
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/agent_response.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/agent_response_update.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/agent_run_options.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/agent_session.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/agent_session_state_bag.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/ai_context.dart';
-import 'package:agents/src/abstractions/microsoft_agents_ai_abstractions/ai_context_provider.dart';
-import 'package:agents/src/ai/microsoft_agents_ai/harness/file_access/file_access_provider.dart';
-import 'package:agents/src/ai/microsoft_agents_ai/harness/file_access/file_access_provider_options.dart';
-import 'package:agents/src/ai/microsoft_agents_ai/harness/file_store/in_memory_agent_file_store.dart';
+import 'package:agents/src/abstractions/agent_response.dart';
+import 'package:agents/src/abstractions/agent_response_update.dart';
+import 'package:agents/src/abstractions/agent_run_options.dart';
+import 'package:agents/src/abstractions/agent_session.dart';
+import 'package:agents/src/abstractions/agent_session_state_bag.dart';
+import 'package:agents/src/abstractions/ai_agent.dart';
+import 'package:agents/src/abstractions/ai_context.dart';
+import 'package:agents/src/abstractions/ai_context_provider.dart';
+import 'package:agents/src/ai/harness/file_access/file_access_provider.dart';
+import 'package:agents/src/ai/harness/file_access/file_access_provider_options.dart';
+import 'package:agents/src/ai/harness/file_store/in_memory_agent_file_store.dart';
 
 void main() {
   group('FileAccessProvider constructor', () {

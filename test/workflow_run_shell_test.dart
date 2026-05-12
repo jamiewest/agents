@@ -1,20 +1,20 @@
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/external_request.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/external_request_context.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/request_halt_event.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/request_info_event.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/request_port.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/run.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/run_status.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/streaming_run.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/super_step_completed_event.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/super_step_completion_info.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/super_step_start_info.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/super_step_started_event.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_context.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_context_extensions.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_output_event.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow_session.dart';
+import 'package:agents/src/workflows/external_request.dart';
+import 'package:agents/src/workflows/external_request_context.dart';
+import 'package:agents/src/workflows/request_halt_event.dart';
+import 'package:agents/src/workflows/request_info_event.dart';
+import 'package:agents/src/workflows/request_port.dart';
+import 'package:agents/src/workflows/run.dart';
+import 'package:agents/src/workflows/run_status.dart';
+import 'package:agents/src/workflows/streaming_run.dart';
+import 'package:agents/src/workflows/super_step_completed_event.dart';
+import 'package:agents/src/workflows/super_step_completion_info.dart';
+import 'package:agents/src/workflows/super_step_start_info.dart';
+import 'package:agents/src/workflows/super_step_started_event.dart';
+import 'package:agents/src/workflows/workflow.dart';
+import 'package:agents/src/workflows/workflow_context.dart';
+import 'package:agents/src/workflows/workflow_context_extensions.dart';
+import 'package:agents/src/workflows/workflow_output_event.dart';
+import 'package:agents/src/workflows/workflow_session.dart';
 import 'package:test/test.dart';
 
 void main() {

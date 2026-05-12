@@ -1,27 +1,24 @@
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpoint_info.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/checkpoint_info_converter.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/delayed_deserialization.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/edge_id_converter.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/executor_identity_converter.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/json_converter_dictionary_support_base.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/json_wire_serialized_value.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/portable_value_converter.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/checkpointing/scope_key_converter.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/edge_id.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/execution/executor_identity.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/portable_value.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/scope_id.dart';
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/scope_key.dart';
+import 'package:agents/src/workflows/checkpoint_info.dart';
+import 'package:agents/src/workflows/checkpointing/checkpoint_info_converter.dart';
+import 'package:agents/src/workflows/checkpointing/delayed_deserialization.dart';
+import 'package:agents/src/workflows/checkpointing/edge_id_converter.dart';
+import 'package:agents/src/workflows/checkpointing/executor_identity_converter.dart';
+import 'package:agents/src/workflows/checkpointing/json_converter_dictionary_support_base.dart';
+import 'package:agents/src/workflows/checkpointing/json_wire_serialized_value.dart';
+import 'package:agents/src/workflows/checkpointing/portable_value_converter.dart';
+import 'package:agents/src/workflows/checkpointing/scope_key_converter.dart';
+import 'package:agents/src/workflows/edge_id.dart';
+import 'package:agents/src/workflows/execution/executor_identity.dart';
+import 'package:agents/src/workflows/portable_value.dart';
+import 'package:agents/src/workflows/scope_id.dart';
+import 'package:agents/src/workflows/scope_key.dart';
 import 'package:test/test.dart';
 
 void main() {
   // ---------------------------------------------------------------------------
   group('JsonConverterDictionarySupportBase escape/unescape', () {
     test('escape non-null value without pad doubles pipes', () {
-      expect(
-        JsonConverterDictionarySupportBase.escape('a|b'),
-        equals('a||b'),
-      );
+      expect(JsonConverterDictionarySupportBase.escape('a|b'), equals('a||b'));
     });
 
     test('escape non-null value with allowNullAndPad prefixes @', () {
@@ -33,10 +30,7 @@ void main() {
 
     test('escape null with allowNullAndPad returns empty string', () {
       expect(
-        JsonConverterDictionarySupportBase.escape(
-          null,
-          allowNullAndPad: true,
-        ),
+        JsonConverterDictionarySupportBase.escape(null, allowNullAndPad: true),
         equals(''),
       );
     });
@@ -67,10 +61,7 @@ void main() {
 
     test('unescape empty with allowNullAndPad returns null', () {
       expect(
-        JsonConverterDictionarySupportBase.unescape(
-          '',
-          allowNullAndPad: true,
-        ),
+        JsonConverterDictionarySupportBase.unescape('', allowNullAndPad: true),
         isNull,
       );
     });
@@ -125,10 +116,7 @@ void main() {
     });
 
     test('parse throws for invalid format', () {
-      expect(
-        () => converter.parse('nope'),
-        throwsA(isA<FormatException>()),
-      );
+      expect(() => converter.parse('nope'), throwsA(isA<FormatException>()));
     });
 
     test('fromJson with string delegates to parse', () {
@@ -195,10 +183,7 @@ void main() {
     });
 
     test('parse invalid key throws', () {
-      expect(
-        () => converter.parse('noAt'),
-        throwsA(isA<FormatException>()),
-      );
+      expect(() => converter.parse('noAt'), throwsA(isA<FormatException>()));
     });
 
     test('roundtrip None', () {
@@ -225,8 +210,10 @@ void main() {
 
     test('parse roundtrip', () {
       final info = CheckpointInfo('cp-abc');
-      expect(converter.parse(converter.stringify(info)).checkpointId,
-          equals('cp-abc'));
+      expect(
+        converter.parse(converter.stringify(info)).checkpointId,
+        equals('cp-abc'),
+      );
     });
 
     test('fromJson with Map delegates to CheckpointInfo.fromJson', () {

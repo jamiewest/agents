@@ -1,4 +1,4 @@
-import 'package:agents/src/workflows/microsoft_agents_ai_workflows/workflow.dart';
+import 'package:agents/src/workflows/workflow.dart';
 import 'package:test/test.dart';
 
 void main() {
