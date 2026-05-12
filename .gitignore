@@ -16,6 +16,7 @@ packages/atlas_app/build/
 
 *.dylib
 *.metallib
+.claude
 
 .genkit
 CLAUDE.md

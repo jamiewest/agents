@@ -69,6 +69,58 @@ void main() {
         isA<AIAgentBinding>(),
       );
     });
+
+    test(
+      'chatProtocolExecutor_AccumulatesAndClearsMessagesPerTurn',
+      () async {
+        final agent = _FakeAgent(responseText: 'reply');
+        final executor = ChatProtocolExecutor(agent, id: 'agent');
+        final context = CollectingWorkflowContext('agent');
+
+        await executor.handle('first', context);
+        await executor.handle('second', context);
+
+        expect(agent.runMessages.length, 2);
+        expect(agent.runMessages[0].single.text, 'first');
+        expect(agent.runMessages[1].single.text, 'second');
+      },
+    );
+
+    test(
+      'chatProtocolExecutor_EmptyCollection_HandledCorrectly',
+      () async {
+        final agent = _FakeAgent(responseText: 'reply');
+        final executor = ChatProtocolExecutor(agent, id: 'agent');
+        final context = CollectingWorkflowContext('agent');
+
+        final result = await executor.handle(
+          <ChatMessage>[],
+          context,
+        );
+
+        expect(result.text, 'reply');
+        expect(agent.runMessages.single, isEmpty);
+      },
+    );
+
+    test(
+      'chatProtocolExecutor_MultipleTurns_EachTurnProcessesSeparately',
+      () async {
+        final agent = _FakeAgent(responseText: 'pong');
+        final executor = ChatProtocolExecutor(agent, id: 'agent');
+        final context = CollectingWorkflowContext('agent');
+
+        final r1 = await executor.handle('one', context);
+        final r2 = await executor.handle('two', context);
+        final r3 = await executor.handle('three', context);
+
+        expect(r1.text, 'pong');
+        expect(r2.text, 'pong');
+        expect(r3.text, 'pong');
+        expect(agent.runMessages.length, 3);
+        expect(agent.createSessionCount, 1);
+      },
+    );
   });
 
   group('AIAgentBinding', () {

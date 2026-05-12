@@ -411,6 +411,125 @@ void main() {
         ]);
       },
     );
+
+    test(
+      'handoffs_ReturnToPrevious_DisabledByDefault'
+      '_SecondTurnRoutesViaCoordinator',
+      () async {
+        late String transferName;
+        var coordinatorRunCount = 0;
+        final coordinator = _ScriptedAgent(
+          name: 'coordinator',
+          onRun: (messages, options) {
+            coordinatorRunCount++;
+            if (coordinatorRunCount == 1) {
+              transferName = (options as ChatClientAgentRunOptions)
+                  .chatOptions!
+                  .tools!
+                  .single
+                  .name;
+              return _functionCall('call1', transferName);
+            }
+            return _assistant('coordinator:${messages.last.text}');
+          },
+        );
+        final specialist = _ScriptedAgent(
+          name: 'specialist',
+          description: 'Specialist',
+          onRun: (messages, options) => _assistant('specialist'),
+        );
+        final workflow = AgentWorkflowBuilder.createHandoffBuilderWith(
+          coordinator,
+        ).withHandoff(coordinator, specialist).build();
+
+        await _runForMessages(workflow, [
+          ChatMessage.fromText(ChatRole.user, 'first'),
+        ]);
+        final second = await _runForMessages(workflow, [
+          ChatMessage.fromText(ChatRole.user, 'second'),
+        ]);
+
+        expect(second.last.authorName, 'coordinator');
+        expect(coordinator.runMessages.length, 2);
+      },
+    );
+
+    test(
+      'handoffs_ReturnToPrevious_Enabled'
+      '_BeforeAnyHandoff_RoutesViaInitialAgent',
+      () async {
+        var coordinatorRunCount = 0;
+        final coordinator = _ScriptedAgent(
+          name: 'coordinator',
+          onRun: (messages, options) {
+            coordinatorRunCount++;
+            return _assistant('coordinator:${messages.last.text}');
+          },
+        );
+        final specialist = _ScriptedAgent(
+          name: 'specialist',
+          description: 'Specialist',
+          onRun: (messages, options) => _assistant('specialist'),
+        );
+        final workflow = AgentWorkflowBuilder.createHandoffBuilderWith(
+          coordinator,
+        ).withHandoff(coordinator, specialist).enableReturnToPrevious().build();
+
+        await _runForMessages(workflow, [
+          ChatMessage.fromText(ChatRole.user, 'first'),
+        ]);
+        final second = await _runForMessages(workflow, [
+          ChatMessage.fromText(ChatRole.user, 'second'),
+        ]);
+
+        expect(second.last.authorName, 'coordinator');
+        expect(coordinatorRunCount, 2);
+        expect(specialist.runMessages, isEmpty);
+      },
+    );
+
+    test(
+      'handoffs_ReentrantHandoff'
+      '_FunctionResultSentToAgentOnSubsequentInvocation',
+      () async {
+        var runCount = 0;
+        late String transferName;
+        final agent = _ScriptedAgent(
+          name: 'agent',
+          description: 'Self-referring agent',
+          onRun: (messages, options) {
+            runCount++;
+            if (runCount == 1) {
+              transferName = (options as ChatClientAgentRunOptions)
+                  .chatOptions!
+                  .tools!
+                  .single
+                  .name;
+              return _functionCall('call1', transferName);
+            }
+            return _assistant('agent:done');
+          },
+        );
+        final workflow = AgentWorkflowBuilder.createHandoffBuilderWith(
+          agent,
+        ).withHandoff(agent, agent).build();
+
+        final output = await _runForMessages(workflow, [
+          ChatMessage.fromText(ChatRole.user, 'go'),
+        ]);
+
+        expect(runCount, 2);
+        expect(output.last.text, 'agent:done');
+        expect(
+          agent.runMessages.last.any(
+            (message) => message.contents.any(
+              (c) => c is FunctionResultContent,
+            ),
+          ),
+          isFalse,
+        );
+      },
+    );
   });
 
   group('Specialized handoff models', () {

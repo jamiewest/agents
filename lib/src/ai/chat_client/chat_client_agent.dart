@@ -329,7 +329,9 @@ final class ChatClientAgent extends AIAgent {
   @override
   Object? getService(Type serviceType, {Object? serviceKey}) {
     return super.getService(serviceType, serviceKey: serviceKey) ??
-        (serviceType == AIAgentMetadata
+        (serviceType == ChatClientAgent
+            ? this
+            : serviceType == AIAgentMetadata
             ? _agentMetadata
             : serviceType == ChatClient
             ? chatClient
