@@ -21,7 +21,6 @@ import 'package:agents/src/ai/skills/decorators/filtering_agent_skills_source.da
 import 'package:agents/src/ai/skills/file/agent_file_skill.dart';
 import 'package:agents/src/ai/skills/file/agent_file_skill_script.dart';
 import 'package:agents/src/ai/skills/file/agent_file_skills_source.dart';
-import 'package:agents/src/ai/skills/file/agent_file_skills_source_options.dart';
 import 'package:agents/src/ai/skills/programmatic/agent_inline_skill.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';

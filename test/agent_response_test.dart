@@ -1,5 +1,4 @@
 import 'package:agents/src/abstractions/agent_response.dart';
-import 'package:agents/src/abstractions/agent_response_update.dart';
 import 'package:extensions/ai.dart';
 import 'package:test/test.dart';
 
@@ -27,9 +26,7 @@ void main() {
     });
 
     test('constructorWithChatResponseRoundtrips', () {
-      final chatMessages = [
-        ChatMessage.fromText(ChatRole.assistant, 'hi'),
-      ];
+      final chatMessages = [ChatMessage.fromText(ChatRole.assistant, 'hi')];
       final chatResponse = ChatResponse(
         messages: chatMessages,
         finishReason: ChatFinishReason.stop,
@@ -98,10 +95,7 @@ void main() {
       final updates = response.toAgentResponseUpdates();
 
       expect(updates, hasLength(1));
-      expect(
-        updates.first.contents.whereType<UsageContent>(),
-        isNotEmpty,
-      );
+      expect(updates.first.contents.whereType<UsageContent>(), isNotEmpty);
     });
   });
 }

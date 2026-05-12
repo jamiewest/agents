@@ -1,3 +1,4 @@
+// ignore_for_file: non_constant_identifier_names, avoid_types_as_parameter_names
 import 'dart:typed_data';
 
 import 'package:agents/src/abstractions/agent_response.dart';

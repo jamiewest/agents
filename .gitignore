@@ -19,10 +19,12 @@ packages/atlas_app/build/
 .claude
 
 .genkit
+AGENTS.md
 CLAUDE.md
 GEMINI.md
 rules.md
 documentation.md
+packages.md
 
 .vscode/
 

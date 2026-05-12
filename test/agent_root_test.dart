@@ -1,3 +1,4 @@
+// ignore_for_file: non_constant_identifier_names
 import 'package:agents/src/abstractions/agent_response.dart';
 import 'package:agents/src/abstractions/agent_response_update.dart';
 import 'package:agents/src/abstractions/agent_run_options.dart';
@@ -6,7 +7,6 @@ import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
 import 'package:agents/src/abstractions/ai_context_provider.dart';
-import 'package:agents/src/abstractions/message_ai_context_provider.dart';
 import 'package:agents/src/ai/agent_extensions.dart';
 import 'package:agents/src/ai/logging_agent.dart';
 import 'package:agents/src/ai/logging_agent_builder_extensions.dart';

@@ -1,3 +1,4 @@
+// ignore_for_file: non_constant_identifier_names
 import 'package:agents/src/abstractions/agent_response.dart';
 import 'package:agents/src/abstractions/agent_response_update.dart';
 import 'package:agents/src/abstractions/agent_run_options.dart';
@@ -160,13 +161,8 @@ void main() {
 }
 
 class _TestAgent extends AIAgent {
-  _TestAgent({
-    this.responseText = 'response',
-    this.nameValue,
-    this.descriptionValue,
-  });
+  _TestAgent({this.nameValue, this.descriptionValue});
 
-  final String responseText;
   final String? nameValue;
   final String? descriptionValue;
   List<ChatMessage> capturedMessages = [];
@@ -214,7 +210,7 @@ class _TestAgent extends AIAgent {
     capturedOptions = options;
     capturedCancellationToken = cancellationToken;
     return AgentResponse(
-      message: ChatMessage.fromText(ChatRole.assistant, responseText),
+      message: ChatMessage.fromText(ChatRole.assistant, 'response'),
     );
   }
 
@@ -229,7 +225,7 @@ class _TestAgent extends AIAgent {
     capturedSession = session;
     yield AgentResponseUpdate(
       role: ChatRole.assistant,
-      content: responseText,
+      content: 'response',
     );
   }
 }
