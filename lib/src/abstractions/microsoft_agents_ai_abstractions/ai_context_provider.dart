@@ -181,6 +181,9 @@ abstract class AIContextProvider {
   Object? getService(Type serviceType, {Object? serviceKey}) {
     return serviceType == AIContextProvider ? this : null;
   }
+
+  /// Returns a service of type [T], or `null`.
+  T? getServiceOf<T extends Object>() => getService(T) as T?;
 }
 
 /// Context passed to [AIContextProvider.invoked].
@@ -189,9 +192,9 @@ class InvokedContext {
     this.agent,
     this.session,
     this.requestMessages, {
-    Iterable<ChatMessage>? responseMessages,
+    this.responseMessages,
     this.invokeException,
-  }) : responseMessages = responseMessages;
+  });
 
   /// The agent that was invoked.
   final AIAgent agent;

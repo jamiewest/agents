@@ -11,9 +11,7 @@ abstract class AgentSkillScript {
   /// [name] The script name.
   ///
   /// [description] An optional description of the script.
-  AgentSkillScript(String name, {String? description = null}) : name = name {
-    this.description = description;
-  }
+  AgentSkillScript(this.name, {this.description});
 
   /// Gets the script name.
   final String name;

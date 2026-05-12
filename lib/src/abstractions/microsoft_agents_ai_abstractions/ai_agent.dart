@@ -1,3 +1,4 @@
+// ignore_for_file: non_constant_identifier_names
 import 'dart:math';
 
 import 'package:extensions/ai.dart';
@@ -45,6 +46,9 @@ abstract class AIAgent {
   Object? getService(Type serviceType, {Object? serviceKey}) {
     return serviceType == AIAgent ? this : null;
   }
+
+  /// Returns a service of type [T], or `null`.
+  T? getServiceOf<T extends Object>() => getService(T) as T?;
 
   /// Creates a new conversation session compatible with this agent.
   Future<AgentSession> createSession({CancellationToken? cancellationToken}) {
@@ -100,8 +104,8 @@ abstract class AIAgent {
   /// already in [session].
   Future<AgentResponse> run(
     AgentSession? session,
-    AgentRunOptions? options,
-    CancellationToken cancellationToken, {
+    AgentRunOptions? options, {
+    CancellationToken? cancellationToken,
     String? message,
     Iterable<ChatMessage>? messages,
   }) {
@@ -125,8 +129,8 @@ abstract class AIAgent {
   /// Runs the agent in streaming mode.
   Stream<AgentResponseUpdate> runStreaming(
     AgentSession? session,
-    AgentRunOptions? options,
-    CancellationToken cancellationToken, {
+    AgentRunOptions? options, {
+    CancellationToken? cancellationToken,
     String? message,
     Iterable<ChatMessage>? messages,
   }) {

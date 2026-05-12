@@ -1,8 +1,5 @@
-import 'agent_abstractions_json_utilities.dart';
 import 'agent_session.dart';
 import 'agent_session_state_bag.dart';
-import 'ai_context_provider.dart';
-import 'chat_history_provider.dart';
 
 /// Provides strongly-typed state management for providers, enabling reading
 /// and writing of provider-specific state to/from an [AgentSession]'s
@@ -10,17 +7,13 @@ import 'chat_history_provider.dart';
 ///
 /// [TState] The type of the state to be maintained.
 class ProviderSessionState<TState> {
-  /// Creates a [ProviderSessionState] with the given [stateInitializer],
-  /// [stateKey], and optional [JsonSerializerOptions].
-  ProviderSessionState(
-    this._stateInitializer,
-    this.stateKey, {
-    Object? JsonSerializerOptions,
-  }) : _jsonSerializerOptions =
-            JsonSerializerOptions ?? AgentAbstractionsJsonUtilities.defaultOptions;
+  /// Creates a [ProviderSessionState] with the given [stateInitializer] and
+  /// [stateKey].
+  // ignore_for_file: non_constant_identifier_names
+  ProviderSessionState(this._stateInitializer, this.stateKey,
+      {Object? JsonSerializerOptions});
 
   final TState Function(AgentSession?) _stateInitializer;
-  final Object _jsonSerializerOptions;
 
   /// The key used to store the provider state in the [AgentSessionStateBag].
   final String stateKey;

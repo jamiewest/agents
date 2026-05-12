@@ -13,10 +13,7 @@ class EvalCheckResult {
   /// [Reason] Human-readable explanation.
   ///
   /// [CheckName] Name of the check that produced this result.
-  const EvalCheckResult(bool passed, String reason, String checkName)
-    : passed = passed,
-      reason = reason,
-      checkName = checkName;
+  const EvalCheckResult(this.passed, this.reason, this.checkName);
 
   /// Whether the check passed.
   final bool passed;

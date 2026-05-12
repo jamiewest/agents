@@ -419,7 +419,7 @@ Only load what is needed, when it is needed.''';
         loggerFactory: loggerFactory,
       );
     }
-    final paths = [if (skillPath != null) skillPath, ...?skillPaths];
+    final paths = [?skillPath, ...?skillPaths];
     if (paths.isNotEmpty) {
       return DeduplicatingAgentSkillsSource(
         AgentFileSkillsSource(

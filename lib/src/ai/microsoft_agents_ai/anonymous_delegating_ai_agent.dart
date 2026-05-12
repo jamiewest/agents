@@ -58,14 +58,13 @@ class AnonymousDelegatingAIAgent extends DelegatingAIAgent {
   /// Creates an [AnonymousDelegatingAIAgent] from an [innerAgent] and at
   /// least one of [sharedFunc], [runFunc], or [runStreamingFunc].
   AnonymousDelegatingAIAgent(
-    AIAgent innerAgent, {
+    super.innerAgent, {
     SharedAgentRunDelegate? sharedFunc,
     RunAgentDelegate? runFunc,
     RunStreamingAgentDelegate? runStreamingFunc,
   }) : _sharedFunc = sharedFunc,
        _runFunc = runFunc,
-       _runStreamingFunc = runStreamingFunc,
-       super(innerAgent) {
+       _runStreamingFunc = runStreamingFunc {
     throwIfBothDelegatesNull(runFunc, runStreamingFunc);
   }
 

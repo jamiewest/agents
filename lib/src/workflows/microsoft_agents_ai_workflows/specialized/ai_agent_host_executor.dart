@@ -81,7 +81,7 @@ class AIAgentHostExecutor extends Executor<Object?, List<ChatMessage>>
   ) async => agent.run(
     await _ensureSession(cancellationToken),
     null,
-    cancellationToken,
+    cancellationToken: cancellationToken,
     messages: messages,
   );
 
@@ -94,7 +94,7 @@ class AIAgentHostExecutor extends Executor<Object?, List<ChatMessage>>
     await for (final update in agent.runStreaming(
       await _ensureSession(cancellationToken),
       null,
-      cancellationToken,
+      cancellationToken: cancellationToken,
       messages: messages,
     )) {
       updates.add(update);

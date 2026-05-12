@@ -11,9 +11,7 @@ class AgentFileSkillResource extends AgentSkillResource {
   /// [name] The resource name (relative path within the skill directory).
   ///
   /// [fullPath] The absolute file path to the resource.
-  AgentFileSkillResource(String name, String fullPath)
-    : fullPath = fullPath,
-      super(name) {}
+  AgentFileSkillResource(super.name, this.fullPath);
 
   /// Gets the absolute file path to the resource.
   final String fullPath;
@@ -23,6 +21,6 @@ class AgentFileSkillResource extends AgentSkillResource {
     ServiceProvider? serviceProvider,
     CancellationToken? cancellationToken,
   }) async {
-    return await File(this.fullPath).readAsString();
+    return await File(fullPath).readAsString();
   }
 }

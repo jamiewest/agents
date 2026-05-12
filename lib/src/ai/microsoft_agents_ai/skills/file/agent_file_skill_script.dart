@@ -10,11 +10,10 @@ import 'agent_file_skill_script_runner.dart';
 /// A file-path-backed skill script.
 class AgentFileSkillScript extends AgentSkillScript {
   AgentFileSkillScript(
-    String name,
+    super.name,
     this.fullPath, {
     AgentFileSkillScriptRunner? runner,
-  }) : _runner = runner,
-       super(name);
+  }) : _runner = runner;
 
   static const JsonElement defaultSchema = JsonElement({
     'type': 'array',

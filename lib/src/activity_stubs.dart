@@ -1,6 +1,7 @@
 /// Stub types for .NET System.Diagnostics.Activity / OpenTelemetry tracing.
 /// These are placeholders until a proper Dart OpenTelemetry integration is
 /// implemented. All methods are no-ops in this stub implementation.
+library;
 
 /// Mirrors System.Diagnostics.ActivityKind.
 enum ActivityKind {

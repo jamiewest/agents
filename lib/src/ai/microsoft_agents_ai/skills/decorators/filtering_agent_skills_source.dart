@@ -3,21 +3,19 @@ import 'package:extensions/system.dart';
 
 import '../../../../func_typedefs.dart';
 import '../agent_skill.dart';
-import '../agent_skills_source.dart';
 import 'delegating_agent_skills_source.dart';
 
 /// A skill source decorator that filters skills using a caller-supplied
 /// predicate.
 class FilteringAgentSkillsSource extends DelegatingAgentSkillsSource {
   FilteringAgentSkillsSource(
-    AgentSkillsSource innerSource,
+    super.innerSource,
     Func<AgentSkill, bool> predicate, {
     LoggerFactory? loggerFactory,
   }) : _predicate = predicate,
        _logger = (loggerFactory ?? NullLoggerFactory.instance).createLogger(
          'FilteringAgentSkillsSource',
-       ),
-       super(innerSource);
+       );
 
   final Func<AgentSkill, bool> _predicate;
   final Logger _logger;

@@ -151,7 +151,7 @@ class HandoffStartExecutor extends Executor<Object?, List<ChatMessage>>
     return agent.run(
       session,
       _createAgentOptions(agent),
-      cancellationToken,
+      cancellationToken: cancellationToken,
       messages: _changeAssistantToUserForOtherParticipants(
         messages,
         agent.name ?? agent.id,

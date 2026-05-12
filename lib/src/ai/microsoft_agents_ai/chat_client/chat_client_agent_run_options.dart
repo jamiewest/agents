@@ -6,8 +6,7 @@ import '../../../abstractions/microsoft_agents_ai_abstractions/agent_run_options
 /// extending the base agent run options with chat-specific configuration.
 class ChatClientAgentRunOptions extends AgentRunOptions {
   /// Creates a [ChatClientAgentRunOptions] with optional chat options.
-  ChatClientAgentRunOptions({ChatOptions? chatOptions})
-    : chatOptions = chatOptions;
+  ChatClientAgentRunOptions({this.chatOptions});
 
   /// Chat options to apply for this specific invocation.
   ///

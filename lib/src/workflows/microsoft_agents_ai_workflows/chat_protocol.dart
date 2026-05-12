@@ -25,12 +25,18 @@ class ChatProtocol {
   }
 
   /// Converts workflow input into chat messages.
-  static List<ChatMessage> toChatMessages(Object? input) {
+  ///
+  /// [stringRole] controls the [ChatRole] assigned to bare [String] inputs;
+  /// defaults to [ChatRole.user].
+  static List<ChatMessage> toChatMessages(
+    Object? input, {
+    ChatRole stringRole = ChatRole.user,
+  }) {
     if (input == null) {
       return const <ChatMessage>[];
     }
     if (input is String) {
-      return <ChatMessage>[ChatMessage.fromText(ChatRole.user, input)];
+      return <ChatMessage>[ChatMessage.fromText(stringRole, input)];
     }
     if (input is ChatMessage) {
       return <ChatMessage>[input];

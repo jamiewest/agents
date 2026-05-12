@@ -14,6 +14,12 @@ class ProtocolBuilder {
     return this;
   }
 
+  /// Marks this protocol as accepting messages of the given runtime [type].
+  ProtocolBuilder acceptsMessageType(Type type) {
+    _addUnique(_acceptedTypes, type);
+    return this;
+  }
+
   /// Marks this protocol as accepting every message type.
   ProtocolBuilder acceptsAllMessages() {
     _acceptsAll = true;

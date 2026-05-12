@@ -47,7 +47,7 @@ extension AIAgentExtensions on AIAgent {
         final response = await run(
           session,
           AgentRunOptions(),
-          cancellationToken ?? CancellationToken.none,
+          cancellationToken: cancellationToken,
           message: query,
         );
         return response.text;

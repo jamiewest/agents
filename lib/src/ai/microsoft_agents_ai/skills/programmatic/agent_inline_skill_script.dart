@@ -9,12 +9,12 @@ import '../agent_skill_script.dart';
 /// A skill script backed by a delegate.
 class AgentInlineSkillScript extends AgentSkillScript {
   AgentInlineSkillScript(
-    String name,
+    super.name,
     String? description,
     JsonSerializerOptions? serializerOptions, {
     Function? method,
   }) : _method = method,
-       super(name, description: description);
+       super(description: description);
 
   final Function? _method;
 

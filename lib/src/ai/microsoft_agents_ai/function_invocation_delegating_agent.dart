@@ -21,10 +21,9 @@ typedef FunctionInvocationDelegateFunc =
 /// Internal agent decorator that adds function invocation middleware logic.
 class FunctionInvocationDelegatingAgent extends DelegatingAIAgent {
   FunctionInvocationDelegatingAgent(
-    AIAgent innerAgent,
+    super.innerAgent,
     FunctionInvocationDelegateFunc delegateFunc,
-  ) : _delegateFunc = delegateFunc,
-      super(innerAgent);
+  ) : _delegateFunc = delegateFunc;
 
   final FunctionInvocationDelegateFunc _delegateFunc;
 

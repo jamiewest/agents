@@ -32,7 +32,7 @@ void _registerWorkflow(
   Workflow Function(ServiceProvider, String) factory,
   ServiceLifetime lifetime,
 ) {
-  KeyedImplementationFactory keyed = (sp, key) {
+  Object keyed(ServiceProvider sp, Object? key) {
     final keyString = key is String ? key : name;
     final workflow = factory(sp, keyString);
     if (workflow.name != null && workflow.name != keyString) {
@@ -42,7 +42,7 @@ void _registerWorkflow(
       );
     }
     return workflow;
-  };
+  }
   switch (lifetime) {
     case ServiceLifetime.singleton:
       services.addKeyedSingleton<Workflow>(name, keyed);

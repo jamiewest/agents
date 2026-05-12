@@ -491,7 +491,7 @@ You have access to sub-agents that can perform work on your behalf.
         agent.run(
           subSession,
           null,
-          cancellationToken ?? CancellationToken.none,
+          cancellationToken: cancellationToken,
           message: input,
         ),
       );

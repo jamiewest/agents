@@ -42,7 +42,7 @@ class MessageAIContextProviderAgent extends DelegatingAIAgent {
       response = await innerAgent.run(
         session,
         options,
-        cancellationToken ?? CancellationToken.none,
+        cancellationToken: cancellationToken,
         messages: enriched,
       );
     } on Exception catch (ex) {
@@ -75,7 +75,7 @@ class MessageAIContextProviderAgent extends DelegatingAIAgent {
       await for (final update in innerAgent.runStreaming(
         session,
         options,
-        cancellationToken ?? CancellationToken.none,
+        cancellationToken: cancellationToken,
         messages: enriched,
       )) {
         updates.add(update);

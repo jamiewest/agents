@@ -118,7 +118,7 @@ void main() {
       final response = await agent.run(
         session,
         null,
-        CancellationToken.none,
+        cancellationToken: CancellationToken.none,
         message: 'hello',
       );
 
@@ -153,7 +153,7 @@ void main() {
           .runStreaming(
             await agent.createSession(),
             null,
-            CancellationToken.none,
+            cancellationToken: CancellationToken.none,
             message: 'go',
           )
           .toList();

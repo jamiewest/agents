@@ -3,15 +3,13 @@ import 'package:extensions/ai.dart';
 /// Represents the YAML frontmatter metadata parsed from a SKILL.md file.
 class AgentSkillFrontmatter {
   AgentSkillFrontmatter(
-    String name,
-    String description, {
+    this.name,
+    this.description, {
     String? compatibility,
     this.license,
     this.allowedTools,
     this.metadata,
-  }) : name = name,
-       description = description,
-       _compatibility = compatibility {
+  }) : _compatibility = compatibility {
     final (validName, nameReason) = validateName(name);
     if (!validName) {
       throw ArgumentError(nameReason);

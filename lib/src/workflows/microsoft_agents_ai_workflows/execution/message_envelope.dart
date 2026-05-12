@@ -19,6 +19,10 @@ class MessageEnvelope {
   /// Gets the message payload.
   final Object? message;
 
+  /// Returns `true` when this envelope originated from outside the workflow
+  /// (i.e. [sourceExecutorId] is `null`).
+  bool get isExternal => sourceExecutorId == null;
+
   /// Converts this envelope to a portable checkpoint envelope.
   PortableMessageEnvelope toPortable({
     WireMarshaller wireMarshaller = const WireMarshaller(),

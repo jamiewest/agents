@@ -15,14 +15,13 @@ abstract class DelegatingAgentSkillsSource extends AgentSkillsSource {
   ///
   /// [innerSource] The underlying skill source that will handle the core
   /// operations.
-  DelegatingAgentSkillsSource(AgentSkillsSource innerSource)
-    : innerSource = innerSource {}
+  DelegatingAgentSkillsSource(this.innerSource);
 
   /// Gets the inner skill source that receives delegated operations.
   final AgentSkillsSource innerSource;
 
   @override
   Future<List<AgentSkill>> getSkills({CancellationToken? cancellationToken}) {
-    return this.innerSource.getSkills(cancellationToken: cancellationToken);
+    return innerSource.getSkills(cancellationToken: cancellationToken);
   }
 }

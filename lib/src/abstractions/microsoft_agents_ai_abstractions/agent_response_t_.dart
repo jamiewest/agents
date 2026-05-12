@@ -1,4 +1,3 @@
-import 'package:extensions/ai.dart';
 import 'dart:convert';
 
 import 'agent_response.dart';
@@ -22,6 +21,10 @@ class AgentResponseOf<T> extends AgentResponse {
 
   /// The deserialized result value.
   final T result;
+
+  /// Whether [result] was unwrapped from a top-level JSON object during
+  /// deserialization. Set by [AgentResponseExtensions] when applicable.
+  bool isWrappedInObject = false;
 
   /// Attempts to deserialize the first top-level JSON Object from [json] into
   /// type [T].

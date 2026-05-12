@@ -47,7 +47,7 @@ void main() {
       final response = await built.run(
         null,
         null,
-        CancellationToken.none,
+        cancellationToken: CancellationToken.none,
         message: 'hello',
       );
 

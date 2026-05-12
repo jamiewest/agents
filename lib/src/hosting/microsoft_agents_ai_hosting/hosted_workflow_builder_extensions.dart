@@ -1,5 +1,4 @@
 import 'package:extensions/dependency_injection.dart';
-import 'package:extensions/ai.dart';
 
 import 'host_application_builder_agent_extensions.dart';
 import 'hosted_agent_builder.dart';

@@ -62,7 +62,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       final response = await innerAgent.run(
         session,
         options,
-        cancellationToken ?? CancellationToken.none,
+        cancellationToken: cancellationToken,
         messages: processedMessages,
       );
       final allAutoApproved = processAndQueueOutboundApprovalRequests(
@@ -108,7 +108,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       await for (final update in innerAgent.runStreaming(
         session,
         options,
-        cancellationToken ?? CancellationToken.none,
+        cancellationToken: cancellationToken,
         messages: processedMessages,
       )) {
         final approvalRequests = update.contents

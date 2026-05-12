@@ -14,6 +14,6 @@ class AgentInMemorySkillsSource extends AgentSkillsSource {
 
   @override
   Future<List<AgentSkill>> getSkills({CancellationToken? cancellationToken}) {
-    return Future.value(this._skills);
+    return Future.value(_skills);
   }
 }

@@ -54,7 +54,7 @@ class JsonElement {
   String toString() => convert.json.encode(_value);
 }
 
-/// Mirrors C# System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>.
+/// Mirrors C# `System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>`.
 abstract class JsonTypeInfo<T> {
   const JsonTypeInfo();
 }
@@ -93,7 +93,7 @@ class JsonSerializer {
   }
 }
 
-/// Mirrors C# System.Text.Json.Serialization.JsonConverter<T>.
+/// Mirrors C# `System.Text.Json.Serialization.JsonConverter<T>`.
 abstract class JsonConverter<T> {
   T? read(Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options);
   void write(Utf8JsonWriter writer, T value, JsonSerializerOptions options);

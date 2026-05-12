@@ -9,9 +9,7 @@ abstract class AgentSkillResource {
   /// [name] The resource name (e.g., relative path or identifier).
   ///
   /// [description] An optional description of the resource.
-  AgentSkillResource(String name, {String? description = null}) : name = name {
-    this.description = description;
-  }
+  AgentSkillResource(this.name, {this.description});
 
   /// Gets the resource name.
   final String name;

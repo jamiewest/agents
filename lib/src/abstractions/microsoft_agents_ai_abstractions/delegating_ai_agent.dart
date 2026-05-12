@@ -1,3 +1,4 @@
+// ignore_for_file: non_constant_identifier_names
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 

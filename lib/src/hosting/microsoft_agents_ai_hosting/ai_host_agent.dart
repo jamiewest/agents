@@ -1,6 +1,4 @@
-import 'package:extensions/hosting.dart';
 import 'package:extensions/system.dart';
-import 'package:extensions/ai.dart';
 
 import '../../abstractions/microsoft_agents_ai_abstractions/ai_agent.dart';
 import '../../abstractions/microsoft_agents_ai_abstractions/agent_session.dart';
@@ -14,7 +12,7 @@ import 'agent_session_store.dart';
 /// persist and restore conversation threads using an [AgentSessionStore].
 class AIHostAgent extends DelegatingAIAgent {
   /// Creates an [AIHostAgent] wrapping [innerAgent] with [sessionStore].
-  AIHostAgent(AIAgent innerAgent, this._sessionStore) : super(innerAgent);
+  AIHostAgent(super.innerAgent, this._sessionStore);
 
   final AgentSessionStore _sessionStore;
 

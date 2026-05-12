@@ -65,7 +65,7 @@ class GroupChatHost extends Executor<Object?, List<ChatMessage>>
       final response = await nextAgent.run(
         session,
         null,
-        token,
+        cancellationToken: token,
         messages: List<ChatMessage>.of(filtered),
       );
       history.addAll(_normalizeAuthor(response, nextAgent));

@@ -9,6 +9,7 @@ class ChatClientAgentSession extends AgentSession {
     String? conversationId,
     AgentSessionStateBag? stateBag,
   }) : super(stateBag ?? AgentSessionStateBag(null)) {
+    // ignore: prefer_initializing_formals
     this.conversationId = conversationId;
   }
 

@@ -11,6 +11,9 @@ abstract class ExecutorBinding implements Identified {
   @override
   final String id;
 
+  /// Gets whether this binding is a placeholder with no backing factory.
+  bool get isPlaceholder => false;
+
   /// Gets whether this binding reuses a shared executor instance.
   bool get isSharedInstance => false;
 

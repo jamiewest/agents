@@ -8,7 +8,7 @@ import '../agent_skill_resource.dart';
 /// delegate.
 class AgentInlineSkillResource extends AgentSkillResource {
   AgentInlineSkillResource(
-    String name,
+    super.name,
     String? description, {
     Object? value,
     Future<Object?> Function({
@@ -21,7 +21,7 @@ class AgentInlineSkillResource extends AgentSkillResource {
   }) : _value = value,
        _callback = callback,
        _method = method,
-       super(name, description: description);
+       super(description: description);
 
   final Object? _value;
   final Future<Object?> Function({

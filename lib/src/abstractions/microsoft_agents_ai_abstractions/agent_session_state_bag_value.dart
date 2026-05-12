@@ -1,5 +1,4 @@
-import 'dart:convert';
-
+// ignore_for_file: non_constant_identifier_names
 /// Stores a single value in an [AgentSessionStateBag].
 ///
 /// Values are held as deserialized objects and serialized to JSON on demand.
@@ -35,6 +34,10 @@ class AgentSessionStateBagValue {
   }
 
   /// Serializes the stored value to a JSON-compatible Object.
+  ///
+  /// Note: `JsonSerializerOptions` accepted by the write methods is not applied
+  /// here — `dart:convert` has no equivalent customisation hook, so the raw
+  /// value is returned and `jsonEncode` is applied by the caller when needed.
   Object? toJson() => _value;
 
   /// Creates an [AgentSessionStateBagValue] from a JSON-decoded value.

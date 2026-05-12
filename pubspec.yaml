@@ -1,7 +1,10 @@
 name: agents
-description: A starting point for Dart libraries or applications.
+description: >-
+  Dart port of the Microsoft Agents AI framework. Build, compose, and
+  orchestrate AI agents backed by any ChatClient — with sessions, streaming,
+  tool use, compaction, evaluation, and middleware pipelines.
 version: 1.0.0
-# repository: https://github.com/my_org/my_repo
+repository: https://github.com/jamiewest/agents
 
 environment:
   sdk: ^3.11.5
@@ -9,6 +12,7 @@ environment:
 # Add regular dependencies here.
 dependencies:
   extensions: ^0.3.21
+  opentelemetry: ^0.18.10
   path: ^1.9.0
 
 dev_dependencies:

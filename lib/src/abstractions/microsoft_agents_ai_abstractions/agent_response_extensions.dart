@@ -77,7 +77,7 @@ extension AgentResponseUpdateIterableExtensions
         );
         messages.add(current);
       }
-      current!.contents.addAll(update.contents);
+      current.contents.addAll(update.contents);
     }
     return ChatResponse(
       messages: messages,

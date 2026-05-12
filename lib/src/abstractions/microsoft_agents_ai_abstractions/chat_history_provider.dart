@@ -75,7 +75,7 @@ abstract class ChatHistoryProvider {
         await provideChatHistory(context, cancellationToken: cancellationToken);
 
     if (_provideOutputMessageFilter != null) {
-      output = _provideOutputMessageFilter!(output);
+      output = _provideOutputMessageFilter(output);
     }
 
     final stamped = output.map((m) => m.withAgentRequestMessageSource(
@@ -139,9 +139,9 @@ class InvokedContext {
     this.agent,
     this.session,
     this.requestMessages, {
-    Iterable<ChatMessage>? responseMessages,
+    this.responseMessages,
     this.invokeException,
-  }) : responseMessages = responseMessages;
+  });
 
   /// The agent that was invoked.
   final AIAgent agent;

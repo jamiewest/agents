@@ -62,7 +62,7 @@ extension AgentEvaluationExtensions on AIAgent {
     }
 
     final evaluatorList = <AgentEvaluator>[
-      if (evaluator != null) evaluator,
+      ?evaluator,
       ...?evaluators,
     ];
     if (evaluatorList.isEmpty && chatConfiguration != null) {
@@ -94,7 +94,7 @@ extension AgentEvaluationExtensions on AIAgent {
             : await run(
                 null,
                 AgentRunOptions(),
-                cancellationToken,
+                cancellationToken: cancellationToken,
                 message: query,
               );
         final responseMessages = response.messages.isNotEmpty

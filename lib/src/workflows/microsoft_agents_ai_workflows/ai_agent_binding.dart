@@ -34,6 +34,9 @@ class AIAgentBinding implements ExecutorBinding {
   final String id;
 
   @override
+  bool get isPlaceholder => false;
+
+  @override
   bool get isSharedInstance => false;
 
   @override

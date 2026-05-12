@@ -2,19 +2,17 @@ import 'package:extensions/logging.dart';
 import 'package:extensions/system.dart';
 
 import '../agent_skill.dart';
-import '../agent_skills_source.dart';
 import 'delegating_agent_skills_source.dart';
 
 /// A skill source decorator that removes duplicate skills by name, keeping
 /// only the first occurrence.
 class DeduplicatingAgentSkillsSource extends DelegatingAgentSkillsSource {
   DeduplicatingAgentSkillsSource(
-    AgentSkillsSource innerSource, {
+    super.innerSource, {
     LoggerFactory? loggerFactory,
   }) : _logger = (loggerFactory ?? NullLoggerFactory.instance).createLogger(
          'DeduplicatingAgentSkillsSource',
-       ),
-       super(innerSource);
+       );
 
   final Logger _logger;
 

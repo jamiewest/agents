@@ -29,7 +29,7 @@ extension AIAgentStructuredOutputExtensions on AIAgent {
     final response = await run(
       session,
       options,
-      cancellationToken ?? CancellationToken(),
+      cancellationToken: cancellationToken,
       message: message,
       messages: messages,
     );

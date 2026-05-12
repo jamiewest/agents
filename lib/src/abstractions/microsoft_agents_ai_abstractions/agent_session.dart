@@ -1,5 +1,4 @@
 import 'agent_session_state_bag.dart';
-import 'chat_history_provider.dart';
 
 /// Base abstraction for all agent threads.
 ///

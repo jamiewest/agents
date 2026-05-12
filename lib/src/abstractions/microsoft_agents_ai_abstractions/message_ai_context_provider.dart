@@ -18,14 +18,10 @@ import 'chat_message_extensions.dart';
 abstract class MessageAIContextProvider extends AIContextProvider {
   /// Creates a [MessageAIContextProvider] with optional message filters.
   MessageAIContextProvider({
-    Iterable<ChatMessage> Function(Iterable<ChatMessage>)? provideInputMessageFilter,
-    Iterable<ChatMessage> Function(Iterable<ChatMessage>)? storeInputRequestMessageFilter,
-    Iterable<ChatMessage> Function(Iterable<ChatMessage>)? storeInputResponseMessageFilter,
-  }) : super(
-          provideInputMessageFilter: provideInputMessageFilter,
-          storeInputRequestMessageFilter: storeInputRequestMessageFilter,
-          storeInputResponseMessageFilter: storeInputResponseMessageFilter,
-        );
+    super.provideInputMessageFilter,
+    super.storeInputRequestMessageFilter,
+    super.storeInputResponseMessageFilter,
+  });
 
   @override
   Future<AIContext> provideAIContext(
