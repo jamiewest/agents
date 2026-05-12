@@ -1,9 +1,10 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
 import 'package:extensions/system.dart';
+import 'package:file/file.dart';
+import 'package:file/local.dart';
 import 'package:path/path.dart' as p;
 
 import '../agent_skill.dart';
@@ -23,8 +24,10 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     AgentFileSkillScriptRunner? scriptRunner,
     AgentFileSkillsSourceOptions? options,
     LoggerFactory? loggerFactory,
+    FileSystem fs = const LocalFileSystem(),
   }) : _skillPaths = List<String>.of(skillPaths),
        _scriptRunner = scriptRunner,
+       _fs = fs,
        _logger = (loggerFactory ?? NullLoggerFactory.instance).createLogger(
          'AgentFileSkillsSource',
        ) {
@@ -80,13 +83,14 @@ class AgentFileSkillsSource extends AgentSkillsSource {
   late final List<String> _scriptDirectories;
   late final List<String> _resourceDirectories;
   final AgentFileSkillScriptRunner? _scriptRunner;
+  final FileSystem _fs;
   final Logger _logger;
 
   @override
   Future<List<AgentSkill>> getSkills({
     CancellationToken? cancellationToken,
   }) async {
-    final discoveredPaths = discoverSkillDirectories(_skillPaths);
+    final discoveredPaths = discoverSkillDirectories(_skillPaths, _fs);
     logSkillsDiscovered(_logger, discoveredPaths.length);
     final skills = <AgentSkill>[];
     for (final skillPath in discoveredPaths) {
@@ -100,17 +104,21 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     return skills;
   }
 
-  static List<String> discoverSkillDirectories(Iterable<String> skillPaths) {
+  static List<String> discoverSkillDirectories(
+    Iterable<String> skillPaths,
+    FileSystem fs,
+  ) {
     final discoveredPaths = <String>[];
     for (final rootDirectory in skillPaths) {
       if (rootDirectory.trim().isEmpty ||
-          !Directory(rootDirectory).existsSync()) {
+          !fs.directory(rootDirectory).existsSync()) {
         continue;
       }
       searchDirectoriesForSkills(
         p.canonicalize(rootDirectory),
         discoveredPaths,
         currentDepth: 0,
+        fs: fs,
       );
     }
     return discoveredPaths;
@@ -120,20 +128,22 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     String directory,
     List<String> results, {
     required int currentDepth,
+    required FileSystem fs,
   }) {
     final skillFilePath = p.join(directory, skillFileName);
-    if (File(skillFilePath).existsSync()) {
+    if (fs.file(skillFilePath).existsSync()) {
       results.add(p.canonicalize(directory));
     }
     if (currentDepth >= maxSearchDepth) {
       return;
     }
-    for (final entry in Directory(directory).listSync(followLinks: false)) {
+    for (final entry in fs.directory(directory).listSync(followLinks: false)) {
       if (entry is Directory) {
         searchDirectoriesForSkills(
           entry.path,
           results,
           currentDepth: currentDepth + 1,
+          fs: fs,
         );
       }
     }
@@ -141,7 +151,9 @@ class AgentFileSkillsSource extends AgentSkillsSource {
 
   AgentFileSkill? parseSkillDirectory(String skillDirectoryFullPath) {
     final skillFilePath = p.join(skillDirectoryFullPath, skillFileName);
-    final content = File(skillFilePath).readAsStringSync(encoding: utf8);
+    final content = _fs
+        .file(skillFilePath)
+        .readAsStringSync(encoding: utf8);
     final (valid, frontmatter) = tryParseFrontmatter(content, skillFilePath);
     if (!valid || frontmatter == null) {
       return null;
@@ -171,7 +183,7 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     String skillFilePath,
   ) {
     final match = RegExp(
-      r'^\uFEFF?---\s*\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n|$)',
+      r'^﻿?---\s*\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n|$)',
     ).firstMatch(content);
     if (match == null) {
       logInvalidFrontmatter(_logger, skillFilePath);
@@ -230,12 +242,11 @@ class AgentFileSkillsSource extends AgentSkillsSource {
       final targetDirectory = isRootDirectory
           ? skillDirectoryFullPath
           : '${p.canonicalize(p.join(skillDirectoryFullPath, directory))}${p.separator}';
-      if (!Directory(targetDirectory).existsSync()) {
+      if (!_fs.directory(targetDirectory).existsSync()) {
         continue;
       }
-      for (final entry in Directory(
-        targetDirectory,
-      ).listSync(followLinks: false)) {
+      for (final entry
+          in _fs.directory(targetDirectory).listSync(followLinks: false)) {
         if (entry is! File) {
           continue;
         }
@@ -258,7 +269,9 @@ class AgentFileSkillsSource extends AgentSkillsSource {
         final relativePath = normalizePath(
           resolvedFilePath.substring(skillDirectoryFullPath.length),
         );
-        resources.add(AgentFileSkillResource(relativePath, resolvedFilePath));
+        resources.add(
+          AgentFileSkillResource(relativePath, resolvedFilePath, fs: _fs),
+        );
       }
     }
     return resources;
@@ -274,12 +287,11 @@ class AgentFileSkillsSource extends AgentSkillsSource {
       final targetDirectory = isRootDirectory
           ? skillDirectoryFullPath
           : '${p.canonicalize(p.join(skillDirectoryFullPath, directory))}${p.separator}';
-      if (!Directory(targetDirectory).existsSync()) {
+      if (!_fs.directory(targetDirectory).existsSync()) {
         continue;
       }
-      for (final entry in Directory(
-        targetDirectory,
-      ).listSync(followLinks: false)) {
+      for (final entry
+          in _fs.directory(targetDirectory).listSync(followLinks: false)) {
         if (entry is! File) {
           continue;
         }

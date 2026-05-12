@@ -1,11 +1,13 @@
+import 'dart:async';
+
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
+import 'package:pool/pool.dart';
 
 import '../../../abstractions/agent_session.dart';
 import '../../../abstractions/ai_context.dart';
 import '../../../abstractions/ai_context_provider.dart';
 import '../../../abstractions/provider_session_state_t_state_.dart';
-import '../../../semaphore_slim.dart';
 import '../../agent_json_utilities.dart';
 import 'todo_item.dart';
 import 'todo_item_input.dart';
@@ -66,9 +68,9 @@ Use these tools to manage your tasks:
 
   late final String Function(List<TodoItem> items)? _todoListMessageBuilder;
 
-  final Expando<SemaphoreSlim> _sessionLocks = Expando<SemaphoreSlim>();
+  final Expando<Pool> _sessionLocks = Expando<Pool>();
 
-  final SemaphoreSlim _nullSessionLock = SemaphoreSlim(1, 1);
+  final Pool _nullSessionLock = Pool(1);
 
   List<String>? _stateKeys;
 
@@ -79,32 +81,22 @@ Use these tools to manage your tasks:
 
   @override
   void dispose() {
-    _nullSessionLock.dispose();
+    unawaited(_nullSessionLock.close());
   }
 
   /// Returns all todo items from the [session] state.
-  Future<List<TodoItem>> getAllTodos(AgentSession? session) async {
-    final sessionLock = getSessionLock(session);
-    await sessionLock.waitAsync();
-    try {
-      final state = _sessionState.getOrInitializeState(session);
-      return state.items.toList();
-    } finally {
-      sessionLock.release();
-    }
-  }
+  Future<List<TodoItem>> getAllTodos(AgentSession? session) =>
+      getSessionLock(session).withResource(() async {
+        final state = _sessionState.getOrInitializeState(session);
+        return state.items.toList();
+      });
 
   /// Returns the remaining (incomplete) todo items from the [session] state.
-  Future<List<TodoItem>> getRemainingTodos(AgentSession? session) async {
-    final sessionLock = getSessionLock(session);
-    await sessionLock.waitAsync();
-    try {
-      final state = _sessionState.getOrInitializeState(session);
-      return state.items.where((t) => !t.isComplete).toList();
-    } finally {
-      sessionLock.release();
-    }
-  }
+  Future<List<TodoItem>> getRemainingTodos(AgentSession? session) =>
+      getSessionLock(session).withResource(() async {
+        final state = _sessionState.getOrInitializeState(session);
+        return state.items.where((t) => !t.isComplete).toList();
+      });
 
   @override
   Future<AIContext> provideAIContext(
@@ -116,15 +108,12 @@ Use these tools to manage your tasks:
       ..tools = createTools(context.session);
 
     if (!_suppressTodoListMessage) {
-      final sessionLock = getSessionLock(context.session);
-      await sessionLock.waitAsync(cancellationToken);
-      late final List<TodoItem> currentItems;
-      try {
-        final state = _sessionState.getOrInitializeState(context.session);
-        currentItems = state.items.toList();
-      } finally {
-        sessionLock.release();
-      }
+      final currentItems = await getSessionLock(context.session).withResource(
+        () async {
+          final state = _sessionState.getOrInitializeState(context.session);
+          return state.items.toList();
+        },
+      );
 
       final message = _todoListMessageBuilder != null
           ? _todoListMessageBuilder(currentItems)
@@ -136,13 +125,13 @@ Use these tools to manage your tasks:
     return aiContext;
   }
 
-  /// Returns the per-session semaphore used to serialize all todo operations.
-  SemaphoreSlim getSessionLock(AgentSession? session) {
+  /// Returns the per-session pool used to serialize all todo operations.
+  Pool getSessionLock(AgentSession? session) {
     if (session == null) {
       return _nullSessionLock;
     }
 
-    return _sessionLocks[session] ??= SemaphoreSlim(1, 1);
+    return _sessionLocks[session] ??= Pool(1);
   }
 
   List<AITool> createTools(AgentSession? session) {
@@ -155,12 +144,9 @@ Use these tools to manage your tasks:
           'todos':
               'The todo items to create. Each item has a title and optional description.',
         }),
-        callback: (arguments, {cancellationToken}) async {
+        callback: (arguments, {cancellationToken}) {
           final todos = _getTodoInputs(arguments, 'todos');
-
-          final sessionLock = getSessionLock(session);
-          await sessionLock.waitAsync(cancellationToken);
-          try {
+          return getSessionLock(session).withResource(() async {
             final state = _sessionState.getOrInitializeState(session);
             final created = <TodoItem>[];
             for (final input in todos) {
@@ -174,9 +160,7 @@ Use these tools to manage your tasks:
 
             _sessionState.saveState(session, state);
             return created;
-          } finally {
-            sessionLock.release();
-          }
+          });
         },
       ),
       AIFunctionFactory.create(
@@ -186,12 +170,9 @@ Use these tools to manage your tasks:
         parametersSchema: _objectSchema({
           'ids': 'The todo item IDs to mark complete.',
         }),
-        callback: (arguments, {cancellationToken}) async {
+        callback: (arguments, {cancellationToken}) {
           final ids = _getIntList(arguments, 'ids');
-
-          final sessionLock = getSessionLock(session);
-          await sessionLock.waitAsync(cancellationToken);
-          try {
+          return getSessionLock(session).withResource(() async {
             final state = _sessionState.getOrInitializeState(session);
             final idSet = ids.toSet();
             var completed = 0;
@@ -207,9 +188,7 @@ Use these tools to manage your tasks:
             }
 
             return completed;
-          } finally {
-            sessionLock.release();
-          }
+          });
         },
       ),
       AIFunctionFactory.create(
@@ -219,12 +198,9 @@ Use these tools to manage your tasks:
         parametersSchema: _objectSchema({
           'ids': 'The todo item IDs to remove.',
         }),
-        callback: (arguments, {cancellationToken}) async {
+        callback: (arguments, {cancellationToken}) {
           final ids = _getIntList(arguments, 'ids');
-
-          final sessionLock = getSessionLock(session);
-          await sessionLock.waitAsync(cancellationToken);
-          try {
+          return getSessionLock(session).withResource(() async {
             final state = _sessionState.getOrInitializeState(session);
             final idSet = ids.toSet();
             final beforeCount = state.items.length;
@@ -236,39 +212,27 @@ Use these tools to manage your tasks:
             }
 
             return removed;
-          } finally {
-            sessionLock.release();
-          }
+          });
         },
       ),
       AIFunctionFactory.create(
         name: 'TodoList_GetRemaining',
         description: 'Retrieve the list of incomplete todo items.',
-        callback: (arguments, {cancellationToken}) async {
-          final sessionLock = getSessionLock(session);
-          await sessionLock.waitAsync(cancellationToken);
-          try {
-            final state = _sessionState.getOrInitializeState(session);
-            return state.items.where((t) => !t.isComplete).toList();
-          } finally {
-            sessionLock.release();
-          }
-        },
+        callback: (arguments, {cancellationToken}) =>
+            getSessionLock(session).withResource(() async {
+              final state = _sessionState.getOrInitializeState(session);
+              return state.items.where((t) => !t.isComplete).toList();
+            }),
       ),
       AIFunctionFactory.create(
         name: 'TodoList_GetAll',
         description:
             'Retrieve the full list of todo items, both complete and incomplete.',
-        callback: (arguments, {cancellationToken}) async {
-          final sessionLock = getSessionLock(session);
-          await sessionLock.waitAsync(cancellationToken);
-          try {
-            final state = _sessionState.getOrInitializeState(session);
-            return state.items.toList();
-          } finally {
-            sessionLock.release();
-          }
-        },
+        callback: (arguments, {cancellationToken}) =>
+            getSessionLock(session).withResource(() async {
+              final state = _sessionState.getOrInitializeState(session);
+              return state.items.toList();
+            }),
       ),
     ];
   }

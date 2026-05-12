@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'agent_file_store.dart';
 
 /// Internal helper for normalizing and validating relative store paths and
@@ -29,7 +27,6 @@ class StorePaths {
 
     if (path.startsWith('/') ||
         path.startsWith('\\') ||
-        path.startsWith(Platform.pathSeparator) ||
         RegExp(r'^[A-Za-z]:').hasMatch(normalized)) {
       throw ArgumentError(
         "Invalid path: '$path'. Paths must be relative and must not start with '/', '\\', or a drive root.",

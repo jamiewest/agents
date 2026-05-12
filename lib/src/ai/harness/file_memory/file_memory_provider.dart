@@ -1,12 +1,14 @@
+import 'dart:async';
+
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
+import 'package:pool/pool.dart';
 
 import '../../../abstractions/agent_session.dart';
 import '../../../abstractions/ai_agent.dart';
 import '../../../abstractions/ai_context.dart';
 import '../../../abstractions/ai_context_provider.dart';
 import '../../../abstractions/provider_session_state_t_state_.dart';
-import '../../../semaphore_slim.dart';
 import '../../agent_json_utilities.dart';
 import '../file_store/agent_file_store.dart';
 import '../file_store/file_search_result.dart';
@@ -64,7 +66,7 @@ Use these tools to store plans, memories, processing results, or downloaded data
 
   late final AgentFileStore _fileStore;
   late final ProviderSessionState<FileMemoryState> _sessionState;
-  final SemaphoreSlim _writeLock = SemaphoreSlim(1, 1);
+  final Pool _writeLock = Pool(1);
   late final String _instructions;
   List<String>? _stateKeys;
   List<AITool>? _tools;
@@ -75,7 +77,7 @@ Use these tools to store plans, memories, processing results, or downloaded data
   /// Releases the resources used by the [FileMemoryProvider].
   @override
   void dispose() {
-    _writeLock.dispose();
+    unawaited(_writeLock.close());
   }
 
   @override
@@ -136,8 +138,7 @@ Use these tools to store plans, memories, processing results, or downloaded data
     );
     final path = resolvePath(state.workingFolder, fileName);
 
-    await _writeLock.waitAsync(cancellationToken);
-    try {
+    return _writeLock.withResource(() async {
       await _fileStore.writeFileAsync(path, content, cancellationToken);
 
       final descPath = resolvePath(
@@ -159,9 +160,7 @@ Use these tools to store plans, memories, processing results, or downloaded data
           : "File '$fileName' saved with description.";
       await rebuildMemoryIndexAsync(state, cancellationToken);
       return result;
-    } finally {
-      _writeLock.release();
-    }
+    });
   }
 
   /// Read the content of a memory file by name. Returns the file content or a
@@ -189,8 +188,7 @@ Use these tools to store plans, memories, processing results, or downloaded data
     );
     final path = resolvePath(state.workingFolder, fileName);
 
-    await _writeLock.waitAsync(cancellationToken);
-    try {
+    return _writeLock.withResource(() async {
       final deleted = await _fileStore.deleteFileAsync(path, cancellationToken);
 
       final descPath = resolvePath(
@@ -203,9 +201,7 @@ Use these tools to store plans, memories, processing results, or downloaded data
       return deleted
           ? "File '$fileName' deleted."
           : "File '$fileName' not found.";
-    } finally {
-      _writeLock.release();
-    }
+    });
   }
 
   /// List all memory files with their descriptions (if available).

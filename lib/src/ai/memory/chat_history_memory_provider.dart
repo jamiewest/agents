@@ -1,15 +1,17 @@
+import 'dart:async';
 import 'dart:math';
 
+import 'package:clock/clock.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
 import 'package:extensions/system.dart';
+import 'package:pool/pool.dart';
 
 import '../../abstractions/agent_session.dart';
 import '../../abstractions/ai_context.dart';
 import '../../abstractions/ai_context_provider.dart';
 import '../../abstractions/message_ai_context_provider.dart';
 import '../../abstractions/provider_session_state_t_state_.dart';
-import '../../semaphore_slim.dart';
 import '../agent_json_utilities.dart';
 import 'chat_history_memory_provider_options.dart';
 import 'chat_history_memory_provider_scope.dart';
@@ -167,7 +169,7 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
   late final Logger? _logger;
 
   bool _collectionInitialized = false;
-  final SemaphoreSlim _initializationLock = SemaphoreSlim(1, 1);
+  final Pool _initializationPool = Pool(1);
   bool _disposedValue = false;
 
   @override
@@ -311,7 +313,7 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
               contentField: text,
               createdAtField:
                   message.createdAt?.toUtc().toIso8601String() ??
-                  DateTime.now().toUtc().toIso8601String(),
+                  clock.now().toUtc().toIso8601String(),
               contentEmbeddingField: text,
             };
           }).toList();
@@ -415,8 +417,7 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
       return _collection;
     }
 
-    await _initializationLock.waitAsync(cancellationToken);
-    try {
+    return _initializationPool.withResource(() async {
       if (_collectionInitialized) {
         return _collection;
       }
@@ -426,9 +427,7 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
       );
       _collectionInitialized = true;
       return _collection;
-    } finally {
-      _initializationLock.release();
-    }
+    });
   }
 
   @override
@@ -437,7 +436,7 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
       return;
     }
 
-    _initializationLock.dispose();
+    unawaited(_initializationPool.close());
     _collection.dispose();
     _disposedValue = true;
   }

@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:extensions/ai.dart';
 
 import '../abstractions/agent_response.dart';
@@ -87,7 +88,7 @@ class MessageMerger {
           primaryAgentName ??
           (agentIds.length == 1 ? agentIds.first : null)
       ..finishReason = finishReasons.length == 1 ? finishReasons.first : null
-      ..createdAt = DateTime.now().toUtc()
+      ..createdAt = clock.now().toUtc()
       ..usage = usage
       ..additionalProperties = additionalProperties;
   }

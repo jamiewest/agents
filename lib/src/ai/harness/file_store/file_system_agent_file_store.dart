@@ -1,7 +1,8 @@
-import 'dart:io';
 import 'dart:math';
 
 import 'package:extensions/system.dart';
+import 'package:file/file.dart';
+import 'package:file/local.dart';
 import 'package:path/path.dart' as p;
 
 import 'agent_file_store.dart';
@@ -19,8 +20,13 @@ import 'store_paths.dart';
 class FileSystemAgentFileStore extends AgentFileStore {
   /// Creates a [FileSystemAgentFileStore] for the given [rootDirectory].
   ///
-  /// The directory is created if it does not already exist.
-  FileSystemAgentFileStore(String? rootDirectory) {
+  /// The directory is created if it does not already exist. An optional [fs]
+  /// can be provided to override the file system (useful for testing with an
+  /// in-memory file system).
+  FileSystemAgentFileStore(
+    String? rootDirectory, {
+    FileSystem fs = const LocalFileSystem(),
+  }) : _fs = fs {
     if (rootDirectory == null) {
       throw ArgumentError.notNull('rootDirectory');
     }
@@ -37,12 +43,13 @@ class FileSystemAgentFileStore extends AgentFileStore {
     }
 
     _rootPath = fullRoot;
-    Directory(fullRoot).createSync(recursive: true);
+    _fs.directory(fullRoot).createSync(recursive: true);
   }
 
   /// The canonical full path of the root directory, always ending with a
   /// directory separator.
   late final String _rootPath;
+  final FileSystem _fs;
 
   @override
   Future<void> writeFileAsync(
@@ -52,8 +59,8 @@ class FileSystemAgentFileStore extends AgentFileStore {
   ]) async {
     final fullPath = resolveSafePath(path);
     final parentDir = p.dirname(fullPath);
-    Directory(parentDir).createSync(recursive: true);
-    await File(fullPath).writeAsString(content);
+    _fs.directory(parentDir).createSync(recursive: true);
+    await _fs.file(fullPath).writeAsString(content);
   }
 
   @override
@@ -62,7 +69,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
     CancellationToken? cancellationToken,
   ]) async {
     final fullPath = resolveSafePath(path);
-    final file = File(fullPath);
+    final file = _fs.file(fullPath);
     if (!file.existsSync()) {
       return null;
     }
@@ -76,7 +83,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
     CancellationToken? cancellationToken,
   ]) async {
     final fullPath = resolveSafePath(path);
-    final file = File(fullPath);
+    final file = _fs.file(fullPath);
     if (!file.existsSync()) {
       return false;
     }
@@ -91,7 +98,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
     CancellationToken? cancellationToken,
   ]) async {
     final fullDir = resolveSafeDirectoryPath(directory);
-    final dir = Directory(fullDir);
+    final dir = _fs.directory(fullDir);
     if (!dir.existsSync()) {
       return [];
     }
@@ -109,7 +116,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
     CancellationToken? cancellationToken,
   ]) async {
     final fullPath = resolveSafePath(path);
-    return File(fullPath).existsSync();
+    return _fs.file(fullPath).existsSync();
   }
 
   @override
@@ -120,7 +127,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
     CancellationToken? cancellationToken,
   ]) async {
     final fullDir = resolveSafeDirectoryPath(directory);
-    final dir = Directory(fullDir);
+    final dir = _fs.directory(fullDir);
     if (!dir.existsSync()) {
       return [];
     }
@@ -131,7 +138,8 @@ class FileSystemAgentFileStore extends AgentFileStore {
         : null;
     final results = <FileSearchResult>[];
 
-    for (final file in dir.listSync(followLinks: false).whereType<File>()) {
+    for (final file
+        in dir.listSync(followLinks: false).whereType<File>()) {
       final fileName = p.basename(file.path);
       if (!StorePaths.matchesGlob(fileName, matcher)) {
         continue;
@@ -153,7 +161,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
     CancellationToken? cancellationToken,
   ]) async {
     final fullPath = resolveSafeDirectoryPath(path);
-    Directory(fullPath).createSync(recursive: true);
+    _fs.directory(fullPath).createSync(recursive: true);
   }
 
   /// Resolves a relative file path to a safe absolute path under the root

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:extensions/system.dart';
 
 import '../execution/concurrent_event_sink.dart';
@@ -157,7 +158,7 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
   }) {
     String joinId;
     do {
-      joinId = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
+      joinId = clock.now().microsecondsSinceEpoch.toRadixString(16);
     } while (_joinedRunners.containsKey(joinId));
     _joinedRunners[joinId] = superStepRunner;
     return Future.value(joinId);

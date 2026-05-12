@@ -1,3 +1,5 @@
+import 'package:clock/clock.dart';
+
 import 'workflow.dart';
 
 /// Represents a workflow session.
@@ -14,7 +16,7 @@ class WorkflowSession {
 
   /// Creates a session identifier.
   static String createSessionId() =>
-      'session-${DateTime.now().microsecondsSinceEpoch}';
+      'session-${clock.now().microsecondsSinceEpoch}';
 
   @override
   String toString() => sessionId;

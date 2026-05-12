@@ -1,5 +1,5 @@
-import 'dart:io';
-
+import 'package:file/file.dart';
+import 'package:file/local.dart';
 import 'package:path/path.dart' as p;
 
 import 'checkpoint.dart';
@@ -9,10 +9,14 @@ import 'json_marshaller.dart';
 /// File-system JSON checkpoint store.
 class FileSystemJsonCheckpointStore implements CheckpointStore {
   /// Creates a file-system JSON checkpoint store rooted at [rootDirectory].
+  ///
+  /// An optional [fs] can be provided to override the file system (useful for
+  /// testing with an in-memory file system).
   FileSystemJsonCheckpointStore(
     String rootDirectory, {
     JsonMarshaller jsonMarshaller = const JsonMarshaller(),
-  }) : _rootDirectory = Directory(rootDirectory),
+    FileSystem fs = const LocalFileSystem(),
+  }) : _rootDirectory = fs.directory(rootDirectory),
        _jsonMarshaller = jsonMarshaller {
     if (rootDirectory.trim().isEmpty) {
       throw ArgumentError.value(rootDirectory, 'rootDirectory');
@@ -81,7 +85,9 @@ class FileSystemJsonCheckpointStore implements CheckpointStore {
 
   File _fileFor(String checkpointId) {
     final safeId = _normalizeCheckpointId(checkpointId);
-    final candidate = File(p.join(_rootDirectory.path, '$safeId.json'));
+    final candidate = _rootDirectory.fileSystem.file(
+      p.join(_rootDirectory.path, '$safeId.json'),
+    );
     final root = p.canonicalize(_rootDirectory.absolute.path);
     final candidatePath = p.canonicalize(candidate.absolute.path);
     if (!p.isWithin(root, candidatePath) && candidatePath != root) {

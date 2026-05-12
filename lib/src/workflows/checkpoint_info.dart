@@ -1,8 +1,10 @@
+import 'package:clock/clock.dart';
+
 /// Represents a checkpoint with a unique identifier.
 class CheckpointInfo {
   /// Creates checkpoint info.
   CheckpointInfo(this.checkpointId, {DateTime? createdAt})
-    : createdAt = createdAt ?? DateTime.now();
+    : createdAt = createdAt ?? clock.now();
 
   /// Gets the checkpoint identifier.
   final String checkpointId;
