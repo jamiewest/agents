@@ -22,6 +22,8 @@ CLAUDE.md
 GEMINI.md
 rules.md
 
+.vscode/
+
 # IntelliJ related
 *.iml
 *.ipr
