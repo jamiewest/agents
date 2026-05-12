@@ -5,10 +5,9 @@ import 'file_memory_provider.dart';
 class FileListEntry {
   FileListEntry();
 
-  /// Gets or sets the name of the file.
+  /// Name of the file.
   String fileName = '';
 
-  /// Gets or sets the description of the file, or `null` if no description is
-  /// available.
+  /// Description of the file, or `null` if no description is available.
   String? description;
 }

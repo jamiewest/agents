@@ -9,6 +9,11 @@ import '../abstractions/delegating_ai_agent.dart';
 import 'chat_client/chat_client_agent_run_options.dart';
 import '../abstractions/ai_agent.dart';
 
+/// Delegate type used to intercept and customise AI function invocations.
+///
+/// Receives the invoking [AIAgent], the [FunctionInvocationContext], the next
+/// handler in the pipeline, and a [CancellationToken]. Must return the
+/// function result.
 typedef FunctionInvocationDelegateFunc =
     Func4<
       AIAgent,

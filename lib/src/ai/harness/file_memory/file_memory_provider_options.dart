@@ -4,7 +4,7 @@ import 'file_memory_provider.dart';
 class FileMemoryProviderOptions {
   FileMemoryProviderOptions();
 
-  /// Gets or sets custom instructions provided to the agent for using the file
-  /// memory tools.
+  /// Custom instructions provided to the agent for using the file memory
+  /// tools.
   String? instructions;
 }

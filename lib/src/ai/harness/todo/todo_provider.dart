@@ -16,21 +16,19 @@ import 'todo_state.dart';
 /// instructions to an agent for tracking work items during long-running
 /// complex tasks.
 ///
-/// Remarks: The [TodoProvider] enables agents to create, complete, remove,
-/// and query todo items as part of their planning and execution workflow.
-/// Todo state is stored in the session's AgentSessionStateBag and persists
-/// across agent invocations within the same session. This provider exposes
-/// the following tools to the agent: `TodoList_Add` — Add one or more todo
-/// items, each with a title and optional description. `TodoList_Complete` —
-/// Mark one or more todo items as complete by their IDs. `TodoList_Remove` —
-/// Remove one or more todo items by their IDs. `TodoList_GetRemaining` —
-/// Retrieve only incomplete todo items. `TodoList_GetAll` — Retrieve all todo
-/// items (complete and incomplete).
+/// The [TodoProvider] enables agents to create, complete, remove, and query
+/// todo items as part of their planning and execution workflow. Todo state is
+/// stored in the session's state bag and persists across agent invocations
+/// within the same session. This provider exposes the following tools to the
+/// agent:
+///
+/// * `TodoList_Add` — Add one or more todo items.
+/// * `TodoList_Complete` — Mark one or more todo items as complete by ID.
+/// * `TodoList_Remove` — Remove one or more todo items by ID.
+/// * `TodoList_GetRemaining` — Retrieve only incomplete todo items.
+/// * `TodoList_GetAll` — Retrieve all todo items (complete and incomplete).
 class TodoProvider extends AIContextProvider implements Disposable {
-  /// Initializes a new instance of the [TodoProvider] class.
-  ///
-  /// [options] Optional settings that control provider behavior. When `null`,
-  /// defaults are used.
+  /// Creates a [TodoProvider] with optional [options].
   TodoProvider({TodoProviderOptions? options}) {
     _instructions = options?.instructions ?? defaultInstructions;
     _suppressTodoListMessage = options?.suppressTodoListMessage ?? false;
@@ -84,12 +82,7 @@ Use these tools to manage your tasks:
     _nullSessionLock.dispose();
   }
 
-  /// Gets all todo items from the session state.
-  ///
-  /// Returns: A list of all todo items. The items are live references to
-  /// internal state.
-  ///
-  /// [session] The agent session to read todos from.
+  /// Returns all todo items from the [session] state.
   Future<List<TodoItem>> getAllTodos(AgentSession? session) async {
     final sessionLock = getSessionLock(session);
     await sessionLock.waitAsync();
@@ -101,12 +94,7 @@ Use these tools to manage your tasks:
     }
   }
 
-  /// Gets the remaining (incomplete) todo items from the session state.
-  ///
-  /// Returns: A list of incomplete todo items. The items are live references to
-  /// internal state.
-  ///
-  /// [session] The agent session to read todos from.
+  /// Returns the remaining (incomplete) todo items from the [session] state.
   Future<List<TodoItem>> getRemainingTodos(AgentSession? session) async {
     final sessionLock = getSessionLock(session);
     await sessionLock.waitAsync();

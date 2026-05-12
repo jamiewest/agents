@@ -8,26 +8,16 @@ import 'function_invocation_delegating_agent.dart';
 /// Provides extension methods for configuring and customizing
 /// [AIAgentBuilder] instances.
 extension FunctionInvocationDelegatingAgentBuilderExtensions on AIAgentBuilder {
-  /// Adds function invocation callbacks to the [AIAgent] pipeline that
+  /// Adds a function invocation [callback] to the [AIAgent] pipeline that
   /// intercepts and processes [AIFunction] calls.
   ///
-  /// Remarks: The callback must call the provided continuation delegate to
-  /// proceed with the function invocation, unless it intends to completely
-  /// replace the function's behavior. The inner agent or the pipeline wrapping
-  /// it must include a [FunctionInvokingChatClient]. If one does not exist, the
-  /// [AIAgent] added to the pipline by this method will throw an exception when
-  /// it is invoked.
-  ///
-  /// Returns: The [AIAgentBuilder] instance with the function invocation
-  /// callback added, enabling method chaining.
-  ///
-  /// [builder] The [AIAgentBuilder] to which the function invocation callback
-  /// is added.
-  ///
-  /// [callback] A delegate that processes function invocations. The delegate
-  /// receives the [AIAgent] instance, the function invocation context, and a
-  /// continuation delegate representing the next callback in the pipeline. It
-  /// returns a task representing the result of the function invocation.
+  /// The callback must call the provided continuation delegate to proceed with
+  /// the function invocation, unless it intends to completely replace the
+  /// function's behavior. The inner agent or the pipeline wrapping it must
+  /// include a [FunctionInvokingChatClient]. If one does not exist, the
+  /// [AIAgent] added to the pipeline by this method will throw an exception
+  /// when invoked. Returns the [AIAgentBuilder] instance, enabling method
+  /// chaining.
   AIAgentBuilder use(
     Func4<
       AIAgent,

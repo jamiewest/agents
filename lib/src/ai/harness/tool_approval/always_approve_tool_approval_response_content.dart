@@ -5,8 +5,8 @@ import 'package:extensions/ai.dart';
 /// approval rules so that future matching tool calls are auto-approved without
 /// user interaction.
 class AlwaysApproveToolApprovalResponseContent extends AIContent {
-  /// Initializes a new instance of the
-  /// [AlwaysApproveToolApprovalResponseContent] class.
+  /// Creates an [AlwaysApproveToolApprovalResponseContent] wrapping
+  /// [innerResponse].
   AlwaysApproveToolApprovalResponseContent(
     ToolApprovalResponseContent? innerResponse,
     this.alwaysApproveTool,

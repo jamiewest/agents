@@ -6,11 +6,7 @@ import '../agent_skill_resource.dart';
 /// A file-path-backed skill resource. Reads content from a file on disk
 /// relative to the skill directory.
 class AgentFileSkillResource extends AgentSkillResource {
-  /// Initializes a new instance of the [AgentFileSkillResource] class.
-  ///
-  /// [name] The resource name (relative path within the skill directory).
-  ///
-  /// [fullPath] The absolute file path to the resource.
+  /// Creates an [AgentFileSkillResource] with the given [name] and [fullPath].
   AgentFileSkillResource(super.name, this.fullPath);
 
   /// Gets the absolute file path to the resource.

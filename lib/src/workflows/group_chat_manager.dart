@@ -5,7 +5,6 @@ import '../abstractions/ai_agent.dart';
 
 /// A manager that manages the flow of a group chat.
 abstract class GroupChatManager {
-  /// Initializes a new instance of the [GroupChatManager] class.
   GroupChatManager();
 
   /// Gets the number of iterations in the group chat so far.
@@ -13,7 +12,7 @@ abstract class GroupChatManager {
 
   int _maximumIterationCount = 40;
 
-  /// Gets or sets the maximum number of iterations allowed.
+  /// The maximum number of iterations allowed.
   ///
   /// Each iteration involves a single interaction with a participating agent.
   /// The default is 40.

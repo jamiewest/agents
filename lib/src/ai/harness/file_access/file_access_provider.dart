@@ -11,20 +11,15 @@ import 'file_access_provider_options.dart';
 /// An [AIContextProvider] that provides file access tools to an agent for
 /// saving, reading, deleting, listing, and searching files.
 ///
-/// Remarks: The [FileAccessProvider] gives agents the ability to work with
-/// files in a folder that the user has granted access to. Unlike
-/// FileMemoryProvider, which provides session-scoped memory that may be
-/// isolated per session, [FileAccessProvider] operates on a shared,
-/// persistent folder whose contents are visible across sessions and agents.
-/// This makes it suitable for reading input data, writing output artifacts,
-/// and working with files that have a lifetime beyond any single agent
-/// session.
+/// The [FileAccessProvider] gives agents the ability to work with files in a
+/// folder that the user has granted access to. Unlike [FileMemoryProvider],
+/// which provides session-scoped memory that may be isolated per session,
+/// [FileAccessProvider] operates on a shared, persistent folder whose
+/// contents are visible across sessions and agents. This makes it suitable
+/// for reading input data, writing output artifacts, and working with files
+/// that have a lifetime beyond any single agent session.
 class FileAccessProvider extends AIContextProvider {
-  /// Initializes a new instance of the [FileAccessProvider] class.
-  ///
-  /// [fileStore] The file store implementation used for storage operations.
-  /// The store should already be scoped to the desired folder or storage
-  /// location.
+  /// Creates a [FileAccessProvider] using [fileStore] and optional [options].
   FileAccessProvider(
     AgentFileStore? fileStore, {
     FileAccessProviderOptions? options,

@@ -7,6 +7,8 @@ import 'compaction_message_group.dart';
 import 'compaction_message_index.dart';
 import 'compaction_strategy.dart';
 
+/// Formats a [CompactionMessageGroup] representing a tool-call exchange
+/// into a concise summary string.
 typedef ToolCallFormatter = String Function(CompactionMessageGroup group);
 
 /// A compaction strategy that collapses old tool call groups into single

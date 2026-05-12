@@ -5,9 +5,9 @@ extension ChatMessageContentEquality on ChatMessage? {
   /// Determines whether two [ChatMessage] instances represent the same message
   /// by content.
   ///
-  /// Remarks: When both messages define a [MessageId], identity is determined
-  /// solely by that identifier. Otherwise, the comparison falls through to
-  /// [Role], [AuthorName], and each item in [Contents].
+  /// When both messages define a message ID, identity is determined solely by
+  /// that identifier. Otherwise, the comparison falls through to role, author
+  /// name, and each item in contents.
   bool contentEquals(ChatMessage? other) {
     final message = this;
     if (identical(message, other)) {

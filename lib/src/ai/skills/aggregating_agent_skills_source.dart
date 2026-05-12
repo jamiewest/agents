@@ -5,13 +5,11 @@ import 'agent_skills_source.dart';
 /// A skill source that aggregates multiple child sources, preserving their
 /// registration order.
 ///
-/// Remarks: Skills from each child source are returned in the order the
-/// sources were registered, with each source's skills appended sequentially.
-/// No deduplication or filtering is applied.
+/// Skills from each child source are returned in the order the sources were
+/// registered, with each source's skills appended sequentially. No
+/// deduplication or filtering is applied.
 class AggregatingAgentSkillsSource extends AgentSkillsSource {
-  /// Initializes a new instance of the [AggregatingAgentSkillsSource] class.
-  ///
-  /// [sources] The child sources to aggregate.
+  /// Creates an [AggregatingAgentSkillsSource] from the given [sources].
   AggregatingAgentSkillsSource(Iterable<AgentSkillsSource> sources)
     : _sources = List<AgentSkillsSource>.of(sources);
 

@@ -6,7 +6,7 @@ import 'group_chat_manager.dart';
 
 /// Provides a [GroupChatManager] that selects agents in round-robin order.
 class RoundRobinGroupChatManager extends GroupChatManager {
-  /// Initializes a new instance of the [RoundRobinGroupChatManager] class.
+  /// Creates a [RoundRobinGroupChatManager] for the given [agents].
   RoundRobinGroupChatManager(
     Iterable<AIAgent> agents, {
     this.shouldTerminateFunc,

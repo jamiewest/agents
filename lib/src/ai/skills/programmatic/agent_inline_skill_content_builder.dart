@@ -9,17 +9,7 @@ class AgentInlineSkillContentBuilder {
   /// Builds the complete skill content containing name, description,
   /// instructions, resources, and scripts.
   ///
-  /// Returns: An XML-structured content String.
-  ///
-  /// [name] The skill name.
-  ///
-  /// [description] The skill description.
-  ///
-  /// [instructions] The raw instructions text.
-  ///
-  /// [resources] Optional resources associated with the skill.
-  ///
-  /// [scripts] Optional scripts associated with the skill.
+  /// Returns an XML-structured content string.
   static String build(
     String name,
     String description,
@@ -58,15 +48,12 @@ class AgentInlineSkillContentBuilder {
     return sb.toString();
   }
 
-  /// Builds a `&lt;scripts&gt;...&lt;/scripts&gt;` XML block for the given
-  /// scripts. Each script is emitted as a `&lt;script name="..."&gt;` element
-  /// with optional `description` attribute and `&lt;parameters_schema&gt;`
-  /// child element.
+  /// Builds a `<scripts>...</scripts>` XML block for the given [scripts].
   ///
-  /// Returns: An XML String starting with `\n&lt;scripts&gt;`, or an empty
-  /// String if the list is empty.
-  ///
-  /// [scripts] The scripts to include in the block.
+  /// Each script is emitted as a `<script name="...">` element with optional
+  /// `description` attribute and `<parameters_schema>` child element. Returns
+  /// an XML string starting with `\n<scripts>`, or an empty string if the
+  /// list is empty.
   static String buildScriptsBlock(List<AgentSkillScript> scripts) {
     scripts;
     if (scripts.isEmpty) {

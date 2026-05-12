@@ -15,15 +15,15 @@ class ChatHistoryMemoryProviderScope {
       sessionId = source.sessionId,
       userId = source.userId;
 
-  /// Gets or sets an optional ID for the application to scope chat history to.
+  /// Optional ID for the application to scope chat history to.
   String? applicationId;
 
-  /// Gets or sets an optional ID for the agent to scope chat history to.
+  /// Optional ID for the agent to scope chat history to.
   String? agentId;
 
-  /// Gets or sets an optional ID for the session to scope chat history to.
+  /// Optional ID for the session to scope chat history to.
   String? sessionId;
 
-  /// Gets or sets an optional ID for the user to scope chat history to.
+  /// Optional ID for the user to scope chat history to.
   String? userId;
 }

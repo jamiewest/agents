@@ -7,15 +7,14 @@ import 'compaction_trigger.dart';
 /// A compaction strategy that executes a sequential pipeline of
 /// [CompactionStrategy] instances against the same [CompactionMessageIndex].
 ///
-/// Remarks: Each strategy in the pipeline operates on the result of the
-/// previous one, enabling composed behaviors such as summarizing older
-/// messages first and then truncating to fit a token budget. The pipeline
-/// itself always executes while each child strategy evaluates its own
-/// [Trigger] independently to decide whether it should compact.
+/// Each strategy in the pipeline operates on the result of the previous one,
+/// enabling composed behaviors such as summarizing older messages first and
+/// then truncating to fit a token budget. The pipeline itself always executes
+/// while each child strategy evaluates its own trigger independently to decide
+/// whether it should compact.
 class PipelineCompactionStrategy extends CompactionStrategy {
-  /// Initializes a new instance of the [PipelineCompactionStrategy] class.
-  ///
-  /// [strategies] The ordered sequence of strategies to execute.
+  /// Creates a [PipelineCompactionStrategy] from an ordered [strategies]
+  /// sequence and optional [trigger].
   PipelineCompactionStrategy(
     Iterable<CompactionStrategy> strategies, [
     CompactionTrigger? trigger,

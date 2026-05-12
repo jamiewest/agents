@@ -31,7 +31,7 @@ abstract class AIAgent {
   /// Gets a description of the agent's purpose and capabilities.
   String? get description => null;
 
-  /// Gets or sets the [AgentRunContext] for the current agent run.
+  /// The [AgentRunContext] for the current agent run.
   static AgentRunContext? currentRunContext;
 
   String get debuggerDisplay {

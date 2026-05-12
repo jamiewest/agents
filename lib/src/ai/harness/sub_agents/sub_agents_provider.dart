@@ -16,25 +16,26 @@ import 'sub_task_status.dart';
 /// An [AIContextProvider] that enables an agent to delegate work to
 /// sub-agents asynchronously.
 ///
-/// Remarks: The [SubAgentsProvider] allows a parent agent to start sub-tasks
-/// on child agents, wait for their completion, and retrieve results. Each
-/// sub-task runs in its own session and executes concurrently. This provider
-/// exposes the following tools to the agent: `SubAgents_StartTask` — Start a
-/// sub-task on a named agent with text input. Returns the task ID.
-/// `SubAgents_WaitForFirstCompletion` — Block until the first of the
-/// specified tasks completes. Returns the completed task's ID.
-/// `SubAgents_GetTaskResults` — Retrieve the text output of a completed
-/// sub-task. `SubAgents_GetAllTasks` — List all sub-tasks with their IDs,
-/// statuses, descriptions, and agent names. `SubAgents_ContinueTask` — Send
-/// follow-up input to a completed sub-task's session to resume work.
-/// `SubAgents_ClearCompletedTask` — Remove a completed sub-task and release
-/// its session to free memory.
+/// The [SubAgentsProvider] allows a parent agent to start sub-tasks on child
+/// agents, wait for their completion, and retrieve results. Each sub-task
+/// runs in its own session and executes concurrently. This provider exposes
+/// the following tools to the agent:
+///
+/// * `SubAgents_StartTask` — Start a sub-task on a named agent with text
+///   input. Returns the task ID.
+/// * `SubAgents_WaitForFirstCompletion` — Block until the first of the
+///   specified tasks completes. Returns the completed task's ID.
+/// * `SubAgents_GetTaskResults` — Retrieve the text output of a completed
+///   sub-task.
+/// * `SubAgents_GetAllTasks` — List all sub-tasks with their IDs, statuses,
+///   descriptions, and agent names.
+/// * `SubAgents_ContinueTask` — Send follow-up input to a completed
+///   sub-task's session to resume work.
+/// * `SubAgents_ClearCompletedTask` — Remove a completed sub-task and
+///   release its session to free memory.
 class SubAgentsProvider extends AIContextProvider {
-  /// Initializes a new instance of the [SubAgentsProvider] class.
-  ///
-  /// [agents] The collection of sub-agents available for delegation.
-  ///
-  /// [options] Optional settings controlling the provider behavior.
+  /// Creates a [SubAgentsProvider] with the given [agents] and optional
+  /// [options].
   SubAgentsProvider(
     Iterable<AIAgent> agents, {
     SubAgentsProviderOptions? options,

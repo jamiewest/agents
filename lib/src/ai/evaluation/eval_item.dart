@@ -21,22 +21,22 @@ class EvalItem {
   /// Gets the full conversation history.
   List<ChatMessage> conversation;
 
-  /// Gets or sets the tools available to the agent.
+  /// Tools available to the agent.
   List<AITool>? tools;
 
-  /// Gets or sets grounding context for evaluation.
+  /// Grounding context for evaluation.
   String? context;
 
-  /// Gets or sets the expected output for ground-truth comparison.
+  /// Expected output for ground-truth comparison.
   String? expectedOutput;
 
-  /// Gets or sets the expected tool calls for tool-correctness evaluation.
+  /// Expected tool calls for tool-correctness evaluation.
   List<ExpectedToolCall>? expectedToolCalls;
 
-  /// Gets or sets the raw chat response for MEAI evaluators.
+  /// Raw chat response for MEAI evaluators.
   ChatResponse? rawResponse;
 
-  /// Gets or sets the conversation splitter for this item.
+  /// Conversation splitter for this item.
   ConversationSplitter? splitter;
 
   /// Gets whether any message in the conversation contains image content.

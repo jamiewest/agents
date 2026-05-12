@@ -4,10 +4,9 @@ import 'todo_provider.dart';
 class TodoItemInput {
   TodoItemInput();
 
-  /// Gets or sets the title of the todo item to create.
+  /// Title of the todo item to create.
   String title = '';
 
-  /// Gets or sets an optional description providing additional details about
-  /// the todo item.
+  /// Optional description providing additional details about the todo item.
   String? description;
 }

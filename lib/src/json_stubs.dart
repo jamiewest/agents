@@ -21,6 +21,8 @@ class JsonSerializerOptions {
   bool _readOnly = false;
 
   void makeReadOnly() => _readOnly = true;
+
+  /// Whether this options object has been made read-only.
   bool get isReadOnly => _readOnly;
 
   bool tryGetTypeInfo(Type type, {JsonTypeInfo? outTypeInfo}) => false;
@@ -33,6 +35,7 @@ class JsonElement {
 
   const JsonElement(this._value);
 
+  /// The underlying Dart value represented by this JSON element.
   Object? get value => _value;
 
   JsonElement clone() => JsonElement(_value);
@@ -61,6 +64,7 @@ abstract class JsonTypeInfo<T> {
 
 /// Mirrors C# System.Text.Json.Utf8JsonReader.
 class Utf8JsonReader {
+  /// The current byte position within the JSON data.
   int get position => 0;
   String? getString() => null;
 }

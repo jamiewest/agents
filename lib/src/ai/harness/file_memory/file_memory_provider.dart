@@ -18,13 +18,13 @@ import 'file_memory_state.dart';
 /// An [AIContextProvider] that provides file-based memory tools to an agent
 /// for storing, retrieving, modifying, listing, deleting, and searching files.
 ///
-/// Remarks: The [FileMemoryProvider] enables agents to persist information
-/// across interactions using a file-based storage model. Each memory is stored
-/// as an individual file with a meaningful name. For large files, a companion
+/// The [FileMemoryProvider] enables agents to persist information across
+/// interactions using a file-based storage model. Each memory is stored as an
+/// individual file with a meaningful name. For large files, a companion
 /// description file (suffixed with `_description.md`) can be stored alongside
 /// the main file to provide a summary.
 class FileMemoryProvider extends AIContextProvider implements Disposable {
-  /// Initializes a new instance of the [FileMemoryProvider] class.
+  /// Creates a [FileMemoryProvider] using [fileStore].
   FileMemoryProvider(
     AgentFileStore? fileStore, {
     FileMemoryState Function(AgentSession?)? stateInitializer,

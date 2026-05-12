@@ -10,6 +10,8 @@ import 'agent_json_utilities.dart';
 import 'memory/chat_history_memory_provider_options.dart';
 import 'text_search_provider_options.dart';
 
+/// Async delegate that performs a text search and returns an iterable of
+/// [TextSearchResult] instances.
 typedef TextSearchAsync =
     Future<Iterable<TextSearchResult>> Function(
       String input,
@@ -312,8 +314,7 @@ class TextSearchProviderState {
   TextSearchProviderState({List<String>? recentMessagesText})
     : recentMessagesText = recentMessagesText ?? [];
 
-  /// Gets or sets the list of recent message texts retained for multi-turn
-  /// search context.
+  /// List of recent message texts retained for multi-turn search context.
   List<String> recentMessagesText;
 }
 
@@ -326,15 +327,15 @@ class TextSearchResult {
     this.rawRepresentation,
   });
 
-  /// Gets or sets the display name of the source document.
+  /// Display name of the source document.
   String? sourceName;
 
-  /// Gets or sets a link/URL to the source document.
+  /// Link or URL to the source document.
   String? sourceLink;
 
-  /// Gets or sets the textual content of the retrieved chunk.
+  /// Textual content of the retrieved chunk.
   String text;
 
-  /// Gets or sets the raw representation of the search result.
+  /// Raw representation of the search result.
   Object? rawRepresentation;
 }

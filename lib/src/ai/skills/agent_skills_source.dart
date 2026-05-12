@@ -6,10 +6,6 @@ import 'agent_skill.dart';
 abstract class AgentSkillsSource {
   AgentSkillsSource();
 
-  /// Gets the skills provided by this source.
-  ///
-  /// Returns: A collection of skills from this source.
-  ///
-  /// [cancellationToken] Cancellation token.
+  /// Returns the skills provided by this source.
   Future<List<AgentSkill>> getSkills({CancellationToken? cancellationToken});
 }

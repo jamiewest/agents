@@ -8,14 +8,14 @@ import 'tool_approval_rule.dart';
 class ToolApprovalState {
   ToolApprovalState();
 
-  /// Gets or sets the list of standing approval rules.
+  /// List of standing approval rules.
   List<ToolApprovalRule> rules = [];
 
-  /// Gets or sets the list of collected approval responses that are pending
-  /// injection into the next inbound call to the inner agent.
+  /// List of collected approval responses that are pending injection into the
+  /// next inbound call to the inner agent.
   List<ToolApprovalResponseContent> collectedApprovalResponses = [];
 
-  /// Gets or sets the list of queued tool approval requests that have not yet
-  /// been presented to the caller.
+  /// List of queued tool approval requests that have not yet been presented to
+  /// the caller.
   List<ToolApprovalRequestContent> queuedApprovalRequests = [];
 }

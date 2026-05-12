@@ -21,7 +21,7 @@ class AIAgentBinding implements ExecutorBinding {
   /// Gets the agent represented by this binding.
   final AIAgent agent;
 
-  /// Gets or sets the session reused by the created executor.
+  /// The session reused by the created executor, if any.
   AgentSession? session;
 
   /// Gets the run options supplied to each agent invocation.

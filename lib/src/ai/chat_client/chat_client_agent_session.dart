@@ -13,7 +13,7 @@ class ChatClientAgentSession extends AgentSession {
     this.conversationId = conversationId;
   }
 
-  /// Gets or sets the ID of the underlying service chat history.
+  /// ID of the underlying service chat history.
   ///
   /// May be null when the agent stores messages via a [ChatHistoryProvider]
   /// rather than in the agent service, or when server-managed chat history
@@ -37,6 +37,7 @@ class ChatClientAgentSession extends AgentSession {
   String serialize({Object? JsonSerializerOptions}) =>
       jsonEncode({'conversationId': conversationId});
 
+  /// A human-readable summary of this session for use in debugger displays.
   String get debuggerDisplay => conversationId != null
       ? 'conversationId = $conversationId'
       : 'No conversation ID';

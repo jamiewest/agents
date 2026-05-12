@@ -5,25 +5,19 @@ import 'compaction_message_index.dart';
 import 'compaction_strategy.dart';
 import 'compaction_trigger.dart';
 
-/// A compaction strategy that delegates to an [ChatReducer] to reduce the
+/// A compaction strategy that delegates to a [ChatReducer] to reduce the
 /// conversation's included messages.
 ///
-/// Remarks: This strategy bridges the [ChatReducer] abstraction from
+/// This strategy bridges the [ChatReducer] abstraction from
 /// `Microsoft.Extensions.AI` into the compaction pipeline. It collects the
 /// currently included messages from the [CompactionMessageIndex], passes them
 /// to the reducer, and rebuilds the index from the reduced message list when
 /// the reducer produces fewer messages. The [CompactionTrigger] controls when
 /// reduction is attempted. Use [CompactionTriggers] for common trigger
-/// conditions such as token or message thresholds. Use this strategy when you
-/// have an existing [ChatReducer] implementation (such as
-/// `MessageCountingChatReducer`) and want to apply it as part of a
-/// [CompactionStrategy] pipeline or as an in-run compaction strategy.
+/// conditions such as token or message thresholds.
 class ChatReducerCompactionStrategy extends CompactionStrategy {
-  /// Initializes a new instance of the [ChatReducerCompactionStrategy] class.
-  ///
-  /// [chatReducer] The [ChatReducer] that performs the message reduction.
-  ///
-  /// [trigger] The [CompactionTrigger] that controls when compaction proceeds.
+  /// Creates a [ChatReducerCompactionStrategy] with [chatReducer] and
+  /// [trigger].
   ChatReducerCompactionStrategy(this.chatReducer, super.trigger);
 
   /// Gets the chat reducer used to reduce messages.

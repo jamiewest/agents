@@ -51,7 +51,7 @@ typedef RunStreamingAgentDelegate =
 /// Represents a delegating AI agent that wraps an inner agent with
 /// implementations provided by delegates.
 ///
-/// Remarks: This is a convenience implementation mainly used to support
+/// This is a convenience implementation mainly used to support
 /// [AIAgentBuilder] `use` methods that take delegates to intercept agent
 /// operations.
 class AnonymousDelegatingAIAgent extends DelegatingAIAgent {

@@ -4,9 +4,7 @@ import 'agent_skills_source.dart';
 
 /// A skill source that holds [AgentSkill] instances in memory.
 class AgentInMemorySkillsSource extends AgentSkillsSource {
-  /// Initializes a new instance of the [AgentInMemorySkillsSource] class.
-  ///
-  /// [skills] The skills to include in this source.
+  /// Creates an [AgentInMemorySkillsSource] with the given [skills].
   AgentInMemorySkillsSource(Iterable<AgentSkill> skills)
     : _skills = skills.toList();
 

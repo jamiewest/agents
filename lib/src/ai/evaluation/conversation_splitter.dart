@@ -11,6 +11,8 @@ class ConversationSplitters {
   static final ConversationSplitter full = FullSplitter();
 }
 
+/// Splits a conversation at the first user message, returning everything
+/// from the start through that message as the query half.
 class FullSplitter implements ConversationSplitter {
   @override
   (List<ChatMessage>, List<ChatMessage>) split(List<ChatMessage> conversation) {
@@ -31,6 +33,8 @@ class FullSplitter implements ConversationSplitter {
   }
 }
 
+/// Splits a conversation at the last user message, returning everything
+/// from the start through that message as the query half.
 class LastTurnSplitter implements ConversationSplitter {
   @override
   (List<ChatMessage>, List<ChatMessage>) split(List<ChatMessage> conversation) {

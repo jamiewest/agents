@@ -1,9 +1,7 @@
-/// Represents the source of an agent request message.
+/// The source of an agent request message.
 ///
-/// Remarks: Input messages for a specific agent run can originate from
-/// various sources. This type helps to identify whether a message came from
-/// outside the agent pipeline, whether it was produced by middleware, or came
-/// from chat history.
+/// Input messages for a specific agent run can originate from various sources,
+/// such as user input, AI context providers, or chat history.
 class AgentRequestMessageSourceType {
   /// Creates an [AgentRequestMessageSourceType] with the given [value].
   const AgentRequestMessageSourceType(this.value);

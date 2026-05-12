@@ -1,10 +1,10 @@
 import 'agent_request_message_source_type.dart';
 
-/// Represents attribution information for the source of an agent request
-/// message for a specific run, including the component type and identifier.
+/// Attribution information for the source of an agent request message,
+/// including the component type and its identifier.
 ///
-/// Remarks: Use this to identify which component provided a message during an
-/// agent run, allowing filtering by source (user input, middleware, history).
+/// Use this to identify which component provided a message during an agent run
+/// and to filter messages by source.
 class AgentRequestMessageSourceAttribution {
   /// Creates an [AgentRequestMessageSourceAttribution] with the specified
   /// [sourceType] and optional [sourceId].

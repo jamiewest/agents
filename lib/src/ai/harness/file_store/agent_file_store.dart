@@ -4,11 +4,11 @@ import 'file_search_result.dart';
 
 /// Provides an abstract base class for file storage operations.
 ///
-/// Remarks: All paths are relative to an implementation-defined root.
-/// Implementations may map these paths to a local file system, in-memory
-/// store, remote blob storage, or other mechanisms. Paths use forward slashes
-/// as separators and must not escape the root (e.g., via `..` segments). It
-/// is up to each implementation to ensure that this is enforced.
+/// All paths are relative to an implementation-defined root. Implementations
+/// may map these paths to a local file system, in-memory store, remote blob
+/// storage, or other mechanisms. Paths use forward slashes as separators and
+/// must not escape the root (e.g., via `..` segments). It is up to each
+/// implementation to enforce this.
 abstract class AgentFileStore {
   AgentFileStore();
 

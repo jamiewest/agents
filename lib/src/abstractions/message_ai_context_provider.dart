@@ -11,10 +11,9 @@ import 'chat_message_extensions.dart';
 /// Abstract base class for components that enhance AI context during agent
 /// invocations by supplying additional chat messages.
 ///
-/// Remarks: A [MessageAIContextProvider] participates in the agent invocation
-/// lifecycle by providing additional messages that are merged with the input.
-/// It overrides [provideAIContext] to call [invoking] and wrap the returned
-/// messages in an [AIContext].
+/// Participates in the agent invocation lifecycle by providing additional
+/// messages that are merged with the input. Overrides [provideAIContext] to
+/// wrap the returned messages in an [AIContext].
 abstract class MessageAIContextProvider extends AIContextProvider {
   /// Creates a [MessageAIContextProvider] with optional message filters.
   MessageAIContextProvider({

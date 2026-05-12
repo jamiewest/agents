@@ -224,32 +224,41 @@ class CompactionMessageIndex {
         .expand((group) => group.messages);
   }
 
+  /// Total number of messages across all groups (included and excluded).
   int get totalMessageCount =>
       groups.fold(0, (sum, group) => sum + group.messageCount);
 
+  /// Total byte count across all groups (included and excluded).
   int get totalByteCount =>
       groups.fold(0, (sum, group) => sum + group.byteCount);
 
+  /// Total token count across all groups (included and excluded).
   int get totalTokenCount =>
       groups.fold(0, (sum, group) => sum + group.tokenCount);
 
+  /// Total number of groups regardless of exclusion state.
   int get totalGroupCount => groups.length;
 
+  /// Number of messages in non-excluded groups.
   int get includedMessageCount => groups
       .where((group) => !group.isExcluded)
       .fold(0, (sum, group) => sum + group.messageCount);
 
+  /// Total byte count across non-excluded groups.
   int get includedByteCount => groups
       .where((group) => !group.isExcluded)
       .fold(0, (sum, group) => sum + group.byteCount);
 
+  /// Total token count across non-excluded groups.
   int get includedTokenCount => groups
       .where((group) => !group.isExcluded)
       .fold(0, (sum, group) => sum + group.tokenCount);
 
+  /// Number of non-excluded groups.
   int get includedGroupCount =>
       groups.where((group) => !group.isExcluded).length;
 
+  /// Number of non-excluded, non-system groups.
   int get includedNonSystemGroupCount => groups
       .where(
         (group) =>
@@ -257,6 +266,7 @@ class CompactionMessageIndex {
       )
       .length;
 
+  /// Number of distinct conversation turns in non-excluded, non-system groups.
   int get includedTurnCount => groups
       .where(
         (group) =>
@@ -268,6 +278,7 @@ class CompactionMessageIndex {
       .toSet()
       .length;
 
+  /// Total message count across all non-summary groups.
   int get rawMessageCount => groups
       .where((group) => group.kind != CompactionGroupKind.summary)
       .fold(0, (sum, group) => sum + group.messageCount);

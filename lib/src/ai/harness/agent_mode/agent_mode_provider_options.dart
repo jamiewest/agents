@@ -4,24 +4,23 @@ import 'agent_mode_provider.dart';
 class AgentModeProviderOptions {
   AgentModeProviderOptions();
 
-  /// Gets or sets custom instructions provided to the agent for using the mode
-  /// tools.
+  /// Custom instructions provided to the agent for using the mode tools.
   ///
-  /// Remarks: The instructions must contain a `{available_modes}` placeholder
-  /// for the provider to inject the currently available list of modes, and a
+  /// The instructions must contain a `{available_modes}` placeholder for the
+  /// provider to inject the currently available list of modes, and a
   /// `{current_mode}` placeholder to inject the currently active mode.
   String? instructions;
 
-  /// Gets or sets the list of available modes the agent can operate in.
+  /// List of available modes the agent can operate in.
   List<AgentMode?>? modes;
 
-  /// Gets or sets the initial mode for new sessions.
+  /// Initial mode for new sessions.
   String? defaultMode;
 }
 
 /// Represents an agent operating mode with a name and description.
 class AgentMode {
-  /// Initializes a new instance of the [AgentMode] class.
+  /// Creates an [AgentMode] with the given [name] and [description].
   AgentMode(String? name, String? description)
     : name = _throwIfNullOrWhitespace(name, 'name'),
       description = _throwIfNullOrWhitespace(description, 'description');

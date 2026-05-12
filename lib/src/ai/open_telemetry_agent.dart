@@ -30,8 +30,8 @@ class OpenTelemetryAgent extends DelegatingAIAgent implements Disposable {
   late final OpenTelemetryChatClient _otelClient;
   late final String? _providerName;
 
-  /// Gets or sets a value indicating whether potentially sensitive
-  /// information should be included in telemetry.
+  /// Whether potentially sensitive information should be included in
+  /// telemetry.
   bool enableSensitiveData = false;
 
   @override

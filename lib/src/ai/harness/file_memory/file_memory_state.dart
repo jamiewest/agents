@@ -6,7 +6,6 @@ import 'file_memory_provider.dart';
 class FileMemoryState {
   FileMemoryState();
 
-  /// Gets or sets the working folder path for this session, relative to the
-  /// store root.
+  /// Working folder path for this session, relative to the store root.
   String workingFolder = '';
 }

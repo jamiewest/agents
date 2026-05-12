@@ -1,22 +1,21 @@
 /// Represents a standing approval rule for automatically approving tool calls
 /// without requiring explicit user approval each time.
 ///
-/// Remarks: A rule can match tool calls in two ways: Tool-level : When
-/// [Arguments] is `null`, all calls to the tool identified by [ToolName] are
-/// auto-approved. Tool+arguments : When [Arguments] is non-null, only calls
-/// to the specified tool with exactly matching argument values are
+/// A rule can match tool calls in two ways. At the tool level, when
+/// [arguments] is `null`, all calls to the tool identified by [toolName] are
+/// auto-approved. At the tool+arguments level, when [arguments] is non-null,
+/// only calls to the specified tool with exactly matching argument values are
 /// auto-approved.
 class ToolApprovalRule {
   ToolApprovalRule({this.toolName = '', this.arguments});
 
-  /// Gets or sets the name of the tool function that this rule applies to.
+  /// Name of the tool function that this rule applies to.
   String toolName;
 
-  /// Gets or sets the specific argument values that must match for this rule to
-  /// apply. When `null`, the rule applies to all invocations of the tool
-  /// regardless of arguments.
+  /// Specific argument values that must match for this rule to apply.
   ///
-  /// Remarks: Argument values are stored as their JSON-serialized String
+  /// When `null`, the rule applies to all invocations of the tool regardless
+  /// of arguments. Argument values are stored as their JSON-serialized string
   /// representations for reliable comparison.
   Map<String, String>? arguments;
 }

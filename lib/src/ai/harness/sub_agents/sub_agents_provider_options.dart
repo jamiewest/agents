@@ -6,14 +6,13 @@ import 'sub_agents_provider.dart';
 class SubAgentsProviderOptions {
   SubAgentsProviderOptions();
 
-  /// Gets or sets custom instructions provided to the agent for using the
-  /// sub-agent tools.
+  /// Custom instructions provided to the agent for using the sub-agent tools.
   ///
-  /// Remarks: Use the `{sub_agents}` placeholder to allow the provider to
-  /// inject the formatted list of available sub agents.
+  /// Use the `{sub_agents}` placeholder to allow the provider to inject the
+  /// formatted list of available sub-agents.
   String? instructions;
 
-  /// Gets or sets a custom function that builds the agent list text to append
-  /// to instructions.
+  /// Custom function that builds the agent list text to append to
+  /// instructions.
   Func<Map<String, AIAgent>, String>? agentListBuilder;
 }

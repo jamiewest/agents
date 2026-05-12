@@ -405,6 +405,7 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
     }
   }
 
+  /// The sub-workflow runners that have joined this execution context.
   Iterable<ISuperStepRunner> get joinedSubworkflowRunners => _joinedRunners.values;
 }
 

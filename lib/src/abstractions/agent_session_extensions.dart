@@ -7,9 +7,8 @@ import 'in_memory_chat_history_provider.dart';
 extension AgentSessionExtensions on AgentSession {
   /// Attempts to retrieve the in-memory chat history messages for this session.
   ///
-  /// Returns `(true, messages)` if found; `(false, null)` otherwise.
-  ///
-  /// Remarks: Only applicable when [InMemoryChatHistoryProvider] is in use.
+  /// Returns `(true, messages)` if found; `(false, null)` otherwise. Only
+  /// applicable when [InMemoryChatHistoryProvider] is in use.
   (bool, List<ChatMessage>?) tryGetInMemoryChatHistory({String? stateKey}) {
     final (found, state) = stateBag.tryGetValue<InMemoryChatHistoryProviderState>(
       stateKey ?? 'InMemoryChatHistoryProvider',
@@ -22,7 +21,7 @@ extension AgentSessionExtensions on AgentSession {
 
   /// Sets the in-memory chat history for this session.
   ///
-  /// Remarks: Only applicable when [InMemoryChatHistoryProvider] is in use.
+  /// Only applicable when [InMemoryChatHistoryProvider] is in use.
   void setInMemoryChatHistory(
     List<ChatMessage> messages, {
     String? stateKey,

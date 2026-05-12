@@ -4,11 +4,8 @@ import 'package:extensions/dependency_injection.dart';
 /// Abstract base class for skill resources. A resource provides supplementary
 /// content (references, assets) to a skill.
 abstract class AgentSkillResource {
-  /// Initializes a new instance of the [AgentSkillResource] class.
-  ///
-  /// [name] The resource name (e.g., relative path or identifier).
-  ///
-  /// [description] An optional description of the resource.
+  /// Creates an [AgentSkillResource] with the given [name] and optional
+  /// [description].
   AgentSkillResource(this.name, {this.description});
 
   /// Gets the resource name.
@@ -19,11 +16,7 @@ abstract class AgentSkillResource {
 
   /// Reads the resource content asynchronously.
   ///
-  /// Returns: The resource content.
-  ///
-  /// [serviceProvider] Optional service provider for dependency injection.
-  ///
-  /// [cancellationToken] Cancellation token.
+  /// Returns the resource content.
   Future<Object?> read({
     ServiceProvider? serviceProvider,
     CancellationToken? cancellationToken,

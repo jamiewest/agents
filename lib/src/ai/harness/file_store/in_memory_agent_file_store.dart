@@ -10,10 +10,9 @@ import 'store_paths.dart';
 /// An in-memory implementation of [AgentFileStore] that stores files in a
 /// dictionary.
 ///
-/// Remarks: This implementation is suitable for testing and lightweight
-/// scenarios where persistence is not required. Directory concepts are
-/// simulated using path prefixes; no explicit directory structure is
-/// maintained.
+/// This implementation is suitable for testing and lightweight scenarios
+/// where persistence is not required. Directory concepts are simulated using
+/// path prefixes; no explicit directory structure is maintained.
 class InMemoryAgentFileStore extends AgentFileStore {
   InMemoryAgentFileStore();
 

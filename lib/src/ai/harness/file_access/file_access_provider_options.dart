@@ -4,7 +4,7 @@ import 'file_access_provider.dart';
 class FileAccessProviderOptions {
   FileAccessProviderOptions();
 
-  /// Gets or sets custom instructions provided to the agent for using the file
-  /// access tools.
+  /// Custom instructions provided to the agent for using the file access
+  /// tools.
   String? instructions;
 }

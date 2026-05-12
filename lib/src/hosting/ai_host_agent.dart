@@ -8,8 +8,8 @@ import 'agent_session_store.dart';
 /// Provides a hosting wrapper around an [AIAgent] that adds session
 /// persistence capabilities for server-hosted scenarios.
 ///
-/// Remarks: [AIHostAgent] wraps an existing agent and adds the ability to
-/// persist and restore conversation threads using an [AgentSessionStore].
+/// [AIHostAgent] wraps an existing agent and adds the ability to persist and
+/// restore conversation threads using an [AgentSessionStore].
 class AIHostAgent extends DelegatingAIAgent {
   /// Creates an [AIHostAgent] wrapping [innerAgent] with [sessionStore].
   AIHostAgent(super.innerAgent, this._sessionStore);

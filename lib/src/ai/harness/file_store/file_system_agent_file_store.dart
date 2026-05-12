@@ -12,16 +12,14 @@ import 'store_paths.dart';
 /// A file-system-backed implementation of [AgentFileStore] that stores files
 /// on disk under a configurable root directory.
 ///
-/// Remarks: All paths passed to this store are resolved relative to the root
-/// directory provided at construction time. Lexical path traversal attempts
-/// (for example, via `..` segments or absolute paths) are rejected with an
-/// [ArgumentError]. The root directory is created automatically if it does not
-/// already exist.
+/// All paths are resolved relative to the root directory provided at
+/// construction time. Lexical path traversal attempts (for example, via `..`
+/// segments or absolute paths) are rejected with an [ArgumentError]. The root
+/// directory is created automatically if it does not already exist.
 class FileSystemAgentFileStore extends AgentFileStore {
-  /// Initializes a new instance of the [FileSystemAgentFileStore] class.
+  /// Creates a [FileSystemAgentFileStore] for the given [rootDirectory].
   ///
-  /// [rootDirectory] The root directory under which all files are stored.
-  /// Created if it does not exist.
+  /// The directory is created if it does not already exist.
   FileSystemAgentFileStore(String? rootDirectory) {
     if (rootDirectory == null) {
       throw ArgumentError.notNull('rootDirectory');

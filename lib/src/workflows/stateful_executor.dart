@@ -22,7 +22,7 @@ abstract class StatefulExecutor<TState, TInput, TOutput>
   /// Gets the stateful executor options.
   final StatefulExecutorOptions<TState> statefulOptions;
 
-  /// Gets or sets the current state.
+  /// The current state of this executor.
   TState? state;
 
   @override

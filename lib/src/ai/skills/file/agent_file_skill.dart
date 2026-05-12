@@ -6,17 +6,8 @@ import '../agent_skill_script.dart';
 /// An [AgentSkill] discovered from a filesystem directory backed by a
 /// SKILL.md file.
 class AgentFileSkill extends AgentSkill {
-  /// Initializes a new instance of the [AgentFileSkill] class.
-  ///
-  /// [frontmatter] The parsed frontmatter metadata for this skill.
-  ///
-  /// [content] The full raw SKILL.md file content including YAML frontmatter.
-  ///
-  /// [path] Absolute path to the directory containing this skill.
-  ///
-  /// [resources] Resources discovered for this skill.
-  ///
-  /// [scripts] Scripts discovered for this skill.
+  /// Creates an [AgentFileSkill] with [frontmatter], raw content, [path], and
+  /// optional [resources] and [scripts].
   AgentFileSkill(
     this.frontmatter,
     this._originalContent,
@@ -34,17 +25,11 @@ class AgentFileSkill extends AgentSkill {
   @override
   final AgentSkillFrontmatter frontmatter;
 
-  /// Returns the raw SKILL.md content. When the skill has scripts, a
-  /// &lt;scripts&gt;&lt;script
-  /// name="..."&gt;&lt;parameters_schema&gt;...&lt;/parameters_schema&gt;&lt;/script&gt;&lt;/scripts&gt;
-  /// block is appended with a per-script entry describing the expected argument
-  /// format. The result is cached after the first access.
+  /// Returns the raw SKILL.md content.
   ///
-  /// Remarks: Returns the raw SKILL.md content. When the skill has scripts, a
-  /// `&lt;scripts&gt;&lt;script
-  /// name="..."&gt;&lt;parameters_schema&gt;...&lt;/parameters_schema&gt;&lt;/script&gt;&lt;/scripts&gt;`
-  /// block is appended with a per-script entry describing the expected argument
-  /// format. The result is cached after the first access.
+  /// When the skill has scripts, a `<scripts>` block is appended with a
+  /// per-script entry describing the expected argument format. The result is
+  /// cached after the first access.
   @override
   String get content => _content ??= _scripts.isEmpty
       ? _originalContent

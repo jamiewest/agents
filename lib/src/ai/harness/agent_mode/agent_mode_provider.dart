@@ -13,12 +13,12 @@ import 'agent_mode_state.dart';
 /// "plan" or "execute") in the session state and provides tools for querying
 /// and switching modes.
 ///
-/// Remarks: The [AgentModeProvider] enables agents to operate in distinct
-/// modes during long-running complex tasks. The current mode is persisted in
-/// the session state and is included in the instructions provided to the agent
-/// on each invocation.
+/// The [AgentModeProvider] enables agents to operate in distinct modes during
+/// long-running complex tasks. The current mode is persisted in the session
+/// state and is included in the instructions provided to the agent on each
+/// invocation.
 class AgentModeProvider extends AIContextProvider {
-  /// Initializes a new instance of the [AgentModeProvider] class.
+  /// Creates an [AgentModeProvider] with optional [options].
   AgentModeProvider({AgentModeProviderOptions? options}) {
     _modes = options?.modes ?? defaultModes;
     if (_modes.isEmpty) {

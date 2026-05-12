@@ -7,7 +7,7 @@ import 'sub_task_info.dart';
 class SubAgentState {
   SubAgentState();
 
-  /// Gets or sets the next ID to assign to a new sub-task.
+  /// Next ID to assign to a new sub-task.
   int nextTaskId = 1;
 
   /// Gets the list of sub-task metadata entries.

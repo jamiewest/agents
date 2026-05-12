@@ -7,8 +7,8 @@ import '../agent_session_store.dart';
 /// In-memory implementation of [AgentSessionStore] for development and
 /// testing scenarios.
 ///
-/// Remarks: Stores sessions in a simple [Map]. All sessions are lost when the
-/// process restarts. For production use, choose a durable store.
+/// Stores sessions in a simple [Map]. All sessions are lost when the process
+/// restarts. For production use, choose a durable store.
 class InMemoryAgentSessionStore extends AgentSessionStore {
   InMemoryAgentSessionStore();
 

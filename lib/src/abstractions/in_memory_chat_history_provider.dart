@@ -9,9 +9,9 @@ import 'provider_session_state_t_state_.dart';
 /// In-memory implementation of [ChatHistoryProvider] with optional message
 /// reduction support.
 ///
-/// Remarks: Stores chat messages in the session [AgentSessionStateBag].
-/// For long-running conversations or high-volume scenarios, consider using
-/// message reduction strategies via [InMemoryChatHistoryProviderOptions].
+/// Stores chat messages in the session [AgentSessionStateBag]. For
+/// long-running conversations or high-volume scenarios, consider message
+/// reduction strategies via [InMemoryChatHistoryProviderOptions].
 class InMemoryChatHistoryProvider extends ChatHistoryProvider {
   /// Creates an [InMemoryChatHistoryProvider] with optional [options].
   InMemoryChatHistoryProvider({InMemoryChatHistoryProviderOptions? options})

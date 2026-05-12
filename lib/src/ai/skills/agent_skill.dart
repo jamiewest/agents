@@ -6,39 +6,39 @@ import 'programmatic/agent_inline_skill.dart';
 
 /// Abstract base class for all agent skills.
 ///
-/// Remarks: A skill represents a domain-specific capability with
-/// instructions, resources, and scripts. Concrete implementations include
-/// [AgentFileSkill] (filesystem-backed) and [AgentInlineSkill]
-/// (code-defined). Skill metadata follows the Agent Skills specification .
+/// A skill represents a domain-specific capability with instructions,
+/// resources, and scripts. Concrete implementations include [AgentFileSkill]
+/// (filesystem-backed) and [AgentInlineSkill] (code-defined). Skill metadata
+/// follows the Agent Skills specification.
 abstract class AgentSkill {
   AgentSkill();
 
   /// Gets the frontmatter metadata for this skill.
   ///
-  /// Remarks: Contains the L1 discovery metadata (name, description, license,
-  /// compatibility, etc.) as defined by the Agent Skills specification .
+  /// Contains the L1 discovery metadata (name, description, license,
+  /// compatibility, etc.) as defined by the Agent Skills specification.
   AgentSkillFrontmatter get frontmatter;
 
   /// Gets the full skill content.
   ///
-  /// Remarks: For file-based skills this is the raw SKILL.md file content,
-  /// optionally augmented with a synthesized scripts block when scripts are
-  /// present. For code-defined skills this is a synthesized XML document
-  /// containing name, description, and body (instructions, resources, scripts).
+  /// For file-based skills this is the raw SKILL.md file content, optionally
+  /// augmented with a synthesized scripts block when scripts are present. For
+  /// code-defined skills this is a synthesized XML document containing name,
+  /// description, and body (instructions, resources, scripts).
   String get content;
 
   /// Gets the resources associated with this skill, or `null` if none.
   ///
-  /// Remarks: The default implementation returns `null`. Override this property
-  /// in derived classes to provide skill-specific resources.
+  /// The default implementation returns `null`. Override this property in
+  /// derived classes to provide skill-specific resources.
   List<AgentSkillResource>? get resources {
     return null;
   }
 
   /// Gets the scripts associated with this skill, or `null` if none.
   ///
-  /// Remarks: The default implementation returns `null`. Override this property
-  /// in derived classes to provide skill-specific scripts.
+  /// The default implementation returns `null`. Override this property in
+  /// derived classes to provide skill-specific scripts.
   List<AgentSkillScript>? get scripts {
     return null;
   }

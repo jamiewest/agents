@@ -5,12 +5,12 @@ import 'file_search_match.dart';
 class FileSearchResult {
   FileSearchResult();
 
-  /// Gets or sets the name of the file that matched the search.
+  /// Name of the file that matched the search.
   String fileName = '';
 
-  /// Gets or sets a snippet of content from the file around the first match.
+  /// Snippet of content from the file around the first match.
   String snippet = '';
 
-  /// Gets or sets the lines where matches were found.
+  /// Lines where matches were found.
   List<FileSearchMatch> matchingLines = [];
 }

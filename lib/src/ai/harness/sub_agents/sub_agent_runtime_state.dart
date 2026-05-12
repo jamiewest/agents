@@ -5,10 +5,9 @@ import 'sub_agents_provider.dart';
 /// Holds non-serializable runtime references for in-flight sub-tasks within a
 /// single parent session.
 ///
-/// Remarks: Properties are marked with [JsonIgnoreAttribute] because [Task]
-/// and [AgentSession] are not JSON-serializable. After deserialization (e.g.,
+/// Runtime task state is not JSON-serializable. After deserialization (e.g.,
 /// after a restart), a fresh empty instance is created and any
-/// previously-running tasks are marked as [Lost] by [SubAgentsProvider].
+/// previously-running tasks are marked as lost by [SubAgentsProvider].
 class SubAgentRuntimeState {
   SubAgentRuntimeState();
 

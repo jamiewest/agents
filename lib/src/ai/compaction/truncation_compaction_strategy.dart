@@ -6,29 +6,19 @@ import 'compaction_strategy.dart';
 import 'compaction_trigger.dart';
 
 /// A compaction strategy that removes the oldest non-system message groups,
-/// keeping at least [MinimumPreservedGroups] most-recent groups intact.
+/// keeping at least [minimumPreservedGroups] most-recent groups intact.
 ///
-/// Remarks: This strategy preserves system messages and removes the oldest
-/// non-system message groups first. It respects atomic group boundaries — an
-/// assistant message with tool calls and its corresponding tool result
-/// messages are always removed together. [MinimumPreservedGroups] is a hard
-/// floor: even if the [Target] has not been reached, compaction will not
-/// touch the last [MinimumPreservedGroups] non-system groups. The
-/// [CompactionTrigger] controls when compaction proceeds. Use
-/// [CompactionTriggers] for common trigger conditions such as token or group
-/// thresholds.
+/// This strategy preserves system messages and removes the oldest non-system
+/// message groups first. It respects atomic group boundaries — an assistant
+/// message with tool calls and its corresponding tool result messages are
+/// always removed together. [minimumPreservedGroups] is a hard floor: even if
+/// the target has not been reached, compaction will not touch the last
+/// [minimumPreservedGroups] non-system groups. The [CompactionTrigger]
+/// controls when compaction proceeds. Use [CompactionTriggers] for common
+/// trigger conditions such as token or group thresholds.
 class TruncationCompactionStrategy extends CompactionStrategy {
-  /// Initializes a new instance of the [TruncationCompactionStrategy] class.
-  ///
-  /// [trigger] The [CompactionTrigger] that controls when compaction proceeds.
-  ///
-  /// [minimumPreservedGroups] The minimum number of most-recent non-system
-  /// message groups to preserve. This is a hard floor — compaction will not
-  /// remove groups beyond this limit, regardless of the target condition.
-  ///
-  /// [target] An optional target condition that controls when compaction stops.
-  /// When `null`, defaults to the inverse of the `trigger` — compaction stops
-  /// as soon as the trigger would no longer fire.
+  /// Creates a [TruncationCompactionStrategy] with the given [trigger],
+  /// optional [minimumPreservedGroups], and optional [target].
   TruncationCompactionStrategy(
     super.trigger, {
     int? minimumPreservedGroups,

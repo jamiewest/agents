@@ -3,9 +3,9 @@ import '../abstractions/ai_agent.dart';
 import '../abstractions/agent_session.dart';
 import 'agent_session_store.dart';
 
-/// This store implementation does not have any store under the hood and
-/// therefore does not store sessions. [CancellationToken)] always returns a
-/// new session.
+/// An [AgentSessionStore] that does not persist sessions.
+///
+/// Every call to [getSession] creates a new session; [saveSession] is a no-op.
 class NoopAgentSessionStore extends AgentSessionStore {
   NoopAgentSessionStore();
 

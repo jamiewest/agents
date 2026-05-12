@@ -43,6 +43,8 @@ class AgentSkillFrontmatter {
   AdditionalPropertiesDictionary? metadata;
 
   String? _compatibility;
+
+  /// An optional compatibility string that constrains where this skill may run.
   String? get compatibility => _compatibility;
   set compatibility(String? value) {
     final (valid, reason) = validateCompatibility(value);

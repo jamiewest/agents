@@ -36,7 +36,7 @@ in your conversation with the user.
       HandoffToolCallFilteringBehavior.handoffOnly;
   bool _returnToPrevious = false;
 
-  /// Gets or sets additional instructions to provide to agents with handoffs.
+  /// Additional instructions to provide to agents that have handoff tools.
   String? handoffInstructions = defaultHandoffInstructions;
 
   /// Sets instructions to provide to each agent that has handoffs.

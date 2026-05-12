@@ -39,6 +39,8 @@ abstract class VectorStoreCollection<TKey, TRecord> implements Disposable {
   });
 }
 
+/// Describes the schema of a [VectorStoreCollection] to be created
+/// dynamically at runtime.
 class VectorStoreCollectionDefinition {
   VectorStoreCollectionDefinition({List<VectorStoreProperty>? properties})
     : properties = properties ?? [];
@@ -46,6 +48,7 @@ class VectorStoreCollectionDefinition {
   final List<VectorStoreProperty> properties;
 }
 
+/// Describes a single property (field) within a [VectorStoreCollectionDefinition].
 class VectorStoreProperty {
   VectorStoreProperty(
     this.name,
@@ -62,12 +65,14 @@ class VectorStoreProperty {
   final int? dimensions;
 }
 
+/// Options that control a vector store search query.
 class VectorSearchOptions<TRecord> {
   VectorSearchOptions({this.filter});
 
   final bool Function(TRecord record)? filter;
 }
 
+/// A single result returned by a vector store search operation.
 class VectorSearchResult<TRecord> {
   VectorSearchResult(this.record, [this.score]);
 

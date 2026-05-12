@@ -41,7 +41,7 @@ class ChatProtocolExecutor extends Executor<Object?, AgentResponse> {
   /// Gets the agent invoked by this executor.
   final AIAgent agent;
 
-  /// Gets or sets the reusable agent session.
+  /// The reusable agent session, if any.
   AgentSession? session;
 
   /// Gets the run options supplied to each invocation.
