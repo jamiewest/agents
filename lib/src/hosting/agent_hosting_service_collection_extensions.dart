@@ -22,18 +22,13 @@ extension AgentHostingServiceCollectionExtensions on ServiceCollection {
   }) {
     _registerKeyed<AIAgent>(this, name, (sp, key) {
       final client = chatClient ?? sp.getRequiredService<ChatClient>();
-      List<AITool> tools;
-      try {
-        tools = sp.getKeyedServices<AITool>(name).toList();
-      } catch (_) {
-        tools = const [];
-      }
+      final tools = sp.getKeyedServices<AITool>(name).toList();
       return ChatClientAgent.withSettings(
         client,
         name: name,
         instructions: instructions,
         description: description,
-        tools: tools,
+        tools: tools.isEmpty ? null : tools,
       );
     }, lifetime);
     return _DefaultHostedAgentBuilder(this, name, lifetime);
