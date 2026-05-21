@@ -21,7 +21,11 @@ extension AgentHostingServiceCollectionExtensions on ServiceCollection {
     String? description,
   }) {
     _registerKeyed<AIAgent>(this, name, (sp, key) {
-      final client = chatClient ?? sp.getRequiredService<ChatClient>();
+      final client =
+          chatClient ??
+          (chatClientServiceKey != null
+              ? sp.getRequiredKeyedService<ChatClient>(chatClientServiceKey)
+              : sp.getRequiredService<ChatClient>());
       final tools = sp.getKeyedServices<AITool>(name).toList();
       return ChatClientAgent.withSettings(
         client,

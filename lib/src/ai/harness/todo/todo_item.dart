@@ -15,4 +15,11 @@ class TodoItem {
 
   /// Whether this todo item has been completed.
   bool isComplete = false;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    if (description != null) 'description': description,
+    'isComplete': isComplete,
+  };
 }
