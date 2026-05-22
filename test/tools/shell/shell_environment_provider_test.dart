@@ -40,8 +40,7 @@ class _FailingExecutor extends ShellExecutor {
   Future<ShellResult> runAsync(
     String command, {
     CancellationToken? cancellationToken,
-  }) async =>
-      throw TimeoutException('simulated timeout');
+  }) async => throw TimeoutException('simulated timeout');
 
   @override
   Future<void> dispose() async {}

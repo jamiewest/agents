@@ -15,20 +15,23 @@ import 'provider_session_state_t_state_.dart';
 class InMemoryChatHistoryProvider extends ChatHistoryProvider {
   /// Creates an [InMemoryChatHistoryProvider] with optional [options].
   InMemoryChatHistoryProvider({InMemoryChatHistoryProviderOptions? options})
-      : _sessionState = ProviderSessionState<InMemoryChatHistoryProviderState>(
-          options?.stateInitializer ?? ((_) => InMemoryChatHistoryProviderState()),
-          options?.stateKey ?? 'InMemoryChatHistoryProvider',
-          JsonSerializerOptions: options?.JsonSerializerOptions,
-        ),
-        chatReducer = options?.chatReducer,
-        reducerTriggerEvent =
-            options?.reducerTriggerEvent ??
-            ChatReducerTriggerEvent.beforeMessagesRetrieval,
-        super(
-          storeInputRequestMessageFilter: options?.storageInputRequestMessageFilter,
-          storeInputResponseMessageFilter: options?.storageInputResponseMessageFilter,
-          provideOutputMessageFilter: options?.provideOutputMessageFilter,
-        );
+    : _sessionState = ProviderSessionState<InMemoryChatHistoryProviderState>(
+        options?.stateInitializer ??
+            ((_) => InMemoryChatHistoryProviderState()),
+        options?.stateKey ?? 'InMemoryChatHistoryProvider',
+        JsonSerializerOptions: options?.JsonSerializerOptions,
+      ),
+      chatReducer = options?.chatReducer,
+      reducerTriggerEvent =
+          options?.reducerTriggerEvent ??
+          ChatReducerTriggerEvent.beforeMessagesRetrieval,
+      super(
+        storeInputRequestMessageFilter:
+            options?.storageInputRequestMessageFilter,
+        storeInputResponseMessageFilter:
+            options?.storageInputResponseMessageFilter,
+        provideOutputMessageFilter: options?.provideOutputMessageFilter,
+      );
 
   final ProviderSessionState<InMemoryChatHistoryProviderState> _sessionState;
 
@@ -57,7 +60,8 @@ class InMemoryChatHistoryProvider extends ChatHistoryProvider {
     CancellationToken? cancellationToken,
   }) async {
     final state = _sessionState.getOrInitializeState(context.session);
-    if (reducerTriggerEvent == ChatReducerTriggerEvent.beforeMessagesRetrieval &&
+    if (reducerTriggerEvent ==
+            ChatReducerTriggerEvent.beforeMessagesRetrieval &&
         chatReducer != null) {
       await _reduceMessages(chatReducer!, state);
     }

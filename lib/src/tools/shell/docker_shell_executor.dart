@@ -31,9 +31,8 @@ import 'shell_session.dart';
 class DockerShellExecutor extends ShellExecutor {
   /// Creates a [DockerShellExecutor] with the given [options].
   DockerShellExecutor([DockerShellExecutorOptions? options])
-      : _options = options ?? const DockerShellExecutorOptions(),
-        containerName = (options?.containerName) ??
-            'af-shell-${_randomSuffix()}';
+    : _options = options ?? const DockerShellExecutorOptions(),
+      containerName = (options?.containerName) ?? 'af-shell-${_randomSuffix()}';
 
   final DockerShellExecutorOptions _options;
   ShellSession? _session;
@@ -74,15 +73,24 @@ class DockerShellExecutor extends ShellExecutor {
       'run',
       '-d',
       '--rm',
-      '--name', containerName,
-      '--user', user.toString(),
-      '--network', network,
-      '--memory', memoryBytes.toString(),
-      '--pids-limit', pidsLimit.toString(),
-      '--cap-drop', 'ALL',
-      '--security-opt', 'no-new-privileges',
-      '--workdir', workdir,
-      '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
+      '--name',
+      containerName,
+      '--user',
+      user.toString(),
+      '--network',
+      network,
+      '--memory',
+      memoryBytes.toString(),
+      '--pids-limit',
+      pidsLimit.toString(),
+      '--cap-drop',
+      'ALL',
+      '--security-opt',
+      'no-new-privileges',
+      '--workdir',
+      workdir,
+      '--tmpfs',
+      '/tmp:rw,noexec,nosuid,size=64m',
     ];
 
     if (readOnlyRoot) argv.add('--read-only');
@@ -108,7 +116,15 @@ class DockerShellExecutor extends ShellExecutor {
   ///
   /// This is a static method so it can be tested without a Docker daemon.
   static List<String> buildExecArgv(String binary, String containerName) {
-    return [binary, 'exec', '-i', containerName, 'bash', '--noprofile', '--norc'];
+    return [
+      binary,
+      'exec',
+      '-i',
+      containerName,
+      'bash',
+      '--noprofile',
+      '--norc',
+    ];
   }
 
   /// Returns `true` when [binary] is available on PATH.
@@ -180,10 +196,7 @@ class DockerShellExecutor extends ShellExecutor {
       extraArgs: _options.extraRunArgs,
     );
 
-    final result = await Process.run(
-      argv.first,
-      argv.sublist(1),
-    );
+    final result = await Process.run(argv.first, argv.sublist(1));
     if (result.exitCode != 0) {
       throw ProcessException(
         argv.first,
@@ -202,15 +215,23 @@ class DockerShellExecutor extends ShellExecutor {
       _options.dockerBinary,
       'run',
       '--rm',
-      '--network', _options.network,
-      '--user', _options.user.toString(),
-      '--memory', _options.memoryBytes.toString(),
-      '--pids-limit', _options.pidsLimit.toString(),
-      '--cap-drop', 'ALL',
-      '--security-opt', 'no-new-privileges',
-      '--workdir', _options.containerWorkdir,
+      '--network',
+      _options.network,
+      '--user',
+      _options.user.toString(),
+      '--memory',
+      _options.memoryBytes.toString(),
+      '--pids-limit',
+      _options.pidsLimit.toString(),
+      '--cap-drop',
+      'ALL',
+      '--security-opt',
+      'no-new-privileges',
+      '--workdir',
+      _options.containerWorkdir,
       if (_options.readOnlyRoot) '--read-only',
-      '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
+      '--tmpfs',
+      '/tmp:rw,noexec,nosuid,size=64m',
       _options.image,
       '/bin/bash',
       ...argv,
@@ -335,7 +356,10 @@ class DockerShellExecutor extends ShellExecutor {
       },
       callback: (arguments, {cancellationToken}) async {
         final command = (arguments['command'] ?? '').toString();
-        final result = await runAsync(command, cancellationToken: cancellationToken);
+        final result = await runAsync(
+          command,
+          cancellationToken: cancellationToken,
+        );
         return result.formatForModel();
       },
     );

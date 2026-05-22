@@ -21,24 +21,18 @@ void main() {
   // ── getService ─────────────────────────────────────────────────────────────
 
   group('ChatClientAgent.getService', () {
-    test(
-      'requestingAIAgentMetadataReturnsIt',
-      () {
-        final agent = _makeAgent();
-        final metadata = agent.getService(AIAgentMetadata);
-        expect(metadata, isA<AIAgentMetadata>());
-      },
-    );
+    test('requestingAIAgentMetadataReturnsIt', () {
+      final agent = _makeAgent();
+      final metadata = agent.getService(AIAgentMetadata);
+      expect(metadata, isA<AIAgentMetadata>());
+    });
 
-    test(
-      'requestingAIAgentMetadataReturnsConsistentInstance',
-      () {
-        final agent = _makeAgent();
-        final first = agent.getService(AIAgentMetadata);
-        final second = agent.getService(AIAgentMetadata);
-        expect(identical(first, second), isTrue);
-      },
-    );
+    test('requestingAIAgentMetadataReturnsConsistentInstance', () {
+      final agent = _makeAgent();
+      final first = agent.getService(AIAgentMetadata);
+      final second = agent.getService(AIAgentMetadata);
+      expect(identical(first, second), isTrue);
+    });
 
     test('requestingChatClientReturnsChatClient', () {
       final client = _ScriptedChatClient();
@@ -83,19 +77,23 @@ void main() {
   // ── Session serialization ──────────────────────────────────────────────────
 
   group('ChatClientAgent session serialization', () {
-    test('serializeSessionCore serializes ChatClientAgentSession to JSON', () async {
-      final agent = _makeAgent();
-      final session = ChatClientAgentSession(conversationId: 'conv-42');
-      final serialized = await agent.serializeSession(session);
-      expect(serialized, isA<String>());
-      expect(serialized as String, contains('conv-42'));
-    });
+    test(
+      'serializeSessionCore serializes ChatClientAgentSession to JSON',
+      () async {
+        final agent = _makeAgent();
+        final session = ChatClientAgentSession(conversationId: 'conv-42');
+        final serialized = await agent.serializeSession(session);
+        expect(serialized, isA<String>());
+        expect(serialized as String, contains('conv-42'));
+      },
+    );
 
     test('deserializeSessionCore restores conversation id', () async {
       final agent = _makeAgent();
       final session = ChatClientAgentSession(conversationId: 'conv-42');
       final serialized = await agent.serializeSession(session);
-      final restored = await agent.deserializeSession(serialized) as ChatClientAgentSession;
+      final restored =
+          await agent.deserializeSession(serialized) as ChatClientAgentSession;
       expect(restored.conversationId, 'conv-42');
     });
 
@@ -126,43 +124,39 @@ void main() {
   // ── AI context providers ───────────────────────────────────────────────────
 
   group('ChatClientAgent with AI context providers', () {
-    test(
-      'runAsyncInvokesAIContextProviderAndUsesResult',
-      () async {
-        final tool = _TestTool('provided-tool');
-        final provider = _TestAIContextProvider(
-          additionalMessages: [ChatMessage.fromText(ChatRole.user, 'context')],
-          instructions: 'extra instructions',
-          tools: [tool],
-        );
-        List<ChatMessage>? capturedMessages;
-        ChatOptions? capturedOptions;
-        final client = _ScriptedChatClient()
-          ..onGetResponse = (messages, options, _) {
-            capturedMessages = messages.toList();
-            capturedOptions = options;
-            return ChatResponse.fromMessage(
-              ChatMessage.fromText(ChatRole.assistant, 'reply'),
-            );
-          };
+    test('runAsyncInvokesAIContextProviderAndUsesResult', () async {
+      final tool = _TestTool('provided-tool');
+      final provider = _TestAIContextProvider(
+        additionalMessages: [ChatMessage.fromText(ChatRole.user, 'context')],
+        instructions: 'extra instructions',
+        tools: [tool],
+      );
+      List<ChatMessage>? capturedMessages;
+      ChatOptions? capturedOptions;
+      final client = _ScriptedChatClient()
+        ..onGetResponse = (messages, options, _) {
+          capturedMessages = messages.toList();
+          capturedOptions = options;
+          return ChatResponse.fromMessage(
+            ChatMessage.fromText(ChatRole.assistant, 'reply'),
+          );
+        };
 
-        final agent = ChatClientAgent(
-          client,
-          options: ChatClientAgentOptions()
-            ..useProvidedChatClientAsIs = true
-            ..aiContextProviders = [provider],
-        );
+      final agent = ChatClientAgent(
+        client,
+        options: ChatClientAgentOptions()
+          ..useProvidedChatClientAsIs = true
+          ..aiContextProviders = [provider],
+      );
 
-        await agent.runCore(
-          [ChatMessage.fromText(ChatRole.user, 'original')],
-          session: ChatClientAgentSession(),
-        );
+      await agent.runCore([
+        ChatMessage.fromText(ChatRole.user, 'original'),
+      ], session: ChatClientAgentSession());
 
-        expect(capturedMessages, isNotNull);
-        expect(capturedOptions?.tools, contains(tool));
-        expect(capturedOptions?.instructions, contains('extra instructions'));
-      },
-    );
+      expect(capturedMessages, isNotNull);
+      expect(capturedOptions?.tools, contains(tool));
+      expect(capturedOptions?.instructions, contains('extra instructions'));
+    });
 
     test('runAsyncInvokesMultipleAIContextProvidersInOrder', () async {
       final calls = <String>[];
@@ -177,43 +171,36 @@ void main() {
           ..aiContextProviders = [provider1, provider2],
       );
 
-      await agent.runCore(
-        [ChatMessage.fromText(ChatRole.user, 'hi')],
-        session: ChatClientAgentSession(),
-      );
+      await agent.runCore([
+        ChatMessage.fromText(ChatRole.user, 'hi'),
+      ], session: ChatClientAgentSession());
 
       expect(calls, ['p1', 'p2']);
     });
 
-    test(
-      'runStreamingAsyncInvokesAIContextProviderAndUsesResult',
-      () async {
-        final tool = _TestTool('streaming-tool');
-        final provider = _TestAIContextProvider(tools: [tool]);
-        ChatOptions? capturedOptions;
-        final client = _ScriptedChatClient()
-          ..onGetStreamingResponse = (_, options, _) async* {
-            capturedOptions = options;
-            yield ChatResponseUpdate.fromText(ChatRole.assistant, 'stream');
-          };
+    test('runStreamingAsyncInvokesAIContextProviderAndUsesResult', () async {
+      final tool = _TestTool('streaming-tool');
+      final provider = _TestAIContextProvider(tools: [tool]);
+      ChatOptions? capturedOptions;
+      final client = _ScriptedChatClient()
+        ..onGetStreamingResponse = (_, options, _) async* {
+          capturedOptions = options;
+          yield ChatResponseUpdate.fromText(ChatRole.assistant, 'stream');
+        };
 
-        final agent = ChatClientAgent(
-          client,
-          options: ChatClientAgentOptions()
-            ..useProvidedChatClientAsIs = true
-            ..aiContextProviders = [provider],
-        );
+      final agent = ChatClientAgent(
+        client,
+        options: ChatClientAgentOptions()
+          ..useProvidedChatClientAsIs = true
+          ..aiContextProviders = [provider],
+      );
 
-        await agent
-            .runCoreStreaming(
-              [ChatMessage.fromText(ChatRole.user, 'hi')],
-              session: ChatClientAgentSession(),
-            )
-            .toList();
+      await agent.runCoreStreaming([
+        ChatMessage.fromText(ChatRole.user, 'hi'),
+      ], session: ChatClientAgentSession()).toList();
 
-        expect(capturedOptions?.tools, contains(tool));
-      },
-    );
+      expect(capturedOptions?.tools, contains(tool));
+    });
   });
 
   // ── Instructions merging ───────────────────────────────────────────────────
@@ -236,101 +223,107 @@ void main() {
           ..chatOptions = ChatOptions(instructions: 'base instructions'),
       );
 
-      await agent.runCore(
-        [ChatMessage.fromText(ChatRole.user, 'hi')],
-        session: ChatClientAgentSession(),
-      );
+      await agent.runCore([
+        ChatMessage.fromText(ChatRole.user, 'hi'),
+      ], session: ChatClientAgentSession());
 
       expect(capturedOptions?.instructions, contains('base instructions'));
     });
 
-    test('runAsync merges request instructions with agent instructions', () async {
-      ChatOptions? capturedOptions;
-      final client = _ScriptedChatClient()
-        ..onGetResponse = (_, options, _) {
-          capturedOptions = options;
-          return ChatResponse.fromMessage(
-            ChatMessage.fromText(ChatRole.assistant, 'ok'),
-          );
-        };
+    test(
+      'runAsync merges request instructions with agent instructions',
+      () async {
+        ChatOptions? capturedOptions;
+        final client = _ScriptedChatClient()
+          ..onGetResponse = (_, options, _) {
+            capturedOptions = options;
+            return ChatResponse.fromMessage(
+              ChatMessage.fromText(ChatRole.assistant, 'ok'),
+            );
+          };
 
-      final agent = ChatClientAgent(
-        client,
-        options: ChatClientAgentOptions()
-          ..useProvidedChatClientAsIs = true
-          ..chatOptions = ChatOptions(instructions: 'agent-instr'),
-      );
-      final runOptions = ChatClientAgentRunOptions(
-        chatOptions: ChatOptions(instructions: 'run-instr'),
-      );
+        final agent = ChatClientAgent(
+          client,
+          options: ChatClientAgentOptions()
+            ..useProvidedChatClientAsIs = true
+            ..chatOptions = ChatOptions(instructions: 'agent-instr'),
+        );
+        final runOptions = ChatClientAgentRunOptions(
+          chatOptions: ChatOptions(instructions: 'run-instr'),
+        );
 
-      await agent.runCore(
-        [ChatMessage.fromText(ChatRole.user, 'hi')],
-        session: ChatClientAgentSession(),
-        options: runOptions,
-      );
+        await agent.runCore(
+          [ChatMessage.fromText(ChatRole.user, 'hi')],
+          session: ChatClientAgentSession(),
+          options: runOptions,
+        );
 
-      // Both agent and run instructions should be merged with \n separator
-      expect(capturedOptions?.instructions, contains('agent-instr'));
-      expect(capturedOptions?.instructions, contains('run-instr'));
-    });
+        // Both agent and run instructions should be merged with \n separator
+        expect(capturedOptions?.instructions, contains('agent-instr'));
+        expect(capturedOptions?.instructions, contains('run-instr'));
+      },
+    );
   });
 
   // ── Chat options merging ───────────────────────────────────────────────────
 
   group('ChatClientAgent chat options merging', () {
-    test('runAsyncPassesChatOptionsWhenUsingChatClientAgentRunOptions',
-        () async {
-      ChatOptions? capturedOptions;
-      final client = _ScriptedChatClient()
-        ..onGetResponse = (_, options, _) {
-          capturedOptions = options;
-          return ChatResponse.fromMessage(
-            ChatMessage.fromText(ChatRole.assistant, 'ok'),
-          );
-        };
+    test(
+      'runAsyncPassesChatOptionsWhenUsingChatClientAgentRunOptions',
+      () async {
+        ChatOptions? capturedOptions;
+        final client = _ScriptedChatClient()
+          ..onGetResponse = (_, options, _) {
+            capturedOptions = options;
+            return ChatResponse.fromMessage(
+              ChatMessage.fromText(ChatRole.assistant, 'ok'),
+            );
+          };
 
-      final agent = ChatClientAgent(
-        client,
-        options: ChatClientAgentOptions()..useProvidedChatClientAsIs = true,
-      );
-      final runOptions = ChatClientAgentRunOptions(
-        chatOptions: ChatOptions(maxOutputTokens: 256),
-      );
+        final agent = ChatClientAgent(
+          client,
+          options: ChatClientAgentOptions()..useProvidedChatClientAsIs = true,
+        );
+        final runOptions = ChatClientAgentRunOptions(
+          chatOptions: ChatOptions(maxOutputTokens: 256),
+        );
 
-      await agent.runCore(
-        [ChatMessage.fromText(ChatRole.user, 'hi')],
-        session: ChatClientAgentSession(),
-        options: runOptions,
-      );
+        await agent.runCore(
+          [ChatMessage.fromText(ChatRole.user, 'hi')],
+          session: ChatClientAgentSession(),
+          options: runOptions,
+        );
 
-      expect(capturedOptions?.maxOutputTokens, 256);
-    });
+        expect(capturedOptions?.maxOutputTokens, 256);
+      },
+    );
 
-    test('runAsyncPassesNullChatOptionsWhenUsingRegularAgentRunOptions',
-        () async {
-      ChatOptions? capturedOptions;
-      final client = _ScriptedChatClient()
-        ..onGetResponse = (_, options, _) {
-          capturedOptions = options;
-          return ChatResponse.fromMessage(
-            ChatMessage.fromText(ChatRole.assistant, 'ok'),
-          );
-        };
+    test(
+      'runAsyncPassesNullChatOptionsWhenUsingRegularAgentRunOptions',
+      () async {
+        ChatOptions? capturedOptions;
+        final client = _ScriptedChatClient()
+          ..onGetResponse = (_, options, _) {
+            capturedOptions = options;
+            return ChatResponse.fromMessage(
+              ChatMessage.fromText(ChatRole.assistant, 'ok'),
+            );
+          };
 
-      final agent = ChatClientAgent(
-        client,
-        options: ChatClientAgentOptions()..useProvidedChatClientAsIs = true,
-      );
+        final agent = ChatClientAgent(
+          client,
+          options: ChatClientAgentOptions()..useProvidedChatClientAsIs = true,
+        );
 
-      await agent.runCore(
-        [ChatMessage.fromText(ChatRole.user, 'hi')],
-        session: ChatClientAgentSession(),
-        options: AgentRunOptions(),
-      );
+        await agent.runCore(
+          [ChatMessage.fromText(ChatRole.user, 'hi')],
+          session: ChatClientAgentSession(),
+          options: AgentRunOptions(),
+        );
 
-      expect(capturedOptions, isNull);
-    });
+        expect(capturedOptions, isNull);
+      },
+    );
   });
 
   // ── Author name ────────────────────────────────────────────────────────────
@@ -339,11 +332,11 @@ void main() {
     test('runAsyncSetsAuthorNameOnAllResponseMessages', () async {
       final client = _ScriptedChatClient()
         ..onGetResponse = (_, _, _) => ChatResponse(
-              messages: [
-                ChatMessage.fromText(ChatRole.assistant, 'a'),
-                ChatMessage.fromText(ChatRole.assistant, 'b'),
-              ],
-            );
+          messages: [
+            ChatMessage.fromText(ChatRole.assistant, 'a'),
+            ChatMessage.fromText(ChatRole.assistant, 'b'),
+          ],
+        );
 
       final agent = ChatClientAgent(
         client,
@@ -352,10 +345,9 @@ void main() {
           ..name = 'TestAgent',
       );
 
-      final response = await agent.runCore(
-        [ChatMessage.fromText(ChatRole.user, 'hi')],
-        session: ChatClientAgentSession(),
-      );
+      final response = await agent.runCore([
+        ChatMessage.fromText(ChatRole.user, 'hi'),
+      ], session: ChatClientAgentSession());
 
       for (final msg in response.messages) {
         expect(msg.authorName, 'TestAgent');
@@ -365,18 +357,17 @@ void main() {
     test('runAsyncNullNameDoesNotSetAuthorName', () async {
       final client = _ScriptedChatClient()
         ..onGetResponse = (_, _, _) => ChatResponse(
-              messages: [ChatMessage.fromText(ChatRole.assistant, 'reply')],
-            );
+          messages: [ChatMessage.fromText(ChatRole.assistant, 'reply')],
+        );
 
       final agent = ChatClientAgent(
         client,
         options: ChatClientAgentOptions()..useProvidedChatClientAsIs = true,
       );
 
-      final response = await agent.runCore(
-        [ChatMessage.fromText(ChatRole.user, 'hi')],
-        session: ChatClientAgentSession(),
-      );
+      final response = await agent.runCore([
+        ChatMessage.fromText(ChatRole.user, 'hi'),
+      ], session: ChatClientAgentSession());
 
       expect(response.messages.single.authorName, isNull);
     });
@@ -418,13 +409,15 @@ void main() {
       expect(agent.chatOptions!.tools, contains(tool));
     });
 
-    test('chatOptionsCreatedWithInstructionsEvenWhenConstructorToolsNotProvided',
-        () {
-      final agent = ChatClientBuilder(_ScriptedChatClient()).buildAIAgent(
-        instructions: 'instr-only',
-      );
-      expect(agent.instructions, 'instr-only');
-    });
+    test(
+      'chatOptionsCreatedWithInstructionsEvenWhenConstructorToolsNotProvided',
+      () {
+        final agent = ChatClientBuilder(
+          _ScriptedChatClient(),
+        ).buildAIAgent(instructions: 'instr-only');
+        expect(agent.instructions, 'instr-only');
+      },
+    );
 
     test('optionsPropertiesNullOrDefaultWhenNotProvided', () {
       final agent = ChatClientAgent(
@@ -449,10 +442,9 @@ void main() {
       );
 
       await expectLater(
-        () => agent.runCore(
-          [ChatMessage.fromText(ChatRole.user, 'hi')],
-          session: ChatClientAgentSession(),
-        ),
+        () => agent.runCore([
+          ChatMessage.fromText(ChatRole.user, 'hi'),
+        ], session: ChatClientAgentSession()),
         throwsA(isA<Exception>()),
       );
     });
@@ -469,12 +461,9 @@ void main() {
       );
 
       await expectLater(
-        () => agent
-            .runCoreStreaming(
-              [ChatMessage.fromText(ChatRole.user, 'hi')],
-              session: ChatClientAgentSession(),
-            )
-            .toList(),
+        () => agent.runCoreStreaming([
+          ChatMessage.fromText(ChatRole.user, 'hi'),
+        ], session: ChatClientAgentSession()).toList(),
         throwsA(isA<Exception>()),
       );
     });
@@ -484,9 +473,9 @@ void main() {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 ChatClientAgent _makeAgent() => ChatClientAgent(
-      _ScriptedChatClient(),
-      options: ChatClientAgentOptions()..useProvidedChatClientAsIs = true,
-    );
+  _ScriptedChatClient(),
+  options: ChatClientAgentOptions()..useProvidedChatClientAsIs = true,
+);
 
 // ── Fakes ─────────────────────────────────────────────────────────────────────
 
@@ -526,7 +515,11 @@ class _ScriptedChatClient implements ChatClient {
     ChatOptions? options,
     CancellationToken? cancellationToken,
   }) async* {
-    final s = onGetStreamingResponse?.call(messages, options, cancellationToken);
+    final s = onGetStreamingResponse?.call(
+      messages,
+      options,
+      cancellationToken,
+    );
     if (s == null) {
       yield ChatResponseUpdate.fromText(ChatRole.assistant, 'stream');
       return;
@@ -557,11 +550,10 @@ class _TestAIContextProvider extends AIContextProvider {
   Future<AIContext> provideAIContext(
     InvokingContext context, {
     CancellationToken? cancellationToken,
-  }) async =>
-      AIContext()
-        ..messages = additionalMessages
-        ..instructions = instructions
-        ..tools = tools;
+  }) async => AIContext()
+    ..messages = additionalMessages
+    ..instructions = instructions
+    ..tools = tools;
 }
 
 class _RecordingAIContextProvider1 extends AIContextProvider {

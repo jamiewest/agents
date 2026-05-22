@@ -2,15 +2,14 @@
 /// deletion.
 class StateUpdate {
   StateUpdate._(this.key, this.value, this.isDelete)
-      : assert(key.isNotEmpty, 'key must not be empty');
+    : assert(key.isNotEmpty, 'key must not be empty');
 
   /// Creates an upsert update; if [value] is `null` it becomes a delete.
   static StateUpdate update<T>(String key, T? value) =>
       StateUpdate._(key, value, value == null);
 
   /// Creates a deletion update for [key].
-  static StateUpdate delete(String key) =>
-      StateUpdate._(key, null, true);
+  static StateUpdate delete(String key) => StateUpdate._(key, null, true);
 
   /// The state key being updated.
   final String key;

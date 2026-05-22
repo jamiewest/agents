@@ -12,6 +12,7 @@ import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
 import 'package:agents/src/abstractions/ai_context_provider.dart';
+import 'package:agents/src/ai/harness/todo/todo_complete_input.dart';
 import 'package:agents/src/ai/harness/todo/todo_item.dart';
 import 'package:agents/src/ai/harness/todo/todo_item_input.dart';
 import 'package:agents/src/ai/harness/todo/todo_provider.dart';
@@ -105,7 +106,11 @@ void main() {
 
       final result = await completeTodos.invoke(
         AIFunctionArguments({
-          'ids': [1],
+          'items': [
+            TodoCompleteInput()
+              ..id = 1
+              ..reason = 'Done',
+          ],
         }),
       );
 
@@ -131,12 +136,23 @@ void main() {
 
         final completed = await completeTodos.invoke(
           AIFunctionArguments({
-            'ids': [1, 3],
+            'items': [
+              TodoCompleteInput()
+                ..id = 1
+                ..reason = 'Done',
+              TodoCompleteInput()
+                ..id = 3
+                ..reason = 'Done',
+            ],
           }),
         );
         final missing = await completeTodos.invoke(
           AIFunctionArguments({
-            'ids': [999],
+            'items': [
+              TodoCompleteInput()
+                ..id = 999
+                ..reason = 'Done',
+            ],
           }),
         );
 
@@ -197,7 +213,11 @@ void main() {
       );
       await completeTodos.invoke(
         AIFunctionArguments({
-          'ids': [1],
+          'items': [
+            TodoCompleteInput()
+              ..id = 1
+              ..reason = 'Done',
+          ],
         }),
       );
 
@@ -223,7 +243,11 @@ void main() {
       );
       await completeTodos.invoke(
         AIFunctionArguments({
-          'ids': [1],
+          'items': [
+            TodoCompleteInput()
+              ..id = 1
+              ..reason = 'Done',
+          ],
         }),
       );
 
@@ -298,7 +322,11 @@ void main() {
       );
       await completeTodos.invoke(
         AIFunctionArguments({
-          'ids': [1],
+          'items': [
+            TodoCompleteInput()
+              ..id = 1
+              ..reason = 'Done',
+          ],
         }),
       );
 
@@ -350,7 +378,11 @@ void main() {
       );
       await completeTodos.invoke(
         AIFunctionArguments({
-          'ids': [1],
+          'items': [
+            TodoCompleteInput()
+              ..id = 1
+              ..reason = 'Done',
+          ],
         }),
       );
 
@@ -502,7 +534,17 @@ void main() {
           ),
           completeTodos.invoke(
             AIFunctionArguments({
-              'ids': [1, 2, 3],
+              'items': [
+                TodoCompleteInput()
+                  ..id = 1
+                  ..reason = 'Done',
+                TodoCompleteInput()
+                  ..id = 2
+                  ..reason = 'Done',
+                TodoCompleteInput()
+                  ..id = 3
+                  ..reason = 'Done',
+              ],
             }),
           ),
         ]);

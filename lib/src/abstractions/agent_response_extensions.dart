@@ -66,7 +66,8 @@ extension AgentResponseUpdateIterableExtensions
     final messages = <ChatMessage>[];
     ChatMessage? current;
     for (final update in updates) {
-      final needsNew = current == null ||
+      final needsNew =
+          current == null ||
           current.role != (update.role ?? ChatRole.assistant) ||
           current.authorName != update.authorName;
       if (needsNew) {

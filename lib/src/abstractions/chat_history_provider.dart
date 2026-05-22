@@ -22,40 +22,45 @@ abstract class ChatHistoryProvider {
   /// [storeInputResponseMessageFilter] filters response messages before
   /// storage; defaults to [defaultNoopFilter].
   ChatHistoryProvider({
-    Iterable<ChatMessage> Function(Iterable<ChatMessage>)? provideOutputMessageFilter,
-    Iterable<ChatMessage> Function(Iterable<ChatMessage>)? storeInputRequestMessageFilter,
-    Iterable<ChatMessage> Function(Iterable<ChatMessage>)? storeInputResponseMessageFilter,
-  })  : _provideOutputMessageFilter = provideOutputMessageFilter,
-        _storeInputRequestMessageFilter =
-            storeInputRequestMessageFilter ?? defaultExcludeChatHistoryFilter,
-        _storeInputResponseMessageFilter =
-            storeInputResponseMessageFilter ?? defaultNoopFilter;
+    Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
+    provideOutputMessageFilter,
+    Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
+    storeInputRequestMessageFilter,
+    Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
+    storeInputResponseMessageFilter,
+  }) : _provideOutputMessageFilter = provideOutputMessageFilter,
+       _storeInputRequestMessageFilter =
+           storeInputRequestMessageFilter ?? defaultExcludeChatHistoryFilter,
+       _storeInputResponseMessageFilter =
+           storeInputResponseMessageFilter ?? defaultNoopFilter;
 
   List<String>? _stateKeys;
 
   final Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
-      _provideOutputMessageFilter;
+  _provideOutputMessageFilter;
 
   final Iterable<ChatMessage> Function(Iterable<ChatMessage>)
-      _storeInputRequestMessageFilter;
+  _storeInputRequestMessageFilter;
 
   final Iterable<ChatMessage> Function(Iterable<ChatMessage>)
-      _storeInputResponseMessageFilter;
+  _storeInputResponseMessageFilter;
 
   static Iterable<ChatMessage> defaultExcludeChatHistoryFilter(
-      Iterable<ChatMessage> messages) {
-    return messages.where((m) =>
-        m.getAgentRequestMessageSourceType() !=
-        AgentRequestMessageSourceType.chatHistory);
+    Iterable<ChatMessage> messages,
+  ) {
+    return messages.where(
+      (m) =>
+          m.getAgentRequestMessageSourceType() !=
+          AgentRequestMessageSourceType.chatHistory,
+    );
   }
 
   static Iterable<ChatMessage> defaultNoopFilter(
-          Iterable<ChatMessage> messages) =>
-      messages;
+    Iterable<ChatMessage> messages,
+  ) => messages;
 
   /// The keys used to store provider state in the session [StateBag].
-  List<String> get stateKeys =>
-      _stateKeys ??= [runtimeType.toString()];
+  List<String> get stateKeys => _stateKeys ??= [runtimeType.toString()];
 
   /// Called at the start of agent invocation to provide messages for context.
   Future<Iterable<ChatMessage>> invoking(
@@ -71,17 +76,21 @@ abstract class ChatHistoryProvider {
     InvokingContext context, {
     CancellationToken? cancellationToken,
   }) async {
-    Iterable<ChatMessage> output =
-        await provideChatHistory(context, cancellationToken: cancellationToken);
+    Iterable<ChatMessage> output = await provideChatHistory(
+      context,
+      cancellationToken: cancellationToken,
+    );
 
     if (_provideOutputMessageFilter != null) {
       output = _provideOutputMessageFilter(output);
     }
 
-    final stamped = output.map((m) => m.withAgentRequestMessageSource(
-          AgentRequestMessageSourceType.chatHistory,
-          sourceId: runtimeType.toString(),
-        ));
+    final stamped = output.map(
+      (m) => m.withAgentRequestMessageSource(
+        AgentRequestMessageSourceType.chatHistory,
+        sourceId: runtimeType.toString(),
+      ),
+    );
 
     return [...stamped, ...context.requestMessages];
   }
@@ -91,8 +100,7 @@ abstract class ChatHistoryProvider {
   Future<Iterable<ChatMessage>> provideChatHistory(
     InvokingContext context, {
     CancellationToken? cancellationToken,
-  }) =>
-      Future.value(const []);
+  }) => Future.value(const []);
 
   /// Called at the end of the agent invocation to store new messages.
   Future<void> invoked(
@@ -124,8 +132,7 @@ abstract class ChatHistoryProvider {
   Future<void> storeChatHistory(
     InvokedContext context, {
     CancellationToken? cancellationToken,
-  }) =>
-      Future.value();
+  }) => Future.value();
 
   /// Returns a service of the specified [serviceType], or `null`.
   Object? getService(Type serviceType, {Object? serviceKey}) {

@@ -22,9 +22,7 @@ class EnvironmentSanitizer {
   /// [preservedVariables]. Case-insensitive matching.
   static void removeNonPreserved(Map<String, String> environment) {
     final keep = <String, String>{};
-    final preserved = {
-      for (final k in preservedVariables) k.toLowerCase(): k,
-    };
+    final preserved = {for (final k in preservedVariables) k.toLowerCase(): k};
     for (final entry in environment.entries) {
       final lower = entry.key.toLowerCase();
       if (preserved.containsKey(lower)) {

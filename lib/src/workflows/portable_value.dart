@@ -9,8 +9,8 @@ class PortableValue {
   ///
   /// The [typeId] is derived from [value]'s runtime type.
   PortableValue(Object value)
-      : typeId = TypeId.fromType(value.runtimeType),
-        _value = value;
+    : typeId = TypeId.fromType(value.runtimeType),
+      _value = value;
 
   /// Creates a [PortableValue] with an explicit [typeId].
   PortableValue.withTypeId(this.typeId, Object value) : _value = value;

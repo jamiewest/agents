@@ -177,14 +177,17 @@ void main() {
       expect(fn.name, equals('run_shell'));
     });
 
-    test('requireApproval: true — wraps in ApprovalRequiredAIFunction', () async {
-      final t = DockerShellExecutor(
-        const DockerShellExecutorOptions(mode: ShellMode.stateless),
-      );
-      final fn = t.asAIFunction(requireApproval: true);
-      await t.dispose();
-      expect(fn, isA<ApprovalRequiredAIFunction>());
-    });
+    test(
+      'requireApproval: true — wraps in ApprovalRequiredAIFunction',
+      () async {
+        final t = DockerShellExecutor(
+          const DockerShellExecutorOptions(mode: ShellMode.stateless),
+        );
+        final fn = t.asAIFunction(requireApproval: true);
+        await t.dispose();
+        expect(fn, isA<ApprovalRequiredAIFunction>());
+      },
+    );
 
     test('requireApproval: false — returns plain function', () async {
       final t = DockerShellExecutor(
@@ -211,10 +214,12 @@ void main() {
 
   group('DockerShellExecutor — policy', () {
     test('rejected command — throws ShellCommandRejectedException', () async {
-      final t = DockerShellExecutor(DockerShellExecutorOptions(
-        mode: ShellMode.stateless,
-        policy: ShellPolicy(denyList: [r'\brm\s+-rf?\s+[\/]']),
-      ));
+      final t = DockerShellExecutor(
+        DockerShellExecutorOptions(
+          mode: ShellMode.stateless,
+          policy: ShellPolicy(denyList: [r'\brm\s+-rf?\s+[\/]']),
+        ),
+      );
       await expectLater(
         t.runAsync('rm -rf /'),
         throwsA(isA<ShellCommandRejectedException>()),

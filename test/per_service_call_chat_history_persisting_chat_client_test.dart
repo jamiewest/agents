@@ -24,54 +24,49 @@ void main() {
       );
       AIAgent.currentRunContext = null;
 
-      expect(
-        () => client.getResponse(messages: []),
-        throwsStateError,
-      );
+      expect(() => client.getResponse(messages: []), throwsStateError);
     });
 
-    test('getResponse throws StateError when agent is not a ChatClientAgent',
-        () {
-      final client = PerServiceCallChatHistoryPersistingChatClient(
-        _ScriptedChatClient(),
-      );
-      final wrongAgent = _PlainAgent();
-      AIAgent.currentRunContext = AgentRunContext(
-        wrongAgent,
-        ChatClientAgentSession(),
-        const [],
-        null,
-      );
+    test(
+      'getResponse throws StateError when agent is not a ChatClientAgent',
+      () {
+        final client = PerServiceCallChatHistoryPersistingChatClient(
+          _ScriptedChatClient(),
+        );
+        final wrongAgent = _PlainAgent();
+        AIAgent.currentRunContext = AgentRunContext(
+          wrongAgent,
+          ChatClientAgentSession(),
+          const [],
+          null,
+        );
 
-      expect(
-        () => client.getResponse(messages: []),
-        throwsStateError,
-      );
-    });
+        expect(() => client.getResponse(messages: []), throwsStateError);
+      },
+    );
 
-    test('getResponse throws StateError when session is not a ChatClientAgentSession',
-        () {
-      final innerClient = _ScriptedChatClient();
-      final agent = ChatClientAgent(
-        innerClient,
-        options: ChatClientAgentOptions()..useProvidedChatClientAsIs = true,
-      );
-      final client = PerServiceCallChatHistoryPersistingChatClient(
-        _ScriptedChatClient(),
-      );
-      // Use a non-ChatClientAgentSession (plain AgentSession subclass)
-      AIAgent.currentRunContext = AgentRunContext(
-        agent,
-        _PlainSession(),
-        const [],
-        null,
-      );
+    test(
+      'getResponse throws StateError when session is not a ChatClientAgentSession',
+      () {
+        final innerClient = _ScriptedChatClient();
+        final agent = ChatClientAgent(
+          innerClient,
+          options: ChatClientAgentOptions()..useProvidedChatClientAsIs = true,
+        );
+        final client = PerServiceCallChatHistoryPersistingChatClient(
+          _ScriptedChatClient(),
+        );
+        // Use a non-ChatClientAgentSession (plain AgentSession subclass)
+        AIAgent.currentRunContext = AgentRunContext(
+          agent,
+          _PlainSession(),
+          const [],
+          null,
+        );
 
-      expect(
-        () => client.getResponse(messages: []),
-        throwsStateError,
-      );
-    });
+        expect(() => client.getResponse(messages: []), throwsStateError);
+      },
+    );
 
     test('getStreamingResponse throws StateError outside an agent run', () {
       final client = PerServiceCallChatHistoryPersistingChatClient(
@@ -92,18 +87,17 @@ void main() {
       final inner = _ScriptedChatClient()
         ..onGetResponse = (_, options, _) {
           captured = options;
-          return ChatResponse(messages: [
-            ChatMessage.fromText(ChatRole.assistant, 'ok'),
-          ]);
+          return ChatResponse(
+            messages: [ChatMessage.fromText(ChatRole.assistant, 'ok')],
+          );
         };
       final client = PerServiceCallChatHistoryPersistingChatClient(inner);
       final (agent, session) = _setupRunContext(client);
       session.conversationId = localHistoryConversationId;
 
-      agent.runCore(
-        [ChatMessage.fromText(ChatRole.user, 'hi')],
-        session: session,
-      );
+      agent.runCore([
+        ChatMessage.fromText(ChatRole.user, 'hi'),
+      ], session: session);
 
       // give the future a chance to run
       expect(captured?.conversationId, isNot(localHistoryConversationId));
@@ -113,16 +107,15 @@ void main() {
         'does not return a conversation id', () async {
       final inner = _ScriptedChatClient()
         ..onGetResponse = (_, _, _) => ChatResponse(
-              messages: [ChatMessage.fromText(ChatRole.assistant, 'reply')],
-              conversationId: null,
-            );
+          messages: [ChatMessage.fromText(ChatRole.assistant, 'reply')],
+          conversationId: null,
+        );
       final client = PerServiceCallChatHistoryPersistingChatClient(inner);
       final (agent, session) = _setupRunContext(client);
 
-      await agent.runCore(
-        [ChatMessage.fromText(ChatRole.user, 'hi')],
-        session: session,
-      );
+      await agent.runCore([
+        ChatMessage.fromText(ChatRole.user, 'hi'),
+      ], session: session);
 
       expect(session.conversationId, localHistoryConversationId);
     });
@@ -130,61 +123,56 @@ void main() {
     test('preserves service-assigned conversation id', () async {
       final inner = _ScriptedChatClient()
         ..onGetResponse = (_, _, _) => ChatResponse(
-              messages: [ChatMessage.fromText(ChatRole.assistant, 'reply')],
-              conversationId: 'svc-conv-123',
-            );
+          messages: [ChatMessage.fromText(ChatRole.assistant, 'reply')],
+          conversationId: 'svc-conv-123',
+        );
       final client = PerServiceCallChatHistoryPersistingChatClient(inner);
       final (agent, session) = _setupRunContext(client);
 
-      await agent.runCore(
-        [ChatMessage.fromText(ChatRole.user, 'hi')],
-        session: session,
-      );
+      await agent.runCore([
+        ChatMessage.fromText(ChatRole.user, 'hi'),
+      ], session: session);
 
       expect(session.conversationId, 'svc-conv-123');
     });
   });
 
-  group('PerServiceCallChatHistoryPersistingChatClient getStreamingResponse',
-      () {
-    test('yields all updates from the inner client', () async {
-      final inner = _ScriptedChatClient()
-        ..onGetStreamingResponse = (_, _, _) async* {
-          yield ChatResponseUpdate.fromText(ChatRole.assistant, 'part1');
-          yield ChatResponseUpdate.fromText(ChatRole.assistant, 'part2');
-        };
-      final client = PerServiceCallChatHistoryPersistingChatClient(inner);
-      final (agent, session) = _setupRunContext(client);
+  group(
+    'PerServiceCallChatHistoryPersistingChatClient getStreamingResponse',
+    () {
+      test('yields all updates from the inner client', () async {
+        final inner = _ScriptedChatClient()
+          ..onGetStreamingResponse = (_, _, _) async* {
+            yield ChatResponseUpdate.fromText(ChatRole.assistant, 'part1');
+            yield ChatResponseUpdate.fromText(ChatRole.assistant, 'part2');
+          };
+        final client = PerServiceCallChatHistoryPersistingChatClient(inner);
+        final (agent, session) = _setupRunContext(client);
 
-      final updates = await agent
-          .runCoreStreaming(
-            [ChatMessage.fromText(ChatRole.user, 'hi')],
-            session: session,
-          )
-          .toList();
+        final updates = await agent.runCoreStreaming([
+          ChatMessage.fromText(ChatRole.user, 'hi'),
+        ], session: session).toList();
 
-      expect(updates.map((u) => u.text).join(), 'part1part2');
-    });
+        expect(updates.map((u) => u.text).join(), 'part1part2');
+      });
 
-    test('sets sentinel conversation id on session when streaming completes '
-        'without a service conversation id', () async {
-      final inner = _ScriptedChatClient()
-        ..onGetStreamingResponse = (_, _, _) async* {
-          yield ChatResponseUpdate.fromText(ChatRole.assistant, 'stream');
-        };
-      final client = PerServiceCallChatHistoryPersistingChatClient(inner);
-      final (agent, session) = _setupRunContext(client);
+      test('sets sentinel conversation id on session when streaming completes '
+          'without a service conversation id', () async {
+        final inner = _ScriptedChatClient()
+          ..onGetStreamingResponse = (_, _, _) async* {
+            yield ChatResponseUpdate.fromText(ChatRole.assistant, 'stream');
+          };
+        final client = PerServiceCallChatHistoryPersistingChatClient(inner);
+        final (agent, session) = _setupRunContext(client);
 
-      await agent
-          .runCoreStreaming(
-            [ChatMessage.fromText(ChatRole.user, 'hi')],
-            session: session,
-          )
-          .toList();
+        await agent.runCoreStreaming([
+          ChatMessage.fromText(ChatRole.user, 'hi'),
+        ], session: session).toList();
 
-      expect(session.conversationId, localHistoryConversationId);
-    });
-  });
+        expect(session.conversationId, localHistoryConversationId);
+      });
+    },
+  );
 
   group('setSentinelConversationId', () {
     test('sets sentinel id on both response and session', () {
@@ -255,8 +243,11 @@ class _ScriptedChatClient implements ChatClient {
     ChatOptions? options,
     CancellationToken? cancellationToken,
   }) async* {
-    final stream =
-        onGetStreamingResponse?.call(messages, options, cancellationToken);
+    final stream = onGetStreamingResponse?.call(
+      messages,
+      options,
+      cancellationToken,
+    );
     if (stream == null) {
       yield ChatResponseUpdate.fromText(ChatRole.assistant, 'response');
       return;
@@ -300,10 +291,9 @@ class _PlainAgent extends AIAgent {
     AgentSession? session,
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
-  }) async =>
-      AgentResponse(
-        message: ChatMessage.fromText(ChatRole.assistant, 'response'),
-      );
+  }) async => AgentResponse(
+    message: ChatMessage.fromText(ChatRole.assistant, 'response'),
+  );
 
   @override
   Stream<AgentResponseUpdate> runCoreStreaming(

@@ -56,7 +56,9 @@ abstract class AIAgent {
   }
 
   /// Core implementation of session creation logic.
-  Future<AgentSession> createSessionCore({CancellationToken? cancellationToken});
+  Future<AgentSession> createSessionCore({
+    CancellationToken? cancellationToken,
+  });
 
   /// Serializes an agent session to a JSON-compatible map.
   Future<dynamic> serializeSession(
@@ -114,8 +116,12 @@ abstract class AIAgent {
         ChatMessage(role: ChatRole.user, contents: [TextContent(message)]),
       ...?messages,
     ];
-    return runCore(allMessages, session: session, options: options,
-        cancellationToken: cancellationToken);
+    return runCore(
+      allMessages,
+      session: session,
+      options: options,
+      cancellationToken: cancellationToken,
+    );
   }
 
   /// Core implementation of the agent invocation logic.
@@ -139,8 +145,12 @@ abstract class AIAgent {
         ChatMessage(role: ChatRole.user, contents: [TextContent(message)]),
       ...?messages,
     ];
-    return runCoreStreaming(allMessages, session: session, options: options,
-        cancellationToken: cancellationToken);
+    return runCoreStreaming(
+      allMessages,
+      session: session,
+      options: options,
+      cancellationToken: cancellationToken,
+    );
   }
 
   /// Core implementation of the agent streaming invocation logic.

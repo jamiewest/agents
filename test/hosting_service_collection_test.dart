@@ -51,10 +51,7 @@ void main() {
     test('addAIAgent_ReturnsHostedAgentBuilder', () {
       final services = _servicesWithClient();
 
-      final builder = services.addAIAgent(
-        'myAgent',
-        ServiceLifetime.singleton,
-      );
+      final builder = services.addAIAgent('myAgent', ServiceLifetime.singleton);
 
       expect(builder, isA<HostedAgentBuilder>());
       expect(builder.name, 'myAgent');
@@ -69,10 +66,9 @@ class _FakeChatClient implements ChatClient {
     required Iterable<ChatMessage> messages,
     ChatOptions? options,
     CancellationToken? cancellationToken,
-  }) async =>
-      ChatResponse.fromMessage(
-        ChatMessage.fromText(ChatRole.assistant, 'unused'),
-      );
+  }) async => ChatResponse.fromMessage(
+    ChatMessage.fromText(ChatRole.assistant, 'unused'),
+  );
 
   @override
   Stream<ChatResponseUpdate> getStreamingResponse({
@@ -87,4 +83,3 @@ class _FakeChatClient implements ChatClient {
   @override
   void dispose() {}
 }
-

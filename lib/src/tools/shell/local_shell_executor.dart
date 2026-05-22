@@ -32,7 +32,7 @@ class LocalShellExecutor extends ShellExecutor {
   /// Throws [ArgumentError] if both [LocalShellExecutorOptions.shell] and
   /// [LocalShellExecutorOptions.shellArgv] are set.
   LocalShellExecutor([LocalShellExecutorOptions? options])
-      : _options = options ?? const LocalShellExecutorOptions() {
+    : _options = options ?? const LocalShellExecutorOptions() {
     if (_options.shell != null && _options.shellArgv != null) {
       throw ArgumentError(
         'Cannot specify both shell and shellArgv in LocalShellExecutorOptions.',
@@ -226,8 +226,9 @@ class LocalShellExecutor extends ShellExecutor {
       command,
       timeout: _options.timeout,
       maxOutputBytes: _options.maxOutputBytes,
-      confineWorkingDirectory:
-          _options.confineWorkingDirectory ? _options.workingDirectory : null,
+      confineWorkingDirectory: _options.confineWorkingDirectory
+          ? _options.workingDirectory
+          : null,
     );
   }
 
@@ -274,7 +275,10 @@ class LocalShellExecutor extends ShellExecutor {
       },
       callback: (arguments, {cancellationToken}) async {
         final command = (arguments['command'] ?? '').toString();
-        final result = await runAsync(command, cancellationToken: cancellationToken);
+        final result = await runAsync(
+          command,
+          cancellationToken: cancellationToken,
+        );
         return result.formatForModel();
       },
     );

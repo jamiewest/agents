@@ -36,7 +36,8 @@ export 'src/abstractions/ai_agent_metadata.dart';
 export 'src/abstractions/ai_agent_structured_output.dart';
 export 'src/abstractions/ai_context.dart';
 export 'src/abstractions/ai_context_provider.dart';
-export 'src/abstractions/chat_history_provider.dart' hide InvokedContext, InvokingContext;
+export 'src/abstractions/chat_history_provider.dart'
+    hide InvokedContext, InvokingContext;
 export 'src/abstractions/chat_message_extensions.dart';
 export 'src/abstractions/delegating_ai_agent.dart';
 export 'src/abstractions/in_memory_chat_history_provider.dart';
@@ -130,15 +131,16 @@ export 'src/ai/harness/file_store/file_system_agent_file_store.dart';
 export 'src/ai/harness/file_store/in_memory_agent_file_store.dart';
 export 'src/ai/harness/file_store/store_paths.dart';
 
-// AI — harness / sub-agents
-export 'src/ai/harness/sub_agents/sub_agent_runtime_state.dart';
-export 'src/ai/harness/sub_agents/sub_agent_state.dart';
-export 'src/ai/harness/sub_agents/sub_agents_provider.dart';
-export 'src/ai/harness/sub_agents/sub_agents_provider_options.dart';
-export 'src/ai/harness/sub_agents/sub_task_info.dart';
-export 'src/ai/harness/sub_agents/sub_task_status.dart';
+// AI — harness / background agents
+export 'src/ai/harness/background_agents/background_agent_runtime_state.dart';
+export 'src/ai/harness/background_agents/background_agent_state.dart';
+export 'src/ai/harness/background_agents/background_agents_provider.dart';
+export 'src/ai/harness/background_agents/background_agents_provider_options.dart';
+export 'src/ai/harness/background_agents/background_task_info.dart';
+export 'src/ai/harness/background_agents/background_task_status.dart';
 
 // AI — harness / todo
+export 'src/ai/harness/todo/todo_complete_input.dart';
 export 'src/ai/harness/todo/todo_item.dart';
 export 'src/ai/harness/todo/todo_item_input.dart';
 export 'src/ai/harness/todo/todo_provider.dart';

@@ -11,13 +11,7 @@ extension HostedWorkflowBuilderExtensions on HostedWorkflowBuilder {
   /// container.
   ///
   /// Returns a [HostedAgentBuilder] for further configuration.
-  HostedAgentBuilder addAsAIAgent(
-    ServiceLifetime lifetime, {
-    String? name,
-  }) {
-    return hostApplicationBuilder.addAIAgent(
-      name ?? this.name,
-      lifetime,
-    );
+  HostedAgentBuilder addAsAIAgent(ServiceLifetime lifetime, {String? name}) {
+    return hostApplicationBuilder.addAIAgent(name ?? this.name, lifetime);
   }
 }

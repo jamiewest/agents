@@ -104,9 +104,7 @@ final class InProcessRunner implements ISuperStepRunner {
   InProcessRunnerContext get context => _context;
 
   @override
-  Future<bool> runSuperStepAsync({
-    CancellationToken? cancellationToken,
-  }) async {
+  Future<bool> runSuperStepAsync({CancellationToken? cancellationToken}) async {
     if (!_context.nextStepHasActions) return false;
 
     final token = cancellationToken ?? CancellationToken.none;
@@ -140,10 +138,7 @@ final class InProcessRunner implements ISuperStepRunner {
         final boundCtx = _context.bindWorkflowContext(executorId);
 
         await _context.forwardWorkflowEventAsync(
-          ExecutorInvokedEvent(
-            executorId: executorId,
-            data: envelope.message,
-          ),
+          ExecutorInvokedEvent(executorId: executorId, data: envelope.message),
           cancellationToken: token,
         );
 

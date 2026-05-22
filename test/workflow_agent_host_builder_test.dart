@@ -146,10 +146,7 @@ void main() {
           onRun: (messages, options) => AgentResponse(
             message: ChatMessage(
               role: ChatRole.assistant,
-              contents: [
-                TextContent('visible'),
-                UsageContent(UsageDetails()),
-              ],
+              contents: [TextContent('visible'), UsageContent(UsageDetails())],
             ),
           ),
         );
@@ -158,10 +155,9 @@ void main() {
           options: const AIAgentHostOptions(forwardIncomingMessages: false),
         );
 
-        final output = await executor.handle(
-          [ChatMessage.fromText(ChatRole.user, 'hi')],
-          CollectingWorkflowContext(executor.id),
-        );
+        final output = await executor.handle([
+          ChatMessage.fromText(ChatRole.user, 'hi'),
+        ], CollectingWorkflowContext(executor.id));
 
         expect(output.single.contents.length, 1);
         expect(output.single.contents.single, isA<TextContent>());
@@ -187,10 +183,9 @@ void main() {
           options: const AIAgentHostOptions(forwardIncomingMessages: false),
         );
 
-        final output = await executor.handle(
-          [ChatMessage.fromText(ChatRole.user, 'hi')],
-          CollectingWorkflowContext(executor.id),
-        );
+        final output = await executor.handle([
+          ChatMessage.fromText(ChatRole.user, 'hi'),
+        ], CollectingWorkflowContext(executor.id));
 
         expect(output.single.contents.single, isA<TextContent>());
         expect(output.single.rawRepresentation, isNull);
@@ -218,10 +213,9 @@ void main() {
           options: const AIAgentHostOptions(forwardIncomingMessages: false),
         );
 
-        final output = await executor.handle(
-          [ChatMessage.fromText(ChatRole.user, 'hi')],
-          CollectingWorkflowContext(executor.id),
-        );
+        final output = await executor.handle([
+          ChatMessage.fromText(ChatRole.user, 'hi'),
+        ], CollectingWorkflowContext(executor.id));
 
         expect(output.single.contents.length, 2);
         expect(output.single.contents[0], isA<TextContent>());
@@ -249,10 +243,9 @@ void main() {
           options: const AIAgentHostOptions(forwardIncomingMessages: false),
         );
 
-        final output = await executor.handle(
-          [ChatMessage.fromText(ChatRole.user, 'hi')],
-          CollectingWorkflowContext(executor.id),
-        );
+        final output = await executor.handle([
+          ChatMessage.fromText(ChatRole.user, 'hi'),
+        ], CollectingWorkflowContext(executor.id));
 
         expect(output.length, 1);
         expect(output.single.text, 'kept');

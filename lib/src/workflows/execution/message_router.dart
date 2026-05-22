@@ -25,12 +25,10 @@ typedef CatchAllFn =
 /// runtime type, [catchAll] is invoked when provided.
 final class MessageRouter {
   /// Creates a [MessageRouter].
-  MessageRouter({
-    Map<Type, MessageHandlerFn>? handlers,
-    this.catchAll,
-  }) : _handlers = Map<Type, MessageHandlerFn>.unmodifiable(
-         handlers ?? const {},
-       );
+  MessageRouter({Map<Type, MessageHandlerFn>? handlers, this.catchAll})
+    : _handlers = Map<Type, MessageHandlerFn>.unmodifiable(
+        handlers ?? const {},
+      );
 
   final Map<Type, MessageHandlerFn> _handlers;
 

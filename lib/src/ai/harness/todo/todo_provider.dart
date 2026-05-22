@@ -9,6 +9,7 @@ import '../../../abstractions/ai_context.dart';
 import '../../../abstractions/ai_context_provider.dart';
 import '../../../abstractions/provider_session_state_t_state_.dart';
 import '../../agent_json_utilities.dart';
+import 'todo_complete_input.dart';
 import 'todo_item.dart';
 import 'todo_item_input.dart';
 import 'todo_provider_options.dart';
@@ -166,15 +167,15 @@ Use these tools to manage your tasks:
       AIFunctionFactory.create(
         name: 'TodoList_Complete',
         description:
-            'Mark one or more todo items as complete by their IDs. Returns the number of items that were found and marked complete.',
+            'Mark one or more todo items as complete. Each entry has an ID and a reason describing how/why the item was completed. Returns the number of items that were found and marked complete.',
         parametersSchema: _objectSchema({
-          'ids': 'The todo item IDs to mark complete.',
+          'items': 'The items to complete. Each entry has an id and a reason.',
         }),
         callback: (arguments, {cancellationToken}) {
-          final ids = _getIntList(arguments, 'ids');
+          final items = _getCompleteInputs(arguments, 'items');
           return getSessionLock(session).withResource(() async {
             final state = _sessionState.getOrInitializeState(session);
-            final idSet = ids.toSet();
+            final idSet = items.map((i) => i.id).toSet();
             var completed = 0;
             for (final item in state.items) {
               if (!item.isComplete && idSet.contains(item.id)) {
@@ -291,6 +292,37 @@ Use these tools to manage your tasks:
     }
 
     throw ArgumentError.value(value, 'todos', 'Expected a todo item input.');
+  }
+
+  static List<TodoCompleteInput> _getCompleteInputs(
+    AIFunctionArguments arguments,
+    String name,
+  ) {
+    final value = arguments[name];
+    if (value is Iterable) {
+      return value.map(_toCompleteInput).toList();
+    }
+    throw ArgumentError.value(
+      value,
+      name,
+      'Expected a list of complete inputs.',
+    );
+  }
+
+  static TodoCompleteInput _toCompleteInput(Object? value) {
+    if (value is TodoCompleteInput) {
+      return value;
+    }
+
+    if (value is Map) {
+      final id = value['id'] ?? value['Id'];
+      final reason = value['reason'] ?? value['Reason'];
+      return TodoCompleteInput()
+        ..id = id is int ? id : (id is num ? id.toInt() : 0)
+        ..reason = reason is String ? reason : '';
+    }
+
+    throw ArgumentError.value(value, 'items', 'Expected a complete input.');
   }
 
   static List<int> _getIntList(AIFunctionArguments arguments, String name) {

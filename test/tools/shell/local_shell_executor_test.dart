@@ -28,17 +28,11 @@ void main() {
       final policy = ShellPolicy(denyList: _destructivePatterns);
       final outcome = policy.evaluate(const ShellRequest('rm -rf /'));
       expect(outcome.allowed, isFalse);
-      expect(
-        outcome.reason?.toLowerCase(),
-        contains('deny pattern'),
-      );
+      expect(outcome.reason?.toLowerCase(), contains('deny pattern'));
     });
 
     test('allow list — overrides deny', () {
-      final policy = ShellPolicy(
-        allowList: [r'^echo '],
-        denyList: ['echo'],
-      );
+      final policy = ShellPolicy(allowList: [r'^echo '], denyList: ['echo']);
       final outcome = policy.evaluate(const ShellRequest('echo hello'));
       expect(outcome.allowed, isTrue);
     });
@@ -90,15 +84,20 @@ void main() {
 
   group('LocalShellExecutor — constructor', () {
     test('default timeout is 30 seconds', () {
-      expect(LocalShellExecutor.defaultTimeout, equals(const Duration(seconds: 30)));
+      expect(
+        LocalShellExecutor.defaultTimeout,
+        equals(const Duration(seconds: 30)),
+      );
     });
 
     test('rejects both shell and shellArgv', () {
       expect(
-        () => LocalShellExecutor(LocalShellExecutorOptions(
-          shell: '/bin/bash',
-          shellArgv: ['/bin/bash', '--noprofile'],
-        )),
+        () => LocalShellExecutor(
+          LocalShellExecutorOptions(
+            shell: '/bin/bash',
+            shellArgv: ['/bin/bash', '--noprofile'],
+          ),
+        ),
         throwsArgumentError,
       );
     });
@@ -119,10 +118,12 @@ void main() {
     });
 
     test('rejected command — throws ShellCommandRejectedException', () async {
-      final shell = LocalShellExecutor(LocalShellExecutorOptions(
-        mode: ShellMode.stateless,
-        policy: ShellPolicy(denyList: _destructivePatterns),
-      ));
+      final shell = LocalShellExecutor(
+        LocalShellExecutorOptions(
+          mode: ShellMode.stateless,
+          policy: ShellPolicy(denyList: _destructivePatterns),
+        ),
+      );
       await expectLater(
         shell.runAsync('rm -rf /'),
         throwsA(isA<ShellCommandRejectedException>()),
@@ -140,10 +141,12 @@ void main() {
     });
 
     test('timeout — flags timedOut and returns exit code 124', () async {
-      final shell = LocalShellExecutor(LocalShellExecutorOptions(
-        mode: ShellMode.stateless,
-        timeout: const Duration(milliseconds: 500),
-      ));
+      final shell = LocalShellExecutor(
+        LocalShellExecutorOptions(
+          mode: ShellMode.stateless,
+          timeout: const Duration(milliseconds: 500),
+        ),
+      );
       final sleepCmd = Platform.isWindows
           ? 'Start-Sleep -Seconds 30'
           : 'sleep 30';
@@ -155,12 +158,13 @@ void main() {
     });
 
     test('null timeout — does not time out', () async {
-      final shell = LocalShellExecutor(const LocalShellExecutorOptions(
-        mode: ShellMode.stateless,
-        timeout: null,
-      ));
-      final echoCmd =
-          Platform.isWindows ? 'Write-Output ok' : 'echo ok';
+      final shell = LocalShellExecutor(
+        const LocalShellExecutorOptions(
+          mode: ShellMode.stateless,
+          timeout: null,
+        ),
+      );
+      final echoCmd = Platform.isWindows ? 'Write-Output ok' : 'echo ok';
       final result = await shell.runAsync(echoCmd);
       await shell.dispose();
       expect(result.timedOut, isFalse);
@@ -180,10 +184,12 @@ void main() {
     });
 
     test('persistent — carries working directory across calls', () async {
-      final shell = LocalShellExecutor(LocalShellExecutorOptions(
-        mode: ShellMode.persistent,
-        timeout: const Duration(seconds: 20),
-      ));
+      final shell = LocalShellExecutor(
+        LocalShellExecutorOptions(
+          mode: ShellMode.persistent,
+          timeout: const Duration(seconds: 20),
+        ),
+      );
       final tmpPath = Directory.systemTemp.path;
       final cdCmd = Platform.isWindows
           ? 'Set-Location "${tmpPath.replaceAll(r'\', r'\\')}"'
@@ -201,10 +207,12 @@ void main() {
     });
 
     test('persistent — carries environment across calls', () async {
-      final shell = LocalShellExecutor(LocalShellExecutorOptions(
-        mode: ShellMode.persistent,
-        timeout: const Duration(seconds: 20),
-      ));
+      final shell = LocalShellExecutor(
+        LocalShellExecutorOptions(
+          mode: ShellMode.persistent,
+          timeout: const Duration(seconds: 20),
+        ),
+      );
       final setCmd = Platform.isWindows
           ? r'$env:AF_SHELL_TEST = "persisted-value"'
           : 'export AF_SHELL_TEST=persisted-value';
@@ -220,12 +228,15 @@ void main() {
     });
 
     test('persistent — timeout returns exit code 124', () async {
-      final shell = LocalShellExecutor(LocalShellExecutorOptions(
-        mode: ShellMode.persistent,
-        timeout: const Duration(milliseconds: 600),
-      ));
-      final sleepCmd =
-          Platform.isWindows ? 'Start-Sleep -Seconds 30' : 'sleep 30';
+      final shell = LocalShellExecutor(
+        LocalShellExecutorOptions(
+          mode: ShellMode.persistent,
+          timeout: const Duration(milliseconds: 600),
+        ),
+      );
+      final sleepCmd = Platform.isWindows
+          ? 'Start-Sleep -Seconds 30'
+          : 'sleep 30';
       final result = await shell.runAsync(sleepCmd);
       await shell.dispose();
       expect(result.timedOut, isTrue);
@@ -233,11 +244,13 @@ void main() {
     });
 
     test('stateless — output truncation uses head+tail format', () async {
-      final shell = LocalShellExecutor(LocalShellExecutorOptions(
-        mode: ShellMode.stateless,
-        maxOutputBytes: 2048,
-        timeout: const Duration(seconds: 20),
-      ));
+      final shell = LocalShellExecutor(
+        LocalShellExecutorOptions(
+          mode: ShellMode.stateless,
+          maxOutputBytes: 2048,
+          timeout: const Duration(seconds: 20),
+        ),
+      );
       final bigCmd = Platform.isWindows
           ? r"1..400 | ForEach-Object { 'line-' + $_ + '-padding-padding-padding' }"
           : 'for i in \$(seq 1 400); do echo "line-\$i-padding-padding-padding"; done';
@@ -255,13 +268,13 @@ void main() {
       Platform.environment; // access to ensure env is loaded
       // Set via Process.environment is not possible in Dart; skip if not set.
       // This test mirrors the C# test for documentation purposes.
-      final shell = LocalShellExecutor(const LocalShellExecutorOptions(
-        mode: ShellMode.stateless,
-        cleanEnvironment: true,
-      ));
-      final readCmd = Platform.isWindows
-          ? '\$env:$varName'
-          : 'echo \$$varName';
+      final shell = LocalShellExecutor(
+        const LocalShellExecutorOptions(
+          mode: ShellMode.stateless,
+          cleanEnvironment: true,
+        ),
+      );
+      final readCmd = Platform.isWindows ? '\$env:$varName' : 'echo \$$varName';
       final result = await shell.runAsync(readCmd);
       await shell.dispose();
       expect(result.exitCode, equals(0));

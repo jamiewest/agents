@@ -1,4 +1,5 @@
 import 'package:extensions/dependency_injection.dart';
+
 /// Represents a builder for configuring AI agents within a hosting
 /// environment.
 abstract class HostedAgentBuilder {

@@ -4,20 +4,10 @@
 library;
 
 /// Mirrors System.Diagnostics.ActivityKind.
-enum ActivityKind {
-  internal,
-  server,
-  client,
-  producer,
-  consumer,
-}
+enum ActivityKind { internal, server, client, producer, consumer }
 
 /// Mirrors System.Diagnostics.ActivityStatusCode.
-enum ActivityStatusCode {
-  unset,
-  ok,
-  error,
-}
+enum ActivityStatusCode { unset, ok, error }
 
 /// Mirrors System.Diagnostics.ActivityEvent.
 class ActivityEvent {

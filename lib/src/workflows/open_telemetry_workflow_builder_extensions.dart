@@ -27,15 +27,13 @@ extension OpenTelemetryWorkflowExecutionEnvironmentExtensions
     String? sourceName,
     Tracer? tracer,
     WorkflowTelemetryOptions? options,
-  }) =>
-      _OtelWorkflowExecutionEnvironment(
-        inner: this,
-        tracer: tracer ??
-            globalTracerProvider.getTracer(
-              sourceName ?? _defaultSourceName,
-            ),
-        options: options ?? WorkflowTelemetryOptions(),
-      );
+  }) => _OtelWorkflowExecutionEnvironment(
+    inner: this,
+    tracer:
+        tracer ??
+        globalTracerProvider.getTracer(sourceName ?? _defaultSourceName),
+    options: options ?? WorkflowTelemetryOptions(),
+  );
 }
 
 // ── instrumented wrapper ──────────────────────────────────────────────────────
@@ -142,12 +140,11 @@ final class _OtelWorkflowExecutionEnvironment
     Workflow workflow, {
     String? sessionId,
     CancellationToken? cancellationToken,
-  }) =>
-      streamAsync<Object?>(
-        workflow,
-        sessionId: sessionId,
-        cancellationToken: cancellationToken,
-      );
+  }) => streamAsync<Object?>(
+    workflow,
+    sessionId: sessionId,
+    cancellationToken: cancellationToken,
+  );
 
   @override
   Future<Run> resumeAsync(

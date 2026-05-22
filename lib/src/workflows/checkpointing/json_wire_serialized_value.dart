@@ -16,9 +16,7 @@ class JsonWireSerializedValue implements IDelayedDeserialization {
   T deserialize<T>() {
     final v = value;
     if (v is T) return v;
-    throw StateError(
-      'Cannot deserialize ${v?.runtimeType} as $T.',
-    );
+    throw StateError('Cannot deserialize ${v?.runtimeType} as $T.');
   }
 
   @override

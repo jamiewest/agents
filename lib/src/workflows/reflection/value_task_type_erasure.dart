@@ -18,6 +18,7 @@ final class ValueTaskTypeErasure {
     Object message,
     WorkflowContext context,
     CancellationToken? cancellationToken,
-  ) erase<T>(MessageHandlerCallback<T> handler) =>
+  )
+  erase<T>(MessageHandlerCallback<T> handler) =>
       (msg, ctx, ct) => handler(msg as T, ctx, ct);
 }

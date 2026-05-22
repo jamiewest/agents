@@ -151,9 +151,7 @@ class AgentFileSkillsSource extends AgentSkillsSource {
 
   AgentFileSkill? parseSkillDirectory(String skillDirectoryFullPath) {
     final skillFilePath = p.join(skillDirectoryFullPath, skillFileName);
-    final content = _fs
-        .file(skillFilePath)
-        .readAsStringSync(encoding: utf8);
+    final content = _fs.file(skillFilePath).readAsStringSync(encoding: utf8);
     final (valid, frontmatter) = tryParseFrontmatter(content, skillFilePath);
     if (!valid || frontmatter == null) {
       return null;

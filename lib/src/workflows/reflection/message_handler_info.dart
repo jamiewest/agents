@@ -10,10 +10,7 @@ import '../workflow_context.dart';
 /// so [ReflectingExecutor] can invoke it uniformly.
 final class MessageHandlerInfo {
   /// Creates a message handler info record.
-  const MessageHandlerInfo({
-    required this.messageType,
-    required this.handler,
-  });
+  const MessageHandlerInfo({required this.messageType, required this.handler});
 
   /// The message type this handler accepts.
   final Type messageType;
@@ -23,5 +20,6 @@ final class MessageHandlerInfo {
     Object message,
     WorkflowContext context,
     CancellationToken? cancellationToken,
-  ) handler;
+  )
+  handler;
 }

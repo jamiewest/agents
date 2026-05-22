@@ -24,7 +24,6 @@ final class CheckpointInfoConverter
       JsonConverterDictionarySupportBase.escape(value.checkpointId);
 
   @override
-  CheckpointInfo parse(String key) => CheckpointInfo(
-    JsonConverterDictionarySupportBase.unescape(key)!,
-  );
+  CheckpointInfo parse(String key) =>
+      CheckpointInfo(JsonConverterDictionarySupportBase.unescape(key)!);
 }

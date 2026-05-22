@@ -20,28 +20,24 @@ void main() {
 
       test('readState throws on Object type parameter', () {
         final sm = StateManager();
-        expect(
-          () => sm.readState<Object>('ex', null, 'k'),
-          throwsStateError,
-        );
+        expect(() => sm.readState<Object>('ex', null, 'k'), throwsStateError);
       });
 
-      test('readState wraps non-T value as PortableValue when T is PortableValue',
-          () {
-        final sm = StateManager();
-        sm.writeState('ex', null, 'key', 'hello');
-        final pv = sm.readState<PortableValue>('ex', null, 'key');
-        expect(pv, isA<PortableValue>());
-        expect(pv!.asValue<String>(), 'hello');
-      });
+      test(
+        'readState wraps non-T value as PortableValue when T is PortableValue',
+        () {
+          final sm = StateManager();
+          sm.writeState('ex', null, 'key', 'hello');
+          final pv = sm.readState<PortableValue>('ex', null, 'key');
+          expect(pv, isA<PortableValue>());
+          expect(pv!.asValue<String>(), 'hello');
+        },
+      );
 
       test('readState throws when queued type does not match T', () {
         final sm = StateManager();
         sm.writeState('ex', null, 'key', 'not-an-int');
-        expect(
-          () => sm.readState<int>('ex', null, 'key'),
-          throwsStateError,
-        );
+        expect(() => sm.readState<int>('ex', null, 'key'), throwsStateError);
       });
 
       test('writeState with named scope is isolated from default scope', () {

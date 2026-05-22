@@ -23,13 +23,11 @@ enum EdgeRunnerDeliveryStatus {
 extension EdgeRunnerDeliveryStatusExtension on EdgeRunnerDeliveryStatus {
   /// Returns a human-readable string for the status.
   String toStringValue() => switch (this) {
-        EdgeRunnerDeliveryStatus.delivered => 'delivered',
-        EdgeRunnerDeliveryStatus.droppedTypeMismatch => 'dropped type mismatch',
-        EdgeRunnerDeliveryStatus.droppedTargetMismatch =>
-          'dropped target mismatch',
-        EdgeRunnerDeliveryStatus.droppedConditionFalse =>
-          'dropped condition false',
-        EdgeRunnerDeliveryStatus.exception => 'exception',
-        EdgeRunnerDeliveryStatus.buffered => 'buffered',
-      };
+    EdgeRunnerDeliveryStatus.delivered => 'delivered',
+    EdgeRunnerDeliveryStatus.droppedTypeMismatch => 'dropped type mismatch',
+    EdgeRunnerDeliveryStatus.droppedTargetMismatch => 'dropped target mismatch',
+    EdgeRunnerDeliveryStatus.droppedConditionFalse => 'dropped condition false',
+    EdgeRunnerDeliveryStatus.exception => 'exception',
+    EdgeRunnerDeliveryStatus.buffered => 'buffered',
+  };
 }

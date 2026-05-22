@@ -6,7 +6,7 @@
 class ScopeId {
   /// Creates a [ScopeId].
   ScopeId(this.executorId, [this.scopeName])
-      : assert(executorId.isNotEmpty, 'executorId must not be empty');
+    : assert(executorId.isNotEmpty, 'executorId must not be empty');
 
   /// The unique identifier of the executor.
   final String executorId;

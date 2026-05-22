@@ -14,12 +14,15 @@ class AIAgentUnservicedRequestsCollector {
   });
 
   /// Gets the handler for tool-approval requests, if any.
-  final AIContentExternalHandler<ToolApprovalRequestContent,
-      ToolApprovalResponseContent>? toolApprovalHandler;
+  final AIContentExternalHandler<
+    ToolApprovalRequestContent,
+    ToolApprovalResponseContent
+  >?
+  toolApprovalHandler;
 
   /// Gets the handler for function-call requests, if any.
-  final AIContentExternalHandler<FunctionCallContent,
-      FunctionResultContent>? functionCallHandler;
+  final AIContentExternalHandler<FunctionCallContent, FunctionResultContent>?
+  functionCallHandler;
 
   /// Scans [messages] for unserviced requests and submits each to the
   /// appropriate handler.

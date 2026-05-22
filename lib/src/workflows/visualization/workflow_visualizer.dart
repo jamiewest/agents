@@ -21,8 +21,7 @@ final class WorkflowVisualizer {
     for (final edge in workflow.reflectEdges()) {
       final data = edge.data;
       if (data is DirectEdgeData) {
-        final label =
-            data.messageType != null ? ' |${data.messageType}|' : '';
+        final label = data.messageType != null ? ' |${data.messageType}|' : '';
         buf.writeln(
           '  ${_safeId(data.sourceExecutorId)} -->'
           '$label ${_safeId(data.targetExecutorId)}',
@@ -45,5 +44,6 @@ final class WorkflowVisualizer {
     return buf.toString();
   }
 
-  static String _safeId(String id) => id.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+  static String _safeId(String id) =>
+      id.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
 }

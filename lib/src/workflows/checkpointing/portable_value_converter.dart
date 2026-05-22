@@ -7,8 +7,7 @@ import 'json_converter_base.dart';
 /// When deserializing, the raw JSON value is wrapped in a
 /// `JsonWireSerializedValue` so that the actual type conversion is deferred
 /// until the caller invokes [PortableValue.asValue] or related methods.
-final class PortableValueConverter
-    extends JsonConverterBase<PortableValue> {
+final class PortableValueConverter extends JsonConverterBase<PortableValue> {
   /// Creates a [PortableValueConverter].
   PortableValueConverter();
 

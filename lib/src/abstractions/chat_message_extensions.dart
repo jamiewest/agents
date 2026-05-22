@@ -41,12 +41,17 @@ extension ChatMessageExtensions on ChatMessage {
     newProps[AgentRequestMessageSourceAttribution.additionalPropertiesKey] =
         AgentRequestMessageSourceAttribution(sourceType, sourceId);
 
-    return ChatMessage(role: role, contents: List.of(contents), additionalProperties: newProps);
+    return ChatMessage(
+      role: role,
+      contents: List.of(contents),
+      additionalProperties: newProps,
+    );
   }
 
   AgentRequestMessageSourceAttribution? _getAttribution() {
-    final v = additionalProperties?[
-        AgentRequestMessageSourceAttribution.additionalPropertiesKey];
+    final v =
+        additionalProperties?[AgentRequestMessageSourceAttribution
+            .additionalPropertiesKey];
     return v is AgentRequestMessageSourceAttribution ? v : null;
   }
 }

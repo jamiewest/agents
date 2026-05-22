@@ -10,20 +10,17 @@ void main() {
       expect(ShellSession.quotePosix('/tmp/work'), equals("'/tmp/work'"));
     });
 
-    test('dollar, backtick, command substitution — produces literal string', () {
-      expect(
-        ShellSession.quotePosix('/tmp/\$(touch /pwn)'),
-        equals("'/tmp/\$(touch /pwn)'"),
-      );
-      expect(
-        ShellSession.quotePosix('/tmp/\$VAR'),
-        equals("'/tmp/\$VAR'"),
-      );
-      expect(
-        ShellSession.quotePosix('/tmp/`id`'),
-        equals("'/tmp/`id`'"),
-      );
-    });
+    test(
+      'dollar, backtick, command substitution — produces literal string',
+      () {
+        expect(
+          ShellSession.quotePosix('/tmp/\$(touch /pwn)'),
+          equals("'/tmp/\$(touch /pwn)'"),
+        );
+        expect(ShellSession.quotePosix('/tmp/\$VAR'), equals("'/tmp/\$VAR'"));
+        expect(ShellSession.quotePosix('/tmp/`id`'), equals("'/tmp/`id`'"));
+      },
+    );
 
     test('embedded single quote — closes and reopens', () {
       // POSIX: a'b → 'a'\''b'

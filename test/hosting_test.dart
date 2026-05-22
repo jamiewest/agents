@@ -34,23 +34,27 @@ void main() {
       expect(retrieved.marker, 'saved-marker');
     });
 
-    test('different agents use separate stores for the same conversationId',
-        () async {
-      final store = InMemoryAgentSessionStore();
-      final agentA = _TestAgent();
-      final agentB = _TestAgent();
-      final sessionA = _TestSession(marker: 'A');
-      final sessionB = _TestSession(marker: 'B');
+    test(
+      'different agents use separate stores for the same conversationId',
+      () async {
+        final store = InMemoryAgentSessionStore();
+        final agentA = _TestAgent();
+        final agentB = _TestAgent();
+        final sessionA = _TestSession(marker: 'A');
+        final sessionB = _TestSession(marker: 'B');
 
-      await store.saveSession(agentA, 'conv-1', sessionA);
-      await store.saveSession(agentB, 'conv-1', sessionB);
+        await store.saveSession(agentA, 'conv-1', sessionA);
+        await store.saveSession(agentB, 'conv-1', sessionB);
 
-      final retrievedA = await store.getSession(agentA, 'conv-1') as _TestSession;
-      final retrievedB = await store.getSession(agentB, 'conv-1') as _TestSession;
+        final retrievedA =
+            await store.getSession(agentA, 'conv-1') as _TestSession;
+        final retrievedB =
+            await store.getSession(agentB, 'conv-1') as _TestSession;
 
-      expect(retrievedA.marker, 'A');
-      expect(retrievedB.marker, 'B');
-    });
+        expect(retrievedA.marker, 'A');
+        expect(retrievedB.marker, 'B');
+      },
+    );
 
     test('different conversationIds are stored independently', () async {
       final store = InMemoryAgentSessionStore();
@@ -138,9 +142,9 @@ void main() {
       final store = _FakeSessionStore(getSessionResult: _TestSession());
       final host = AIHostAgent(inner, store);
 
-      final response = await host.runCore(
-        [ChatMessage.fromText(ChatRole.user, 'hi')],
-      );
+      final response = await host.runCore([
+        ChatMessage.fromText(ChatRole.user, 'hi'),
+      ]);
 
       expect(response.text, 'host-response');
     });
@@ -196,10 +200,9 @@ class _TestAgent extends AIAgent {
     AgentSession? session,
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
-  }) async =>
-      AgentResponse(
-        message: ChatMessage.fromText(ChatRole.assistant, responseText),
-      );
+  }) async => AgentResponse(
+    message: ChatMessage.fromText(ChatRole.assistant, responseText),
+  );
 
   @override
   Stream<AgentResponseUpdate> runCoreStreaming(

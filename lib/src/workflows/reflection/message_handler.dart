@@ -8,8 +8,9 @@ import '../workflow_context.dart';
 /// framework discovers handlers at runtime via attribute scanning and
 /// reflection, Dart requires explicit registration through
 /// [HandlerRegistry.on].
-typedef MessageHandlerCallback<T> = Future<Object?> Function(
-  T message,
-  WorkflowContext context,
-  CancellationToken? cancellationToken,
-);
+typedef MessageHandlerCallback<T> =
+    Future<Object?> Function(
+      T message,
+      WorkflowContext context,
+      CancellationToken? cancellationToken,
+    );

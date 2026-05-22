@@ -66,15 +66,14 @@ class AgentResponse {
     final msgs = _messages ?? const <ChatMessage>[];
     final updates = <AgentResponseUpdate>[];
     for (final msg in msgs) {
-      updates.add(AgentResponseUpdate(
-        role: msg.role,
-        contents: msg.contents,
-      ));
+      updates.add(AgentResponseUpdate(role: msg.role, contents: msg.contents));
     }
     if (usage != null || additionalProperties != null) {
-      updates.add(AgentResponseUpdate(
-        contents: [if (usage != null) UsageContent(usage!)],
-      ));
+      updates.add(
+        AgentResponseUpdate(
+          contents: [if (usage != null) UsageContent(usage!)],
+        ),
+      );
     }
     return updates;
   }

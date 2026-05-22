@@ -10,23 +10,19 @@ extension WorkflowTracerExtensions on Tracer {
     String sessionId, {
     String? workflowName,
     Context? context,
-  }) =>
-      startSpan(
-        ActivityNames.workflowInvoke,
-        kind: SpanKind.internal,
-        context: context ?? Context.current,
-        attributes: [
-          Attribute.fromString(Tags.sessionId, sessionId),
-          if (workflowName != null)
-            Attribute.fromString(Tags.workflowName, workflowName),
-        ],
-      );
+  }) => startSpan(
+    ActivityNames.workflowInvoke,
+    kind: SpanKind.internal,
+    context: context ?? Context.current,
+    attributes: [
+      Attribute.fromString(Tags.sessionId, sessionId),
+      if (workflowName != null)
+        Attribute.fromString(Tags.workflowName, workflowName),
+    ],
+  );
 
   /// Starts a span covering a workflow session lifecycle.
-  Span startWorkflowSessionSpan(
-    String sessionId, {
-    Context? context,
-  }) =>
+  Span startWorkflowSessionSpan(String sessionId, {Context? context}) =>
       startSpan(
         ActivityNames.workflowSession,
         kind: SpanKind.internal,
@@ -39,35 +35,33 @@ extension WorkflowTracerExtensions on Tracer {
     String executorId, {
     String? executorType,
     Context? context,
-  }) =>
-      startSpan(
-        ActivityNames.executorProcess,
-        kind: SpanKind.internal,
-        context: context ?? Context.current,
-        attributes: [
-          Attribute.fromString(Tags.executorId, executorId),
-          if (executorType != null)
-            Attribute.fromString(Tags.executorType, executorType),
-        ],
-      );
+  }) => startSpan(
+    ActivityNames.executorProcess,
+    kind: SpanKind.internal,
+    context: context ?? Context.current,
+    attributes: [
+      Attribute.fromString(Tags.executorId, executorId),
+      if (executorType != null)
+        Attribute.fromString(Tags.executorType, executorType),
+    ],
+  );
 
   /// Starts a span covering a message send between executors.
   Span startMessageSendSpan(
     String? sourceExecutorId,
     String? targetExecutorId, {
     Context? context,
-  }) =>
-      startSpan(
-        ActivityNames.messageSend,
-        kind: SpanKind.internal,
-        context: context ?? Context.current,
-        attributes: [
-          if (sourceExecutorId != null)
-            Attribute.fromString(Tags.messageSourceId, sourceExecutorId),
-          if (targetExecutorId != null)
-            Attribute.fromString(Tags.messageTargetId, targetExecutorId),
-        ],
-      );
+  }) => startSpan(
+    ActivityNames.messageSend,
+    kind: SpanKind.internal,
+    context: context ?? Context.current,
+    attributes: [
+      if (sourceExecutorId != null)
+        Attribute.fromString(Tags.messageSourceId, sourceExecutorId),
+      if (targetExecutorId != null)
+        Attribute.fromString(Tags.messageTargetId, targetExecutorId),
+    ],
+  );
 }
 
 /// Extension methods on [Span] for workflow-specific attribute and status

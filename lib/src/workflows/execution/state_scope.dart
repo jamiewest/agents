@@ -38,9 +38,7 @@ final class StateScope {
       final stateUpdates = entry.value;
       if (stateUpdates.isEmpty) continue;
       if (stateUpdates.length > 1) {
-        throw StateError(
-          'Expected exactly one update for key "${entry.key}".',
-        );
+        throw StateError('Expected exactly one update for key "${entry.key}".');
       }
       final update = stateUpdates.first;
       if (update.isDelete) {

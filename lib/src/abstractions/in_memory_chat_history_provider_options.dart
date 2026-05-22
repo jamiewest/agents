@@ -31,15 +31,15 @@ class InMemoryChatHistoryProviderOptions {
 
   /// Optional filter applied to request messages before storage.
   Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
-      storageInputRequestMessageFilter;
+  storageInputRequestMessageFilter;
 
   /// Optional filter applied to response messages before storage.
   Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
-      storageInputResponseMessageFilter;
+  storageInputResponseMessageFilter;
 
   /// Optional filter applied to messages produced by this provider.
   Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
-      provideOutputMessageFilter;
+  provideOutputMessageFilter;
 }
 
 /// Defines when a [ChatReducer] is triggered in [InMemoryChatHistoryProvider].

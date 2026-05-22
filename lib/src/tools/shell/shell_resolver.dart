@@ -73,18 +73,19 @@ class ResolvedShell {
 
   /// Returns the argv for running [command] in a fresh subprocess.
   List<String> statelessArgvForCommand(String command) => switch (_kind) {
-        _ShellKind.bash => ['--noprofile', '--norc', '-c', command],
-        _ShellKind.powerShell => ['-NonInteractive', '-Command', command],
-        _ShellKind.sh => ['-c', command],
-      };
+    _ShellKind.bash => ['--noprofile', '--norc', '-c', command],
+    _ShellKind.powerShell => ['-NonInteractive', '-Command', command],
+    _ShellKind.sh => ['-c', command],
+  };
 
   /// Returns the argv for starting a persistent interactive shell.
   List<String> persistentArgv() => switch (_kind) {
-        _ShellKind.bash => ['--noprofile', '--norc'],
-        _ShellKind.powerShell => ['-NonInteractive', '-NoLogo'],
-        _ShellKind.sh => [],
-      };
+    _ShellKind.bash => ['--noprofile', '--norc'],
+    _ShellKind.powerShell => ['-NonInteractive', '-NoLogo'],
+    _ShellKind.sh => [],
+  };
 
   /// Returns `true` when persistent mode is supported for this shell.
-  bool get supportsPersistent => _kind != _ShellKind.sh || _kind == _ShellKind.bash;
+  bool get supportsPersistent =>
+      _kind != _ShellKind.sh || _kind == _ShellKind.bash;
 }

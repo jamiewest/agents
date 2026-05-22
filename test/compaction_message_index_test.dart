@@ -100,7 +100,9 @@ void main() {
       final msg = ChatMessage(
         role: ChatRole.assistant,
         contents: [TextContent('text')],
-        additionalProperties: {CompactionMessageGroup.summaryPropertyKey: false},
+        additionalProperties: {
+          CompactionMessageGroup.summaryPropertyKey: false,
+        },
       );
       final index = CompactionMessageIndex.create([msg]);
       expect(index.groups.single.kind, CompactionGroupKind.assistantText);
@@ -177,8 +179,7 @@ void main() {
         _user('q2'),
         _assistant('a2'),
       ]);
-      final turn1 =
-          index.groups.where((g) => g.turnIndex == 1).toList();
+      final turn1 = index.groups.where((g) => g.turnIndex == 1).toList();
       expect(turn1, hasLength(2));
     });
 
@@ -280,8 +281,10 @@ void main() {
       index.groups[0].isExcluded = true;
 
       expect(index.includedMessageCount, 1);
-      expect(index.includedByteCount,
-          CompactionMessageIndex.computeByteCount([_assistant('world')]));
+      expect(
+        index.includedByteCount,
+        CompactionMessageIndex.computeByteCount([_assistant('world')]),
+      );
     });
   });
 
@@ -355,13 +358,14 @@ void main() {
 
   group('CompactionMessageIndex insertGroup and addGroup', () {
     test('insertGroupInsertsAtSpecifiedIndex', () {
-      final index = CompactionMessageIndex.create([_user('q1'), _assistant('a1')]);
+      final index = CompactionMessageIndex.create([
+        _user('q1'),
+        _assistant('a1'),
+      ]);
 
-      index.insertGroup(
-        1,
-        CompactionGroupKind.summary,
-        [_summaryMessage('sum')],
-      );
+      index.insertGroup(1, CompactionGroupKind.summary, [
+        _summaryMessage('sum'),
+      ]);
 
       expect(index.groups, hasLength(3));
       expect(index.groups[1].kind, CompactionGroupKind.summary);
@@ -538,7 +542,10 @@ void main() {
 
     test('computeByteCountUriContent', () {
       final count = CompactionMessageIndex.computeContentByteCount(
-        UriContent(Uri.parse('https://example.com/img'), mediaType: 'image/png'),
+        UriContent(
+          Uri.parse('https://example.com/img'),
+          mediaType: 'image/png',
+        ),
       );
       expect(count, greaterThan(0));
     });
@@ -580,10 +587,9 @@ void main() {
   group('CompactionMessageIndex.computeTokenCount', () {
     test('computeTokenCountReturnsTokenCount', () {
       final tokenizer = _CharCountTokenizer();
-      final count = CompactionMessageIndex.computeTokenCount(
-        [ChatMessage(role: ChatRole.user, contents: [TextContent('hello')])],
-        tokenizer,
-      );
+      final count = CompactionMessageIndex.computeTokenCount([
+        ChatMessage(role: ChatRole.user, contents: [TextContent('hello')]),
+      ], tokenizer);
       expect(count, 5); // 1 token per char
     });
 
@@ -594,10 +600,9 @@ void main() {
 
     test('createWithTokenizerUsesTokenizerForCounts', () {
       final tokenizer = _CharCountTokenizer();
-      final index = CompactionMessageIndex.create(
-        [_user('hello')],
-        tokenizer: tokenizer,
-      );
+      final index = CompactionMessageIndex.create([
+        _user('hello'),
+      ], tokenizer: tokenizer);
       expect(index.groups.single.tokenCount, 5);
     });
 
@@ -613,15 +618,14 @@ void main() {
     test('computeTokenCountTextReasoningContentUsesTokenizer', () {
       final tokenizer = _CharCountTokenizer();
       final protectedData = Uint8List.fromList([1, 2, 3]);
-      final count = CompactionMessageIndex.computeTokenCount(
-        [
-          ChatMessage(
-            role: ChatRole.assistant,
-            contents: [TextReasoningContent('think', protectedData: protectedData)],
-          ),
-        ],
-        tokenizer,
-      );
+      final count = CompactionMessageIndex.computeTokenCount([
+        ChatMessage(
+          role: ChatRole.assistant,
+          contents: [
+            TextReasoningContent('think', protectedData: protectedData),
+          ],
+        ),
+      ], tokenizer);
       // 5 chars tokenized + 3 protected bytes = 8
       expect(count, 8);
     });
@@ -714,25 +718,25 @@ ChatMessage _assistant(String text) =>
     ChatMessage(role: ChatRole.assistant, contents: [TextContent(text)]);
 
 ChatMessage _assistantWithCall(String fn, String callId) => ChatMessage(
-      role: ChatRole.assistant,
-      contents: [FunctionCallContent(callId: callId, name: fn)],
-    );
+  role: ChatRole.assistant,
+  contents: [FunctionCallContent(callId: callId, name: fn)],
+);
 
 ChatMessage _toolResult(String callId, String result) => ChatMessage(
-      role: ChatRole.tool,
-      contents: [FunctionResultContent(callId: callId, result: result)],
-    );
+  role: ChatRole.tool,
+  contents: [FunctionResultContent(callId: callId, result: result)],
+);
 
 ChatMessage _reasoning(String text) => ChatMessage(
-      role: ChatRole.assistant,
-      contents: [TextReasoningContent(text)],
-    );
+  role: ChatRole.assistant,
+  contents: [TextReasoningContent(text)],
+);
 
 ChatMessage _summaryMessage(String text) => ChatMessage(
-      role: ChatRole.assistant,
-      contents: [TextContent(text)],
-      additionalProperties: {CompactionMessageGroup.summaryPropertyKey: true},
-    );
+  role: ChatRole.assistant,
+  contents: [TextContent(text)],
+  additionalProperties: {CompactionMessageGroup.summaryPropertyKey: true},
+);
 
 /// Simple tokenizer that returns the number of characters in the text.
 class _CharCountTokenizer implements Tokenizer {

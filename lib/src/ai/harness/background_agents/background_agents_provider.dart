@@ -7,74 +7,78 @@ import '../../../abstractions/ai_context.dart';
 import '../../../abstractions/ai_context_provider.dart';
 import '../../../abstractions/provider_session_state_t_state_.dart';
 import '../../agent_json_utilities.dart';
-import 'sub_agent_runtime_state.dart';
-import 'sub_agent_state.dart';
-import 'sub_agents_provider_options.dart';
-import 'sub_task_info.dart';
-import 'sub_task_status.dart';
+import 'background_agent_runtime_state.dart';
+import 'background_agent_state.dart';
+import 'background_agents_provider_options.dart';
+import 'background_task_info.dart';
+import 'background_task_status.dart';
 
 /// An [AIContextProvider] that enables an agent to delegate work to
-/// sub-agents asynchronously.
+/// background agents asynchronously.
 ///
-/// The [SubAgentsProvider] allows a parent agent to start sub-tasks on child
-/// agents, wait for their completion, and retrieve results. Each sub-task
-/// runs in its own session and executes concurrently. This provider exposes
-/// the following tools to the agent:
+/// The [BackgroundAgentsProvider] allows a parent agent to start background
+/// tasks on child agents, wait for their completion, and retrieve results.
+/// Each background task runs in its own session and executes concurrently.
+/// This provider exposes the following tools to the agent:
 ///
-/// * `SubAgents_StartTask` — Start a sub-task on a named agent with text
-///   input. Returns the task ID.
-/// * `SubAgents_WaitForFirstCompletion` — Block until the first of the
+/// * `BackgroundAgents_StartTask` — Start a background task on a named agent
+///   with text input. Returns the task ID.
+/// * `BackgroundAgents_WaitForFirstCompletion` — Block until the first of the
 ///   specified tasks completes. Returns the completed task's ID.
-/// * `SubAgents_GetTaskResults` — Retrieve the text output of a completed
-///   sub-task.
-/// * `SubAgents_GetAllTasks` — List all sub-tasks with their IDs, statuses,
-///   descriptions, and agent names.
-/// * `SubAgents_ContinueTask` — Send follow-up input to a completed
-///   sub-task's session to resume work.
-/// * `SubAgents_ClearCompletedTask` — Remove a completed sub-task and
-///   release its session to free memory.
-class SubAgentsProvider extends AIContextProvider {
-  /// Creates a [SubAgentsProvider] with the given [agents] and optional
+/// * `BackgroundAgents_GetTaskResults` — Retrieve the text output of a
+///   completed background task.
+/// * `BackgroundAgents_GetAllTasks` — List all background tasks with their
+///   IDs, statuses, descriptions, and agent names.
+/// * `BackgroundAgents_ContinueTask` — Send follow-up input to a completed
+///   background task's session to resume work.
+/// * `BackgroundAgents_ClearCompletedTask` — Remove a completed background
+///   task and release its session to free memory.
+class BackgroundAgentsProvider extends AIContextProvider {
+  /// Creates a [BackgroundAgentsProvider] with the given [agents] and optional
   /// [options].
-  SubAgentsProvider(
+  BackgroundAgentsProvider(
     Iterable<AIAgent> agents, {
-    SubAgentsProviderOptions? options,
+    BackgroundAgentsProviderOptions? options,
   }) : _agents = validateAndBuildAgentDictionary(agents) {
     final baseInstructions = options?.instructions ?? defaultInstructions;
     final agentListBuilder = options?.agentListBuilder;
     final agentListText = agentListBuilder != null
         ? agentListBuilder(_agents)
         : buildDefaultAgentListText(_agents);
-    _instructions = baseInstructions.replaceAll('{sub_agents}', agentListText);
-    _sessionState = ProviderSessionState<SubAgentState>(
-      (_) => SubAgentState(),
+    _instructions = baseInstructions.replaceAll(
+      '{background_agents}',
+      agentListText,
+    );
+    _sessionState = ProviderSessionState<BackgroundAgentState>(
+      (_) => BackgroundAgentState(),
       runtimeType.toString(),
       JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
     );
-    _runtimeSessionState = ProviderSessionState<SubAgentRuntimeState>(
-      (_) => SubAgentRuntimeState(),
+    _runtimeSessionState = ProviderSessionState<BackgroundAgentRuntimeState>(
+      (_) => BackgroundAgentRuntimeState(),
       '${runtimeType}_Runtime',
       JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
     );
   }
 
   static const String defaultInstructions = '''
-## SubAgents
-You have access to sub-agents that can perform work on your behalf.
+## Background Agents
+You have access to background agents that can perform work on your behalf.
 
-- Use the `SubAgents_*` list of tools to start tasks on sub agents and check their results.
-- Creating a sub task does not block, and sub-tasks run concurrently.
+- Use the `BackgroundAgents_*` list of tools to start tasks on background agents and check their results.
+- Creating a background task does not block, and background tasks run concurrently.
 - Important: Always wait for outstanding tasks to finish before you finish processing.
-- Important: After retrieving results from a completed task, clear it with SubAgents_ClearCompletedTask to free memory, unless you plan to continue it with SubAgents_ContinueTask.
+- Important: After retrieving results from a completed task, clear it with BackgroundAgents_ClearCompletedTask to free memory, unless you plan to continue it with BackgroundAgents_ContinueTask.
 
-{sub_agents}
+{background_agents}
 ''';
 
   final Map<String, AIAgent> _agents;
 
-  late final ProviderSessionState<SubAgentState> _sessionState;
+  late final ProviderSessionState<BackgroundAgentState> _sessionState;
 
-  late final ProviderSessionState<SubAgentRuntimeState> _runtimeSessionState;
+  late final ProviderSessionState<BackgroundAgentRuntimeState>
+  _runtimeSessionState;
 
   late final String _instructions;
 
@@ -115,7 +119,7 @@ You have access to sub-agents that can perform work on your behalf.
       final agentName = agent.name;
       if (agentName == null || agentName.trim().isEmpty) {
         throw ArgumentError(
-          'All sub-agents must have a non-empty Name.',
+          'All background agents must have a non-empty Name.',
           'agents',
         );
       }
@@ -123,7 +127,7 @@ You have access to sub-agents that can perform work on your behalf.
       final normalizedName = agentName.toLowerCase();
       if (!seenNames.add(normalizedName)) {
         throw ArgumentError(
-          "Duplicate sub-agent name: '$agentName'. Agent names must be unique (case-insensitive).",
+          "Duplicate background agent name: '$agentName'. Agent names must be unique (case-insensitive).",
           'agents',
         );
       }
@@ -131,16 +135,19 @@ You have access to sub-agents that can perform work on your behalf.
       dict[agentName] = agent;
     }
     if (dict.isEmpty) {
-      throw ArgumentError('At least one sub-agent must be provided.', 'agents');
+      throw ArgumentError(
+        'At least one background agent must be provided.',
+        'agents',
+      );
     }
     return dict;
   }
 
-  /// Builds the default text listing available sub-agents and their
+  /// Builds the default text listing available background agents and their
   /// descriptions.
   static String buildDefaultAgentListText(Map<String, AIAgent> agents) {
     final sb = StringBuffer();
-    sb.writeln('Available sub-agents:');
+    sb.writeln('Available background agents:');
     for (final kvp in agents.entries) {
       sb.write('- ');
       sb.write(kvp.key);
@@ -157,20 +164,20 @@ You have access to sub-agents that can perform work on your behalf.
   /// Refreshes the status of in-flight tasks in the given state for the
   /// specified session.
   void tryRefreshTaskState(
-    SubAgentState state,
-    SubAgentRuntimeState runtimeState,
+    BackgroundAgentState state,
+    BackgroundAgentRuntimeState runtimeState,
     AgentSession? session,
   ) {
     var changed = false;
     for (final task in state.tasks) {
-      if (task.status != SubTaskStatus.running) {
+      if (task.status != BackgroundTaskStatus.running) {
         continue;
       }
 
       final inFlight = runtimeState.inFlightTasks[task.id];
       if (inFlight == null) {
         // In-flight reference lost (e.g., after restart/deserialization).
-        task.status = SubTaskStatus.lost;
+        task.status = BackgroundTaskStatus.lost;
         changed = true;
         continue;
       }
@@ -187,22 +194,22 @@ You have access to sub-agents that can perform work on your behalf.
   }
 
   /// Finalizes a task by extracting results from the completed Future and
-  /// updating the SubTaskInfo.
+  /// updating the [BackgroundTaskInfo].
   static void finalizeTask(
-    SubTaskInfo taskInfo,
-    SubAgentRuntimeTask completedTask,
-    SubAgentRuntimeState runtimeState,
+    BackgroundTaskInfo taskInfo,
+    BackgroundAgentRuntimeTask completedTask,
+    BackgroundAgentRuntimeState runtimeState,
   ) {
     final result = completedTask.result;
     final error = completedTask.error;
     if (result != null) {
-      taskInfo.status = SubTaskStatus.completed;
+      taskInfo.status = BackgroundTaskStatus.completed;
       taskInfo.resultText = result.text;
     } else if (error is OperationCanceledException) {
-      taskInfo.status = SubTaskStatus.failed;
+      taskInfo.status = BackgroundTaskStatus.failed;
       taskInfo.errorText = 'Task was canceled.';
     } else if (error != null) {
-      taskInfo.status = SubTaskStatus.failed;
+      taskInfo.status = BackgroundTaskStatus.failed;
       taskInfo.errorText = _getErrorMessage(error);
     }
 
@@ -210,18 +217,19 @@ You have access to sub-agents that can perform work on your behalf.
   }
 
   List<AITool> createTools(
-    SubAgentState state,
-    SubAgentRuntimeState runtimeState,
+    BackgroundAgentState state,
+    BackgroundAgentRuntimeState runtimeState,
     AgentSession? session,
   ) {
     return [
       AIFunctionFactory.create(
-        name: 'SubAgents_StartTask',
+        name: 'BackgroundAgents_StartTask',
         description:
-            'Start a sub-task on a named sub-agent. Returns a confirmation message containing the task ID.',
+            'Start a background task on a named background agent. Returns a confirmation message containing the task ID.',
         parametersSchema: _objectSchema({
-          'agentName': 'The name of the sub agent to delegate the task to.',
-          'input': 'The request to pass to the sub agent.',
+          'agentName':
+              'The name of the background agent to delegate the task to.',
+          'input': 'The request to pass to the background agent.',
           'description':
               'A description of the task used to identify the task later.',
         }),
@@ -232,20 +240,20 @@ You have access to sub-agents that can perform work on your behalf.
 
           final agent = _findAgent(agentName);
           if (agent == null) {
-            return "Error: No sub-agent found with name '$agentName'. Available agents: ${_agents.keys.join(', ')}";
+            return "Error: No background agent found with name '$agentName'. Available agents: ${_agents.keys.join(', ')}";
           }
 
           final taskId = state.nextTaskId++;
-          final taskInfo = SubTaskInfo()
+          final taskInfo = BackgroundTaskInfo()
             ..id = taskId
             ..agentName = agentName
             ..description = description
-            ..status = SubTaskStatus.running;
+            ..status = BackgroundTaskStatus.running;
           state.tasks.add(taskInfo);
 
-          // Create a dedicated session for this sub-task so it can be
+          // Create a dedicated session for this background task so it can be
           // continued later.
-          final subSession = await agent.createSession(
+          final bgSession = await agent.createSession(
             cancellationToken: cancellationToken,
           );
 
@@ -254,19 +262,19 @@ You have access to sub-agents that can perform work on your behalf.
           runtimeState.inFlightTasks[taskId] = _startTask(
             agent,
             input,
-            subSession,
+            bgSession,
             cancellationToken,
           );
-          runtimeState.subTaskSessions[taskId] = subSession;
+          runtimeState.backgroundTaskSessions[taskId] = bgSession;
 
           _sessionState.saveState(session, state);
-          return "Sub-task $taskId started on agent '$agentName'.";
+          return "Background task $taskId started on agent '$agentName'.";
         },
       ),
       AIFunctionFactory.create(
-        name: 'SubAgents_WaitForFirstCompletion',
+        name: 'BackgroundAgents_WaitForFirstCompletion',
         description:
-            'Block until the first of the specified sub-tasks completes. Provide one or more task IDs. Returns a status message containing the ID of the task that completed first.',
+            'Block until the first of the specified background tasks completes. Provide one or more task IDs. Returns a status message containing the ID of the task that completed first.',
         parametersSchema: _objectSchema({
           'taskIds': 'The task IDs to wait on.',
         }),
@@ -279,7 +287,7 @@ You have access to sub-agents that can perform work on your behalf.
           // Collect in-flight tasks matching the requested IDs (including
           // already-completed ones, since Future.any returns immediately for
           // completed futures).
-          final waitableTasks = <({int id, SubAgentRuntimeTask task})>[];
+          final waitableTasks = <({int id, BackgroundAgentRuntimeTask task})>[];
           for (final id in taskIds) {
             final inFlight = runtimeState.inFlightTasks[id];
             if (inFlight != null) {
@@ -296,7 +304,8 @@ You have access to sub-agents that can perform work on your behalf.
             final alreadyComplete = _firstOrNull(
               state.tasks,
               (t) =>
-                  taskIds.contains(t.id) && t.status != SubTaskStatus.running,
+                  taskIds.contains(t.id) &&
+                  t.status != BackgroundTaskStatus.running,
             );
             if (alreadyComplete != null) {
               return 'Task ${alreadyComplete.id} is not running; current status: ${_statusName(alreadyComplete.status)}.';
@@ -329,9 +338,9 @@ You have access to sub-agents that can perform work on your behalf.
         },
       ),
       AIFunctionFactory.create(
-        name: 'SubAgents_GetTaskResults',
+        name: 'BackgroundAgents_GetTaskResults',
         description:
-            'Get the text output of a sub-task by its ID. Returns the result text if complete, or status information if still running or failed.',
+            'Get the text output of a background task by its ID. Returns the result text if complete, or status information if still running or failed.',
         parametersSchema: _objectSchema({
           'taskId': 'The task ID to retrieve results for.',
         }),
@@ -346,19 +355,20 @@ You have access to sub-agents that can perform work on your behalf.
           }
 
           return switch (taskInfo.status) {
-            SubTaskStatus.completed => taskInfo.resultText ?? '(no output)',
-            SubTaskStatus.failed =>
+            BackgroundTaskStatus.completed =>
+              taskInfo.resultText ?? '(no output)',
+            BackgroundTaskStatus.failed =>
               'Task failed: ${taskInfo.errorText ?? "Unknown error"}',
-            SubTaskStatus.lost =>
+            BackgroundTaskStatus.lost =>
               'Task state was lost (reference unavailable).',
-            SubTaskStatus.running => 'Task $taskId is still running.',
+            BackgroundTaskStatus.running => 'Task $taskId is still running.',
           };
         },
       ),
       AIFunctionFactory.create(
-        name: 'SubAgents_GetAllTasks',
+        name: 'BackgroundAgents_GetAllTasks',
         description:
-            'List all sub-tasks with their IDs, statuses, agent names, and descriptions.',
+            'List all background tasks with their IDs, statuses, agent names, and descriptions.',
         callback: (arguments, {cancellationToken}) async {
           tryRefreshTaskState(state, runtimeState, session);
 
@@ -383,12 +393,12 @@ You have access to sub-agents that can perform work on your behalf.
         },
       ),
       AIFunctionFactory.create(
-        name: 'SubAgents_ContinueTask',
+        name: 'BackgroundAgents_ContinueTask',
         description:
-            "Send follow-up input to a completed or failed sub-task to resume its work. The sub-task's session is preserved, so the agent retains conversational context.",
+            "Send follow-up input to a completed or failed background task to resume its work. The background task's session is preserved, so the agent retains conversational context.",
         parametersSchema: _objectSchema({
           'taskId': 'The task ID to continue.',
-          'text': 'The follow-up input to send to the sub-agent.',
+          'text': 'The follow-up input to send to the background agent.',
         }),
         callback: (arguments, {cancellationToken}) async {
           final taskId = _getRequiredInt(arguments, 'taskId');
@@ -401,11 +411,11 @@ You have access to sub-agents that can perform work on your behalf.
             return 'Error: No task found with ID $taskId.';
           }
 
-          if (taskInfo.status == SubTaskStatus.lost) {
+          if (taskInfo.status == BackgroundTaskStatus.lost) {
             return 'Error: Task $taskId cannot be continued because its session was lost (e.g., after a session restore). Start a new task instead.';
           }
 
-          if (taskInfo.status == SubTaskStatus.running) {
+          if (taskInfo.status == BackgroundTaskStatus.running) {
             return 'Error: Task $taskId is still running. Wait for it to complete before continuing.';
           }
 
@@ -414,21 +424,21 @@ You have access to sub-agents that can perform work on your behalf.
             return "Error: Agent '${taskInfo.agentName}' is no longer available.";
           }
 
-          final subSession = runtimeState.subTaskSessions[taskId];
-          if (subSession == null) {
+          final bgSession = runtimeState.backgroundTaskSessions[taskId];
+          if (bgSession == null) {
             return 'Error: Session for task $taskId is no longer available.';
           }
 
           // Reset task state and start a new run on the existing session.
-          taskInfo.status = SubTaskStatus.running;
+          taskInfo.status = BackgroundTaskStatus.running;
           taskInfo.resultText = null;
           taskInfo.errorText = null;
 
-          // Keep the same sub-task session for conversational continuity.
+          // Keep the same background task session for conversational continuity.
           runtimeState.inFlightTasks[taskId] = _startTask(
             agent,
             text,
-            subSession,
+            bgSession,
             cancellationToken,
           );
 
@@ -437,9 +447,9 @@ You have access to sub-agents that can perform work on your behalf.
         },
       ),
       AIFunctionFactory.create(
-        name: 'SubAgents_ClearCompletedTask',
+        name: 'BackgroundAgents_ClearCompletedTask',
         description:
-            'Remove a completed or failed sub-task and release its session to free memory. Use this after retrieving results when you no longer need to continue the task.',
+            'Remove a completed or failed background task and release its session to free memory. Use this after retrieving results when you no longer need to continue the task.',
         parametersSchema: _objectSchema({
           'taskId': 'The completed or failed task ID to clear.',
         }),
@@ -453,7 +463,7 @@ You have access to sub-agents that can perform work on your behalf.
             return 'Error: No task found with ID $taskId.';
           }
 
-          if (taskInfo.status == SubTaskStatus.running) {
+          if (taskInfo.status == BackgroundTaskStatus.running) {
             return 'Error: Task $taskId is still running. Wait for it to complete before clearing.';
           }
 
@@ -462,7 +472,7 @@ You have access to sub-agents that can perform work on your behalf.
 
           // Clean up runtime references.
           runtimeState.inFlightTasks.remove(taskId);
-          runtimeState.subTaskSessions.remove(taskId);
+          runtimeState.backgroundTaskSessions.remove(taskId);
 
           _sessionState.saveState(session, state);
           return 'Task $taskId cleared.';
@@ -480,17 +490,17 @@ You have access to sub-agents that can perform work on your behalf.
     return null;
   }
 
-  static SubAgentRuntimeTask _startTask(
+  static BackgroundAgentRuntimeTask _startTask(
     AIAgent agent,
     String input,
-    AgentSession subSession,
+    AgentSession bgSession,
     CancellationToken? cancellationToken,
   ) {
     final currentRunContext = AIAgent.currentRunContext;
     try {
-      return SubAgentRuntimeTask(
+      return BackgroundAgentRuntimeTask(
         agent.run(
-          subSession,
+          bgSession,
           null,
           cancellationToken: cancellationToken,
           message: input,
@@ -551,12 +561,12 @@ You have access to sub-agents that can perform work on your behalf.
     return null;
   }
 
-  static String _statusName(SubTaskStatus status) {
+  static String _statusName(BackgroundTaskStatus status) {
     return switch (status) {
-      SubTaskStatus.running => 'Running',
-      SubTaskStatus.completed => 'Completed',
-      SubTaskStatus.failed => 'Failed',
-      SubTaskStatus.lost => 'Lost',
+      BackgroundTaskStatus.running => 'Running',
+      BackgroundTaskStatus.completed => 'Completed',
+      BackgroundTaskStatus.failed => 'Failed',
+      BackgroundTaskStatus.lost => 'Lost',
     };
   }
 

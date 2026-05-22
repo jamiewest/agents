@@ -12,20 +12,26 @@ import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
 import 'package:agents/src/abstractions/ai_context_provider.dart';
-import 'package:agents/src/ai/harness/sub_agents/sub_agent_runtime_state.dart';
-import 'package:agents/src/ai/harness/sub_agents/sub_agents_provider.dart';
-import 'package:agents/src/ai/harness/sub_agents/sub_agents_provider_options.dart';
+import 'package:agents/src/ai/harness/background_agents/background_agent_runtime_state.dart';
+import 'package:agents/src/ai/harness/background_agents/background_agents_provider.dart';
+import 'package:agents/src/ai/harness/background_agents/background_agents_provider_options.dart';
 
 void main() {
-  group('SubAgentsProvider constructor', () {
+  group('BackgroundAgentsProvider constructor', () {
     test('throws when agents collection is empty', () {
-      expect(() => SubAgentsProvider(const []), throwsA(isA<ArgumentError>()));
+      expect(
+        () => BackgroundAgentsProvider(const []),
+        throwsA(isA<ArgumentError>()),
+      );
     });
 
     test('throws when an agent has an empty name', () {
       final agent = TestAgent('', 'desc');
 
-      expect(() => SubAgentsProvider([agent]), throwsA(isA<ArgumentError>()));
+      expect(
+        () => BackgroundAgentsProvider([agent]),
+        throwsA(isA<ArgumentError>()),
+      );
     });
 
     test('throws when duplicate names are provided case-insensitively', () {
@@ -33,7 +39,7 @@ void main() {
       final agent2 = TestAgent('research', 'Agent 2');
 
       expect(
-        () => SubAgentsProvider([agent1, agent2]),
+        () => BackgroundAgentsProvider([agent1, agent2]),
         throwsA(isA<ArgumentError>()),
       );
     });
@@ -42,16 +48,16 @@ void main() {
       final agent1 = TestAgent('Research', 'Research agent');
       final agent2 = TestAgent('Writer', 'Writer agent');
 
-      final provider = SubAgentsProvider([agent1, agent2]);
+      final provider = BackgroundAgentsProvider([agent1, agent2]);
 
       expect(provider, isNotNull);
     });
   });
 
-  group('SubAgentsProvider context', () {
+  group('BackgroundAgentsProvider context', () {
     test('returns tools and instructions', () async {
       final agent = TestAgent('Research', 'Research agent');
-      final provider = SubAgentsProvider([agent]);
+      final provider = BackgroundAgentsProvider([agent]);
 
       final result = await provider.invoking(createInvokingContext());
 
@@ -62,7 +68,7 @@ void main() {
     test('instructions include agent info', () async {
       final agent1 = TestAgent('Research', 'Performs research');
       final agent2 = TestAgent('Writer', 'Writes content');
-      final provider = SubAgentsProvider([agent1, agent2]);
+      final provider = BackgroundAgentsProvider([agent1, agent2]);
 
       final result = await provider.invoking(createInvokingContext());
 
@@ -74,10 +80,10 @@ void main() {
 
     test('custom instructions and agent list builder are used', () async {
       final agent = TestAgent('Research', 'Research agent');
-      final provider = SubAgentsProvider(
+      final provider = BackgroundAgentsProvider(
         [agent],
-        options: SubAgentsProviderOptions()
-          ..instructions = 'Custom instructions.\n{sub_agents}'
+        options: BackgroundAgentsProviderOptions()
+          ..instructions = 'Custom instructions.\n{background_agents}'
           ..agentListBuilder = (agents) =>
               'Custom list: ${agents.keys.join(", ")}',
       );
@@ -86,16 +92,19 @@ void main() {
 
       expect(result.instructions, contains('Custom instructions.'));
       expect(result.instructions, contains('Custom list: Research'));
-      expect(result.instructions, isNot(contains('Available sub-agents:')));
+      expect(
+        result.instructions,
+        isNot(contains('Available background agents:')),
+      );
     });
   });
 
-  group('SubAgentsProvider tools', () {
+  group('BackgroundAgentsProvider tools', () {
     test('start task returns a task ID', () async {
       final completion = Completer<AgentResponse>();
       final agent = TestAgent.withRunResult('Research', completion.future);
       final tools = await createTools(agent);
-      final startTask = getTool(tools, 'SubAgents_StartTask');
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
 
       final result = await startTask.invoke(
         AIFunctionArguments({
@@ -114,7 +123,7 @@ void main() {
     test('start task with invalid agent name returns an error', () async {
       final agent = TestAgent('Research', 'Research agent');
       final tools = await createTools(agent);
-      final startTask = getTool(tools, 'SubAgents_StartTask');
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
 
       final result = await startTask.invoke(
         AIFunctionArguments({
@@ -137,7 +146,7 @@ void main() {
         return callCount == 1 ? completion1.future : completion2.future;
       });
       final tools = await createTools(agent);
-      final startTask = getTool(tools, 'SubAgents_StartTask');
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
 
       final result1 = await startTask.invoke(
         AIFunctionArguments({
@@ -165,8 +174,11 @@ void main() {
       final completion = Completer<AgentResponse>();
       final agent = TestAgent.withRunResult('Research', completion.future);
       final tools = await createTools(agent);
-      final startTask = getTool(tools, 'SubAgents_StartTask');
-      final waitForFirst = getTool(tools, 'SubAgents_WaitForFirstCompletion');
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
+      final waitForFirst = getTool(
+        tools,
+        'BackgroundAgents_WaitForFirstCompletion',
+      );
 
       await startTask.invoke(
         AIFunctionArguments({
@@ -192,7 +204,10 @@ void main() {
       () async {
         final agent = TestAgent('Research', 'Research agent');
         final tools = await createTools(agent);
-        final waitForFirst = getTool(tools, 'SubAgents_WaitForFirstCompletion');
+        final waitForFirst = getTool(
+          tools,
+          'BackgroundAgents_WaitForFirstCompletion',
+        );
 
         final result = await waitForFirst.invoke(
           AIFunctionArguments({'taskIds': <int>[]}),
@@ -206,9 +221,12 @@ void main() {
       final completion = Completer<AgentResponse>();
       final agent = TestAgent.withRunResult('Research', completion.future);
       final tools = await createTools(agent);
-      final startTask = getTool(tools, 'SubAgents_StartTask');
-      final waitForFirst = getTool(tools, 'SubAgents_WaitForFirstCompletion');
-      final getResults = getTool(tools, 'SubAgents_GetTaskResults');
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
+      final waitForFirst = getTool(
+        tools,
+        'BackgroundAgents_WaitForFirstCompletion',
+      );
+      final getResults = getTool(tools, 'BackgroundAgents_GetTaskResults');
 
       await startTask.invoke(
         AIFunctionArguments({
@@ -235,8 +253,8 @@ void main() {
       final completion = Completer<AgentResponse>();
       final agent = TestAgent.withRunResult('Research', completion.future);
       final tools = await createTools(agent);
-      final startTask = getTool(tools, 'SubAgents_StartTask');
-      final getResults = getTool(tools, 'SubAgents_GetTaskResults');
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
+      final getResults = getTool(tools, 'BackgroundAgents_GetTaskResults');
 
       await startTask.invoke(
         AIFunctionArguments({
@@ -257,7 +275,7 @@ void main() {
     test('get task results for missing task returns an error', () async {
       final agent = TestAgent('Research', 'Research agent');
       final tools = await createTools(agent);
-      final getResults = getTool(tools, 'SubAgents_GetTaskResults');
+      final getResults = getTool(tools, 'BackgroundAgents_GetTaskResults');
 
       final result = await getResults.invoke(
         AIFunctionArguments({'taskId': 999}),
@@ -270,9 +288,12 @@ void main() {
       final completion = Completer<AgentResponse>();
       final agent = TestAgent.withRunResult('Research', completion.future);
       final tools = await createTools(agent);
-      final startTask = getTool(tools, 'SubAgents_StartTask');
-      final waitForFirst = getTool(tools, 'SubAgents_WaitForFirstCompletion');
-      final getResults = getTool(tools, 'SubAgents_GetTaskResults');
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
+      final waitForFirst = getTool(
+        tools,
+        'BackgroundAgents_WaitForFirstCompletion',
+      );
+      final getResults = getTool(tools, 'BackgroundAgents_GetTaskResults');
 
       await startTask.invoke(
         AIFunctionArguments({
@@ -300,9 +321,12 @@ void main() {
       final completion = Completer<AgentResponse>();
       final agent = TestAgent.withRunResult('Research', completion.future);
       final tools = await createTools(agent);
-      final startTask = getTool(tools, 'SubAgents_StartTask');
-      final waitForFirst = getTool(tools, 'SubAgents_WaitForFirstCompletion');
-      final getAllTasks = getTool(tools, 'SubAgents_GetAllTasks');
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
+      final waitForFirst = getTool(
+        tools,
+        'BackgroundAgents_WaitForFirstCompletion',
+      );
+      final getAllTasks = getTool(tools, 'BackgroundAgents_GetAllTasks');
 
       await startTask.invoke(
         AIFunctionArguments({
@@ -331,7 +355,7 @@ void main() {
     test('get all tasks returns no tasks when empty', () async {
       final agent = TestAgent('Research', 'Research agent');
       final tools = await createTools(agent);
-      final getAllTasks = getTool(tools, 'SubAgents_GetAllTasks');
+      final getAllTasks = getTool(tools, 'BackgroundAgents_GetAllTasks');
 
       final result = await getAllTasks.invoke(AIFunctionArguments());
 
@@ -347,10 +371,13 @@ void main() {
         return callCount == 1 ? completion1.future : completion2.future;
       });
       final tools = await createTools(agent);
-      final startTask = getTool(tools, 'SubAgents_StartTask');
-      final waitForFirst = getTool(tools, 'SubAgents_WaitForFirstCompletion');
-      final continueTask = getTool(tools, 'SubAgents_ContinueTask');
-      final getResults = getTool(tools, 'SubAgents_GetTaskResults');
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
+      final waitForFirst = getTool(
+        tools,
+        'BackgroundAgents_WaitForFirstCompletion',
+      );
+      final continueTask = getTool(tools, 'BackgroundAgents_ContinueTask');
+      final getResults = getTool(tools, 'BackgroundAgents_GetTaskResults');
 
       await startTask.invoke(
         AIFunctionArguments({
@@ -389,8 +416,8 @@ void main() {
       final completion = Completer<AgentResponse>();
       final agent = TestAgent.withRunResult('Research', completion.future);
       final tools = await createTools(agent);
-      final startTask = getTool(tools, 'SubAgents_StartTask');
-      final continueTask = getTool(tools, 'SubAgents_ContinueTask');
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
+      final continueTask = getTool(tools, 'BackgroundAgents_ContinueTask');
 
       await startTask.invoke(
         AIFunctionArguments({
@@ -412,10 +439,13 @@ void main() {
       final completion = Completer<AgentResponse>();
       final agent = TestAgent.withRunResult('Research', completion.future);
       final tools = await createTools(agent);
-      final startTask = getTool(tools, 'SubAgents_StartTask');
-      final waitForFirst = getTool(tools, 'SubAgents_WaitForFirstCompletion');
-      final clearTask = getTool(tools, 'SubAgents_ClearCompletedTask');
-      final getResults = getTool(tools, 'SubAgents_GetTaskResults');
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
+      final waitForFirst = getTool(
+        tools,
+        'BackgroundAgents_WaitForFirstCompletion',
+      );
+      final clearTask = getTool(tools, 'BackgroundAgents_ClearCompletedTask');
+      final getResults = getTool(tools, 'BackgroundAgents_GetTaskResults');
 
       await startTask.invoke(
         AIFunctionArguments({
@@ -447,8 +477,8 @@ void main() {
       final completion = Completer<AgentResponse>();
       final agent = TestAgent.withRunResult('Research', completion.future);
       final tools = await createTools(agent);
-      final startTask = getTool(tools, 'SubAgents_StartTask');
-      final clearTask = getTool(tools, 'SubAgents_ClearCompletedTask');
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
+      final clearTask = getTool(tools, 'BackgroundAgents_ClearCompletedTask');
 
       await startTask.invoke(
         AIFunctionArguments({
@@ -467,12 +497,15 @@ void main() {
     test('lost running task returns lost status', () async {
       final completion = Completer<AgentResponse>();
       final agent = TestAgent.withRunResult('Research', completion.future);
-      final provider = SubAgentsProvider([agent]);
+      final provider = BackgroundAgentsProvider([agent]);
       final session = TestSession();
       final context = createInvokingContext(session: session);
       final result = await provider.invoking(context);
-      final startTask = getTool(result.tools!, 'SubAgents_StartTask');
-      final getResults = getTool(result.tools!, 'SubAgents_GetTaskResults');
+      final startTask = getTool(result.tools!, 'BackgroundAgents_StartTask');
+      final getResults = getTool(
+        result.tools!,
+        'BackgroundAgents_GetTaskResults',
+      );
 
       await startTask.invoke(
         AIFunctionArguments({
@@ -482,9 +515,8 @@ void main() {
         }),
       );
 
-      final runtimeState = session.stateBag.getValue<SubAgentRuntimeState>(
-        provider.stateKeys[1],
-      )!;
+      final runtimeState = session.stateBag
+          .getValue<BackgroundAgentRuntimeState>(provider.stateKeys[1])!;
       runtimeState.inFlightTasks.clear();
 
       final getResult = await getResults.invoke(
@@ -498,7 +530,7 @@ void main() {
 }
 
 Future<Iterable<AITool>> createTools(TestAgent agent) async {
-  final provider = SubAgentsProvider([agent]);
+  final provider = BackgroundAgentsProvider([agent]);
   final result = await provider.invoking(createInvokingContext());
   return result.tools!;
 }

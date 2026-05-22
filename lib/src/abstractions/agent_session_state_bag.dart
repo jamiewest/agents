@@ -7,7 +7,7 @@ import 'agent_session_state_bag_value.dart';
 /// and JSON serialization support.
 class AgentSessionStateBag {
   AgentSessionStateBag(Map<String, AgentSessionStateBagValue>? state)
-      : _state = state ?? {};
+    : _state = state ?? {};
 
   final Map<String, AgentSessionStateBagValue> _state;
 
@@ -21,7 +21,8 @@ class AgentSessionStateBag {
     final stateValue = _state[key];
     if (stateValue == null) return (false, null);
     return stateValue.tryReadDeserializedValue<T>(
-        JsonSerializerOptions: JsonSerializerOptions);
+      JsonSerializerOptions: JsonSerializerOptions,
+    );
   }
 
   /// Returns the value of type [T] for the given [key], or `null`.
@@ -29,7 +30,8 @@ class AgentSessionStateBag {
     final stateValue = _state[key];
     if (stateValue == null) return null;
     return stateValue.readDeserializedValue<T>(
-        JsonSerializerOptions: JsonSerializerOptions);
+      JsonSerializerOptions: JsonSerializerOptions,
+    );
   }
 
   /// Stores a value of type [T] under the given [key].
@@ -45,9 +47,7 @@ class AgentSessionStateBag {
 
   /// Serializes the state bag to a JSON String.
   String serialize() {
-    return jsonEncode(
-      _state.map((k, v) => MapEntry(k, v.toJson())),
-    );
+    return jsonEncode(_state.map((k, v) => MapEntry(k, v.toJson())));
   }
 
   /// Deserializes an [AgentSessionStateBag] from a JSON String.

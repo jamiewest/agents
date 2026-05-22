@@ -138,8 +138,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
         : null;
     final results = <FileSearchResult>[];
 
-    for (final file
-        in dir.listSync(followLinks: false).whereType<File>()) {
+    for (final file in dir.listSync(followLinks: false).whereType<File>()) {
       final fileName = p.basename(file.path);
       if (!StorePaths.matchesGlob(fileName, matcher)) {
         continue;

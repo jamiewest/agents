@@ -13,8 +13,8 @@ import '../workflow_context.dart';
 ///
 /// Accepts both raw [TRequest] messages and pre-wrapped
 /// [ExternalRequest]`<TRequest, TResponse>` inputs.
-class RequestInfoExecutor<TRequest extends Object,
-    TResponse extends Object> extends Executor<Object, Object?> {
+class RequestInfoExecutor<TRequest extends Object, TResponse extends Object>
+    extends Executor<Object, Object?> {
   /// Creates a [RequestInfoExecutor].
   RequestInfoExecutor(super.id, this.port, this.sink);
 
@@ -57,9 +57,6 @@ class RequestInfoExecutor<TRequest extends Object,
       );
     }
 
-    return sink.accept<TRequest, TResponse>(
-      request,
-      cancellationToken: token,
-    );
+    return sink.accept<TRequest, TResponse>(request, cancellationToken: token);
   }
 }

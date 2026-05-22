@@ -7,8 +7,10 @@ final class DeliveryMapping {
   DeliveryMapping(this._envelopes, this._targets);
 
   /// Convenience constructor for a single envelope and single target.
-  DeliveryMapping.single(MessageEnvelope envelope, Executor<dynamic, dynamic> target)
-      : this([envelope], [target]);
+  DeliveryMapping.single(
+    MessageEnvelope envelope,
+    Executor<dynamic, dynamic> target,
+  ) : this([envelope], [target]);
 
   final Iterable<MessageEnvelope> _envelopes;
   final Iterable<Executor<dynamic, dynamic>> _targets;

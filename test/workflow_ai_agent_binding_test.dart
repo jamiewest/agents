@@ -70,38 +70,29 @@ void main() {
       );
     });
 
-    test(
-      'chatProtocolExecutor_AccumulatesAndClearsMessagesPerTurn',
-      () async {
-        final agent = _FakeAgent(responseText: 'reply');
-        final executor = ChatProtocolExecutor(agent, id: 'agent');
-        final context = CollectingWorkflowContext('agent');
+    test('chatProtocolExecutor_AccumulatesAndClearsMessagesPerTurn', () async {
+      final agent = _FakeAgent(responseText: 'reply');
+      final executor = ChatProtocolExecutor(agent, id: 'agent');
+      final context = CollectingWorkflowContext('agent');
 
-        await executor.handle('first', context);
-        await executor.handle('second', context);
+      await executor.handle('first', context);
+      await executor.handle('second', context);
 
-        expect(agent.runMessages.length, 2);
-        expect(agent.runMessages[0].single.text, 'first');
-        expect(agent.runMessages[1].single.text, 'second');
-      },
-    );
+      expect(agent.runMessages.length, 2);
+      expect(agent.runMessages[0].single.text, 'first');
+      expect(agent.runMessages[1].single.text, 'second');
+    });
 
-    test(
-      'chatProtocolExecutor_EmptyCollection_HandledCorrectly',
-      () async {
-        final agent = _FakeAgent(responseText: 'reply');
-        final executor = ChatProtocolExecutor(agent, id: 'agent');
-        final context = CollectingWorkflowContext('agent');
+    test('chatProtocolExecutor_EmptyCollection_HandledCorrectly', () async {
+      final agent = _FakeAgent(responseText: 'reply');
+      final executor = ChatProtocolExecutor(agent, id: 'agent');
+      final context = CollectingWorkflowContext('agent');
 
-        final result = await executor.handle(
-          <ChatMessage>[],
-          context,
-        );
+      final result = await executor.handle(<ChatMessage>[], context);
 
-        expect(result.text, 'reply');
-        expect(agent.runMessages.single, isEmpty);
-      },
-    );
+      expect(result.text, 'reply');
+      expect(agent.runMessages.single, isEmpty);
+    });
 
     test(
       'chatProtocolExecutor_MultipleTurns_EachTurnProcessesSeparately',

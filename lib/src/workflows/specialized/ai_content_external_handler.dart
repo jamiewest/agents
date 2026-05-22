@@ -14,8 +14,10 @@ import '../workflow_context.dart';
 /// that the workflow runtime can deliver it to an external consumer. The
 /// returned [Future] completes when [tryDeliverResponse] is called with
 /// the matching response.
-class AIContentExternalHandler<TRequestContent extends AIContent,
-    TResponseContent extends AIContent> {
+class AIContentExternalHandler<
+  TRequestContent extends AIContent,
+  TResponseContent extends AIContent
+> {
   /// Creates an [AIContentExternalHandler] with the optional [port].
   AIContentExternalHandler({this.port, this.intercepted = false});
 
@@ -59,10 +61,11 @@ class AIContentExternalHandler<TRequestContent extends AIContent,
         port: effectivePort,
         request: content,
       );
-      await context.sendMessage<ExternalRequest<TRequestContent, TResponseContent>>(
-        request,
-        cancellationToken: token,
-      );
+      await context
+          .sendMessage<ExternalRequest<TRequestContent, TResponseContent>>(
+            request,
+            cancellationToken: token,
+          );
     }
 
     return completer.future;

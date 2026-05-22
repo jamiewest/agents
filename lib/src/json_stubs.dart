@@ -89,17 +89,18 @@ class JsonSerializer {
     return convert.json.encode(value);
   }
 
-  static JsonElement serializeToElement(
-    Object? value, [
-    Object? typeInfo,
-  ]) {
+  static JsonElement serializeToElement(Object? value, [Object? typeInfo]) {
     return JsonElement(value);
   }
 }
 
 /// Mirrors C# `System.Text.Json.Serialization.JsonConverter<T>`.
 abstract class JsonConverter<T> {
-  T? read(Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options);
+  T? read(
+    Utf8JsonReader reader,
+    Type typeToConvert,
+    JsonSerializerOptions options,
+  );
   void write(Utf8JsonWriter writer, T value, JsonSerializerOptions options);
 
   T readAsPropertyName(

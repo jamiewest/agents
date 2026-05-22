@@ -23,13 +23,15 @@ class AgentSessionStateBagValue {
     final v = _value;
     if (v == null) return null;
     if (v is T) return v as T;
-    throw StateError(
-        'Session state value is ${v.runtimeType}, not $T.');
+    throw StateError('Session state value is ${v.runtimeType}, not $T.');
   }
 
   /// Replaces the stored value.
-  void setDeserialized<T>(T? value, Type valueType,
-      Object? JsonSerializerOptions) {
+  void setDeserialized<T>(
+    T? value,
+    Type valueType,
+    Object? JsonSerializerOptions,
+  ) {
     _value = value;
   }
 

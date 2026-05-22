@@ -134,10 +134,9 @@ void main() {
       final inner = _TestAgent();
       final agent = AnonymousDelegatingAIAgent(
         inner,
-        runFunc: (msgs, session, opts, innerAgent, ct) async =>
-            AgentResponse(
-              message: ChatMessage.fromText(ChatRole.assistant, 'wrapped'),
-            ),
+        runFunc: (msgs, session, opts, innerAgent, ct) async => AgentResponse(
+          message: ChatMessage.fromText(ChatRole.assistant, 'wrapped'),
+        ),
       );
 
       final updates = await agent.runCoreStreaming([]).toList();
@@ -172,24 +171,21 @@ class _TestAgent extends AIAgent {
   @override
   Future<AgentSession> createSessionCore({
     CancellationToken? cancellationToken,
-  }) async =>
-      _TestSession();
+  }) async => _TestSession();
 
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
     Object? JsonSerializerOptions,
     CancellationToken? cancellationToken,
-  }) async =>
-      '{}';
+  }) async => '{}';
 
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
     Object? JsonSerializerOptions,
     CancellationToken? cancellationToken,
-  }) async =>
-      _TestSession();
+  }) async => _TestSession();
 
   @override
   Future<AgentResponse> runCore(
@@ -210,10 +206,7 @@ class _TestAgent extends AIAgent {
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
   }) async* {
-    yield AgentResponseUpdate(
-      role: ChatRole.assistant,
-      content: responseText,
-    );
+    yield AgentResponseUpdate(role: ChatRole.assistant, content: responseText);
   }
 }
 

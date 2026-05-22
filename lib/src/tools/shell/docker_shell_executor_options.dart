@@ -7,8 +7,7 @@ import 'shell_policy.dart';
 class DockerShellExecutorOptions {
   /// Creates [DockerShellExecutorOptions].
   const DockerShellExecutorOptions({
-    this.image =
-        'mcr.microsoft.com/azurelinux/base/core:3.0',
+    this.image = 'mcr.microsoft.com/azurelinux/base/core:3.0',
     this.containerName,
     this.mode = ShellMode.persistent,
     this.hostWorkdir,

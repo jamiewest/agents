@@ -12,7 +12,5 @@ final class WorkflowsJsonUtilities {
 
   /// Deserializes a [Checkpoint] from a JSON [source] string.
   static Checkpoint deserializeCheckpoint(String source) =>
-      Checkpoint.fromJson(
-        (jsonDecode(source) as Map).cast<String, Object?>(),
-      );
+      Checkpoint.fromJson((jsonDecode(source) as Map).cast<String, Object?>());
 }

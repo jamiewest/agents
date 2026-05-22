@@ -91,8 +91,7 @@ class ShellSession {
             units[i + 1] >= 0xDC00 &&
             units[i + 1] <= 0xDFFF) {
           // Valid surrogate pair.
-          codePoint =
-              0x10000 + ((u - 0xD800) << 10) + (units[i + 1] - 0xDC00);
+          codePoint = 0x10000 + ((u - 0xD800) << 10) + (units[i + 1] - 0xDC00);
           i += 2;
         } else {
           // Unpaired high surrogate → U+FFFD.
@@ -161,11 +160,7 @@ class ShellSession {
       return [0xC0 | (cp >> 6), 0x80 | (cp & 0x3F)];
     }
     if (cp < 0x10000) {
-      return [
-        0xE0 | (cp >> 12),
-        0x80 | ((cp >> 6) & 0x3F),
-        0x80 | (cp & 0x3F),
-      ];
+      return [0xE0 | (cp >> 12), 0x80 | ((cp >> 6) & 0x3F), 0x80 | (cp & 0x3F)];
     }
     return [
       0xF0 | (cp >> 18),
@@ -234,7 +229,8 @@ class ShellSession {
     final process = _process;
     if (process == null) throw StateError('ShellSession not initialized.');
 
-    final sentinelEnd = '__AF_END_${DateTime.now().microsecondsSinceEpoch}_${_cmdCounter++}__';
+    final sentinelEnd =
+        '__AF_END_${DateTime.now().microsecondsSinceEpoch}_${_cmdCounter++}__';
     _currentSentinelEnd = sentinelEnd;
     _stdoutLines.clear();
     _commandCompleter = Completer<int>();
@@ -307,13 +303,21 @@ class ShellSession {
         r'$__af_ec__ = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } else { 0 }',
       );
       // Combine sentinel prefix (Dart interpolation) with PS variable (raw).
-      sb.write('Write-Host "$sentinelEnd' r'$__af_ec__"');
+      sb.write(
+        'Write-Host "$sentinelEnd'
+        r'$__af_ec__"',
+      );
     } else {
       // POSIX: capture exit code, then echo sentinel+code.
       // Split across adjacent string literals to avoid Dart interpolating $?.
       sb.writeln(r'__af_ec__=$?');
       // quotePosix handles the sentinel; r'...' prevents Dart interpolation.
-      sb.write('printf ' r"'%s%s\n'" ' ${quotePosix(sentinelEnd)} ' r'"$__af_ec__"');
+      sb.write(
+        'printf '
+        r"'%s%s\n'"
+        ' ${quotePosix(sentinelEnd)} '
+        r'"$__af_ec__"',
+      );
     }
 
     return sb.toString();

@@ -21,8 +21,9 @@ final class StateManager {
       _scopes.putIfAbsent(scopeId, () => StateScope(scopeId));
 
   Iterable<UpdateKey> _getUpdatesForScopeStrict(ScopeId scopeId) =>
-      _queuedUpdates.keys
-          .where((key) => key.isMatchingScope(scopeId, strict: true));
+      _queuedUpdates.keys.where(
+        (key) => key.isMatchingScope(scopeId, strict: true),
+      );
 
   // ── read ─────────────────────────────────────────────────────────────────
 
@@ -98,7 +99,12 @@ final class StateManager {
   // ── write ────────────────────────────────────────────────────────────────
 
   /// Queues an upsert of [value] under [key] in [executorId]/[scopeName].
-  void writeState<T>(String executorId, String? scopeName, String key, T value) {
+  void writeState<T>(
+    String executorId,
+    String? scopeName,
+    String key,
+    T value,
+  ) {
     final stateKey = UpdateKey(ScopeId(executorId, scopeName), key);
     _queuedUpdates[stateKey] = StateUpdate.update(key, value);
   }
@@ -184,9 +190,9 @@ final class StateManager {
     _queuedUpdates.clear();
     _scopes.clear();
     for (final entry in stateData.entries) {
-      _getOrCreateScope(entry.key.scopeId)
-          .importState(entry.key.key, entry.value);
+      _getOrCreateScope(
+        entry.key.scopeId,
+      ).importState(entry.key.key, entry.value);
     }
   }
-
 }

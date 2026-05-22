@@ -34,8 +34,9 @@ void main() {
     test('use_WithSimpleFactory_AppliesMiddleware', () {
       final inner = _TestAgent();
       final wrapper = _TestAgent();
-      final builder = AIAgentBuilder(innerAgent: inner)
-          .use(agentFactory: (_) => wrapper);
+      final builder = AIAgentBuilder(
+        innerAgent: inner,
+      ).use(agentFactory: (_) => wrapper);
 
       final agent = builder.build();
 
@@ -50,15 +51,23 @@ void main() {
           .use(
             runFunc: (msgs, session, opts, innerAgent, ct) async {
               log.add('first');
-              return innerAgent.runCore(msgs,
-                  session: session, options: opts, cancellationToken: ct);
+              return innerAgent.runCore(
+                msgs,
+                session: session,
+                options: opts,
+                cancellationToken: ct,
+              );
             },
           )
           .use(
             runFunc: (msgs, session, opts, innerAgent, ct) async {
               log.add('second');
-              return innerAgent.runCore(msgs,
-                  session: session, options: opts, cancellationToken: ct);
+              return innerAgent.runCore(
+                msgs,
+                session: session,
+                options: opts,
+                cancellationToken: ct,
+              );
             },
           );
 
@@ -92,9 +101,12 @@ void main() {
     test('use_WithRunFuncOnly_CreatesAnonymousDelegatingAgent', () {
       final inner = _TestAgent();
       final builder = AIAgentBuilder(innerAgent: inner).use(
-        runFunc: (msgs, session, opts, innerAgent, ct) =>
-            innerAgent.runCore(msgs,
-                session: session, options: opts, cancellationToken: ct),
+        runFunc: (msgs, session, opts, innerAgent, ct) => innerAgent.runCore(
+          msgs,
+          session: session,
+          options: opts,
+          cancellationToken: ct,
+        ),
       );
 
       final agent = builder.build();
@@ -106,8 +118,12 @@ void main() {
       final inner = _TestAgent();
       final builder = AIAgentBuilder(innerAgent: inner).use(
         runStreamingFunc: (msgs, session, opts, innerAgent, ct) =>
-            innerAgent.runCoreStreaming(msgs,
-                session: session, options: opts, cancellationToken: ct),
+            innerAgent.runCoreStreaming(
+              msgs,
+              session: session,
+              options: opts,
+              cancellationToken: ct,
+            ),
       );
 
       final agent = builder.build();
@@ -118,12 +134,19 @@ void main() {
     test('use_WithBothDelegates_CreatesAnonymousDelegatingAgent', () {
       final inner = _TestAgent();
       final builder = AIAgentBuilder(innerAgent: inner).use(
-        runFunc: (msgs, session, opts, innerAgent, ct) =>
-            innerAgent.runCore(msgs,
-                session: session, options: opts, cancellationToken: ct),
+        runFunc: (msgs, session, opts, innerAgent, ct) => innerAgent.runCore(
+          msgs,
+          session: session,
+          options: opts,
+          cancellationToken: ct,
+        ),
         runStreamingFunc: (msgs, session, opts, innerAgent, ct) =>
-            innerAgent.runCoreStreaming(msgs,
-                session: session, options: opts, cancellationToken: ct),
+            innerAgent.runCoreStreaming(
+              msgs,
+              session: session,
+              options: opts,
+              cancellationToken: ct,
+            ),
       );
 
       final agent = builder.build();
@@ -141,24 +164,21 @@ class _TestAgent extends AIAgent {
   @override
   Future<AgentSession> createSessionCore({
     CancellationToken? cancellationToken,
-  }) async =>
-      _TestSession();
+  }) async => _TestSession();
 
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
     Object? JsonSerializerOptions,
     CancellationToken? cancellationToken,
-  }) async =>
-      '{}';
+  }) async => '{}';
 
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
     Object? JsonSerializerOptions,
     CancellationToken? cancellationToken,
-  }) async =>
-      _TestSession();
+  }) async => _TestSession();
 
   @override
   Future<AgentResponse> runCore(
@@ -179,10 +199,7 @@ class _TestAgent extends AIAgent {
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
   }) async* {
-    yield AgentResponseUpdate(
-      role: ChatRole.assistant,
-      content: responseText,
-    );
+    yield AgentResponseUpdate(role: ChatRole.assistant, content: responseText);
   }
 }
 

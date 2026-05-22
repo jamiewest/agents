@@ -51,11 +51,9 @@ final class ShellPolicyOutcome {
 class ShellPolicy {
   /// Creates a [ShellPolicy] with optional [allowList] and [denyList] regex
   /// patterns. Patterns are compiled once at construction time.
-  ShellPolicy({
-    Iterable<String>? allowList,
-    Iterable<String>? denyList,
-  })  : _allowList = allowList?.map(RegExp.new).toList(),
-        _denyList = denyList?.map(RegExp.new).toList();
+  ShellPolicy({Iterable<String>? allowList, Iterable<String>? denyList})
+    : _allowList = allowList?.map(RegExp.new).toList(),
+      _denyList = denyList?.map(RegExp.new).toList();
 
   final List<RegExp>? _allowList;
   final List<RegExp>? _denyList;

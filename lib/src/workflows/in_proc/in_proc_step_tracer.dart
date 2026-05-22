@@ -84,5 +84,4 @@ final class InProcStepTracer implements IStepTracer {
       checkpoint: checkpoint,
     ),
   );
-
 }

@@ -8,11 +8,11 @@ import 'scope_id.dart';
 class ScopeKey {
   /// Creates a [ScopeKey] from an existing [scopeId] and a [key].
   ScopeKey(this.scopeId, this.key)
-      : assert(key.isNotEmpty, 'key must not be empty');
+    : assert(key.isNotEmpty, 'key must not be empty');
 
   /// Creates a [ScopeKey] from raw [executorId], optional [scopeName], and [key].
   ScopeKey.fromParts(String executorId, String? scopeName, String key)
-      : this(ScopeId(executorId, scopeName), key);
+    : this(ScopeId(executorId, scopeName), key);
 
   /// The scope identifier.
   final ScopeId scopeId;

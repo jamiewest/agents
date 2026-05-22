@@ -1,4 +1,5 @@
 import 'package:extensions/hosting.dart';
+
 /// Represents a builder for configuring workflows within a hosting
 /// environment.
 abstract class HostedWorkflowBuilder {

@@ -28,8 +28,9 @@ final class ScopeKeyConverter
 
   @override
   String stringify(ScopeKey value) {
-    final executorIdEsc =
-        JsonConverterDictionarySupportBase.escape(value.scopeId.executorId);
+    final executorIdEsc = JsonConverterDictionarySupportBase.escape(
+      value.scopeId.executorId,
+    );
     final scopeNameEsc = JsonConverterDictionarySupportBase.escape(
       value.scopeId.scopeName,
       allowNullAndPad: true,

@@ -20,8 +20,7 @@ extension ExecutorBindingRepresentation on ExecutorBinding {
   /// Returns an [ExecutorInfo] describing this binding.
   ExecutorInfo toExecutorInfo() => ExecutorInfo(
     executorId: id,
-    supportsConcurrentSharedExecution:
-        supportsConcurrentSharedExecution,
+    supportsConcurrentSharedExecution: supportsConcurrentSharedExecution,
     supportsResetting: supportsResetting,
   );
 }

@@ -71,13 +71,14 @@ class ShellEnvironmentProvider extends AIContextProvider {
       shellVersion = vResult.stdout.trim().isNotEmpty
           ? vResult.stdout.trim()
           : vResult.stderr.trim().isNotEmpty
-              ? vResult.stderr.trim()
-              : null;
+          ? vResult.stderr.trim()
+          : null;
     } catch (_) {}
 
     try {
-      final pwdCmd =
-          family == ShellFamily.powerShell ? '(Get-Location).Path' : 'pwd';
+      final pwdCmd = family == ShellFamily.powerShell
+          ? '(Get-Location).Path'
+          : 'pwd';
       final pwdResult = await _executor
           .runAsync(pwdCmd, cancellationToken: cancellationToken)
           .timeout(_options.probeTimeout);
@@ -98,8 +99,9 @@ class ShellEnvironmentProvider extends AIContextProvider {
         final result = await _executor
             .runAsync(cmd, cancellationToken: cancellationToken)
             .timeout(_options.probeTimeout);
-        final out =
-            result.stdout.trim().isNotEmpty ? result.stdout.trim() : result.stderr.trim();
+        final out = result.stdout.trim().isNotEmpty
+            ? result.stdout.trim()
+            : result.stderr.trim();
         toolVersions[tool] = out.isNotEmpty ? out : null;
       } catch (_) {
         toolVersions[tool] = null;

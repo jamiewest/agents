@@ -107,16 +107,13 @@ void main() {
       expect(service, isNull);
     });
 
-    test(
-      'getService_WithServiceKey_StillReturnsAgentForAIAgentType',
-      () {
-        final agent = _TestAgent();
+    test('getService_WithServiceKey_StillReturnsAgentForAIAgentType', () {
+      final agent = _TestAgent();
 
-        final service = agent.getService(AIAgent, serviceKey: 'key');
+      final service = agent.getService(AIAgent, serviceKey: 'key');
 
-        expect(service, same(agent));
-      },
-    );
+      expect(service, same(agent));
+    });
 
     test('getService_Generic_ReturnsCorrectType', () {
       final agent = _TestAgent();
@@ -179,24 +176,21 @@ class _TestAgent extends AIAgent {
   @override
   Future<AgentSession> createSessionCore({
     CancellationToken? cancellationToken,
-  }) async =>
-      _TestSession();
+  }) async => _TestSession();
 
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
     Object? JsonSerializerOptions,
     CancellationToken? cancellationToken,
-  }) async =>
-      '{}';
+  }) async => '{}';
 
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
     Object? JsonSerializerOptions,
     CancellationToken? cancellationToken,
-  }) async =>
-      _TestSession();
+  }) async => _TestSession();
 
   @override
   Future<AgentResponse> runCore(
@@ -223,10 +217,7 @@ class _TestAgent extends AIAgent {
   }) async* {
     capturedMessages = messages.toList();
     capturedSession = session;
-    yield AgentResponseUpdate(
-      role: ChatRole.assistant,
-      content: 'response',
-    );
+    yield AgentResponseUpdate(role: ChatRole.assistant, content: 'response');
   }
 }
 

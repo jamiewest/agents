@@ -31,11 +31,7 @@ abstract interface class WorkflowStateContext implements WorkflowContext {
   T? readState<T>(String key, {String? scopeName});
 
   /// Reads [key] as [T], initialising with [factory] if absent.
-  T readOrInitState<T>(
-    String key,
-    T Function() factory, {
-    String? scopeName,
-  });
+  T readOrInitState<T>(String key, T Function() factory, {String? scopeName});
 
   /// Returns the set of keys stored in this executor's scope.
   Set<String> readStateKeys({String? scopeName});
@@ -142,14 +138,19 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
     String senderId,
     TMessage message, {
     CancellationToken? cancellationToken,
-  }) => _sendMessageAsync(senderId, message, cancellationToken: cancellationToken);
+  }) => _sendMessageAsync(
+    senderId,
+    message,
+    cancellationToken: cancellationToken,
+  );
 
   @override
   Future<void> yieldOutputAsync<TOutput extends Object>(
     String senderId,
     TOutput output, {
     CancellationToken? cancellationToken,
-  }) => _yieldOutputAsync(senderId, output, cancellationToken: cancellationToken);
+  }) =>
+      _yieldOutputAsync(senderId, output, cancellationToken: cancellationToken);
 
   @override
   Future<String> attachSuperstepAsync(
@@ -206,9 +207,7 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
         targetExecutorId: _workflow.startExecutorId,
         message: message,
       );
-      _nextStep
-          .putIfAbsent(_workflow.startExecutorId, () => [])
-          .add(envelope);
+      _nextStep.putIfAbsent(_workflow.startExecutorId, () => []).add(envelope);
     });
   }
 
@@ -307,7 +306,9 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
   }) async {
     _checkEnded();
     if (_outputFilter.canOutput(sourceId, output)) {
-      await _addEventAsync(WorkflowOutputEvent(executorId: sourceId, data: output));
+      await _addEventAsync(
+        WorkflowOutputEvent(executorId: sourceId, data: output),
+      );
     }
   }
 
@@ -348,7 +349,8 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
     List<String> instantiatedExecutors,
     Map<String, List<MessageEnvelope>> queuedMessages,
     List<ExternalRequest<dynamic, dynamic>> outstandingRequests,
-  }) exportState() {
+  })
+  exportState() {
     _checkEnded();
     return (
       instantiatedExecutors: List<String>.of(_executors.keys),
@@ -407,7 +409,8 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
   }
 
   /// The sub-workflow runners that have joined this execution context.
-  Iterable<ISuperStepRunner> get joinedSubworkflowRunners => _joinedRunners.values;
+  Iterable<ISuperStepRunner> get joinedSubworkflowRunners =>
+      _joinedRunners.values;
 }
 
 // ── private ──────────────────────────────────────────────────────────────────
@@ -508,4 +511,3 @@ class _BoundContext implements WorkflowStateContext {
   @override
   SuperStepJoinContext get superstepJoinContext => _ctx;
 }
-

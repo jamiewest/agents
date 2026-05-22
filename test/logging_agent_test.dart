@@ -19,9 +19,9 @@ void main() {
         final logger = _CapturingLogger(enabledLevel: LogLevel.none);
         final agent = LoggingAgent(inner, logger);
 
-        final response = await agent.runCore(
-          [ChatMessage.fromText(ChatRole.user, 'hi')],
-        );
+        final response = await agent.runCore([
+          ChatMessage.fromText(ChatRole.user, 'hi'),
+        ]);
 
         expect(response.text, 'hello');
         expect(logger.records, isEmpty);
@@ -70,25 +70,28 @@ void main() {
         );
       });
 
-      test('passes session, options, and cancellation token to inner', () async {
-        final inner = _TestAgent();
-        final logger = _CapturingLogger(enabledLevel: LogLevel.none);
-        final agent = LoggingAgent(inner, logger);
-        final session = _TestSession();
-        final options = AgentRunOptions();
-        final ct = CancellationToken.none;
+      test(
+        'passes session, options, and cancellation token to inner',
+        () async {
+          final inner = _TestAgent();
+          final logger = _CapturingLogger(enabledLevel: LogLevel.none);
+          final agent = LoggingAgent(inner, logger);
+          final session = _TestSession();
+          final options = AgentRunOptions();
+          final ct = CancellationToken.none;
 
-        await agent.runCore(
-          [],
-          session: session,
-          options: options,
-          cancellationToken: ct,
-        );
+          await agent.runCore(
+            [],
+            session: session,
+            options: options,
+            cancellationToken: ct,
+          );
 
-        expect(inner.lastSession, same(session));
-        expect(inner.lastOptions, same(options));
-        expect(inner.lastCancellationToken, same(ct));
-      });
+          expect(inner.lastSession, same(session));
+          expect(inner.lastOptions, same(options));
+          expect(inner.lastCancellationToken, same(ct));
+        },
+      );
     });
 
     group('runCoreStreaming', () {
@@ -97,9 +100,9 @@ void main() {
         final logger = _CapturingLogger(enabledLevel: LogLevel.none);
         final agent = LoggingAgent(inner, logger);
 
-        final updates = await agent
-            .runCoreStreaming([ChatMessage.fromText(ChatRole.user, 'hi')])
-            .toList();
+        final updates = await agent.runCoreStreaming([
+          ChatMessage.fromText(ChatRole.user, 'hi'),
+        ]).toList();
 
         expect(updates.single.text, 'streamed');
         expect(logger.records, isEmpty);
@@ -110,9 +113,9 @@ void main() {
         final logger = _CapturingLogger(enabledLevel: LogLevel.debug);
         final agent = LoggingAgent(inner, logger);
 
-        await agent
-            .runCoreStreaming([ChatMessage.fromText(ChatRole.user, 'hi')])
-            .toList();
+        await agent.runCoreStreaming([
+          ChatMessage.fromText(ChatRole.user, 'hi'),
+        ]).toList();
 
         expect(logger.messages.any((m) => m.contains('completed')), isTrue);
       });
@@ -122,9 +125,9 @@ void main() {
         final logger = _CapturingLogger(enabledLevel: LogLevel.trace);
         final agent = LoggingAgent(inner, logger);
 
-        await agent
-            .runCoreStreaming([ChatMessage.fromText(ChatRole.user, 'hi')])
-            .toList();
+        await agent.runCoreStreaming([
+          ChatMessage.fromText(ChatRole.user, 'hi'),
+        ]).toList();
 
         expect(
           logger.messages.any((m) => m.contains('streaming update')),
@@ -138,9 +141,9 @@ void main() {
         final agent = LoggingAgent(inner, logger);
 
         await expectLater(
-          () => agent
-              .runCoreStreaming([ChatMessage.fromText(ChatRole.user, 'fail')])
-              .toList(),
+          () => agent.runCoreStreaming([
+            ChatMessage.fromText(ChatRole.user, 'fail'),
+          ]).toList(),
           throwsA(isA<Exception>()),
         );
 
@@ -178,14 +181,20 @@ void main() {
     group('service delegation', () {
       test('getService delegates to inner agent for unknown types', () {
         final inner = _TestAgent();
-        final agent = LoggingAgent(inner, _CapturingLogger(enabledLevel: LogLevel.none));
+        final agent = LoggingAgent(
+          inner,
+          _CapturingLogger(enabledLevel: LogLevel.none),
+        );
 
         expect(agent.getService(AIAgent), same(inner));
       });
 
       test('getService returns self for own type', () {
         final inner = _TestAgent();
-        final agent = LoggingAgent(inner, _CapturingLogger(enabledLevel: LogLevel.none));
+        final agent = LoggingAgent(
+          inner,
+          _CapturingLogger(enabledLevel: LogLevel.none),
+        );
 
         expect(agent.getService(LoggingAgent), same(agent));
       });

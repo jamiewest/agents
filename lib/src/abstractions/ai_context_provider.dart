@@ -21,46 +21,51 @@ abstract class AIContextProvider {
   /// [storeInputResponseMessageFilter] filters response messages before
   /// storing context. Defaults to [defaultNoopFilter].
   AIContextProvider({
-    Iterable<ChatMessage> Function(Iterable<ChatMessage>)? provideInputMessageFilter,
-    Iterable<ChatMessage> Function(Iterable<ChatMessage>)? storeInputRequestMessageFilter,
-    Iterable<ChatMessage> Function(Iterable<ChatMessage>)? storeInputResponseMessageFilter,
-  })  : provideInputMessageFilter =
-            provideInputMessageFilter ?? defaultExternalOnlyFilter,
-        storeInputRequestMessageFilter =
-            storeInputRequestMessageFilter ?? defaultExternalOnlyFilter,
-        storeInputResponseMessageFilter =
-            storeInputResponseMessageFilter ?? defaultNoopFilter;
+    Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
+    provideInputMessageFilter,
+    Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
+    storeInputRequestMessageFilter,
+    Iterable<ChatMessage> Function(Iterable<ChatMessage>)?
+    storeInputResponseMessageFilter,
+  }) : provideInputMessageFilter =
+           provideInputMessageFilter ?? defaultExternalOnlyFilter,
+       storeInputRequestMessageFilter =
+           storeInputRequestMessageFilter ?? defaultExternalOnlyFilter,
+       storeInputResponseMessageFilter =
+           storeInputResponseMessageFilter ?? defaultNoopFilter;
 
   List<String>? _stateKeys;
 
   /// Filter applied to input messages before providing context.
   final Iterable<ChatMessage> Function(Iterable<ChatMessage>)
-      provideInputMessageFilter;
+  provideInputMessageFilter;
 
   /// Filter applied to request messages before storing context.
   final Iterable<ChatMessage> Function(Iterable<ChatMessage>)
-      storeInputRequestMessageFilter;
+  storeInputRequestMessageFilter;
 
   /// Filter applied to response messages before storing context.
   final Iterable<ChatMessage> Function(Iterable<ChatMessage>)
-      storeInputResponseMessageFilter;
+  storeInputResponseMessageFilter;
 
   static Iterable<ChatMessage> defaultExternalOnlyFilter(
-      Iterable<ChatMessage> messages) {
-    return messages.where((m) =>
-        m.getAgentRequestMessageSourceType() ==
-        AgentRequestMessageSourceType.externalValue);
+    Iterable<ChatMessage> messages,
+  ) {
+    return messages.where(
+      (m) =>
+          m.getAgentRequestMessageSourceType() ==
+          AgentRequestMessageSourceType.externalValue,
+    );
   }
 
   static Iterable<ChatMessage> defaultNoopFilter(
-          Iterable<ChatMessage> messages) =>
-      messages;
+    Iterable<ChatMessage> messages,
+  ) => messages;
 
   /// The keys used to store provider state in the [StateBag].
   ///
   /// Defaults to a single key equal to the runtime type name.
-  List<String> get stateKeys =>
-      _stateKeys ??= [runtimeType.toString()];
+  List<String> get stateKeys => _stateKeys ??= [runtimeType.toString()];
 
   /// Called at the start of agent invocation to provide additional context.
   Future<AIContext> invoking(
@@ -81,8 +86,9 @@ abstract class AIContextProvider {
       context.agent,
       context.session,
       AIContext()
-        ..messages =
-            provideInputMessageFilter(inputContext.messages ?? const [])
+        ..messages = provideInputMessageFilter(
+          inputContext.messages ?? const [],
+        )
         ..tools = inputContext.tools
         ..instructions = inputContext.instructions,
     );
@@ -103,11 +109,12 @@ abstract class AIContextProvider {
           '${inputContext.instructions}\n${provided.instructions}';
     }
 
-    final providedMessages = provided.messages?.map((m) =>
-        m.withAgentRequestMessageSource(
-          AgentRequestMessageSourceType.aiContextProvider,
-          sourceId: runtimeType.toString(),
-        ));
+    final providedMessages = provided.messages?.map(
+      (m) => m.withAgentRequestMessageSource(
+        AgentRequestMessageSourceType.aiContextProvider,
+        sourceId: runtimeType.toString(),
+      ),
+    );
 
     final Iterable<ChatMessage>? mergedMessages;
     if (inputContext.messages == null && providedMessages == null) {
@@ -142,8 +149,7 @@ abstract class AIContextProvider {
   Future<AIContext> provideAIContext(
     InvokingContext context, {
     CancellationToken? cancellationToken,
-  }) =>
-      Future.value(AIContext());
+  }) => Future.value(AIContext());
 
   /// Called at the end of the agent invocation to process results.
   Future<void> invoked(
@@ -164,8 +170,9 @@ abstract class AIContextProvider {
       context.agent,
       context.session,
       storeInputRequestMessageFilter(context.requestMessages),
-      responseMessages:
-          storeInputResponseMessageFilter(context.responseMessages ?? const []),
+      responseMessages: storeInputResponseMessageFilter(
+        context.responseMessages ?? const [],
+      ),
     );
     return storeAIContext(subContext, cancellationToken: cancellationToken);
   }
@@ -174,8 +181,7 @@ abstract class AIContextProvider {
   Future<void> storeAIContext(
     InvokedContext context, {
     CancellationToken? cancellationToken,
-  }) =>
-      Future.value();
+  }) => Future.value();
 
   /// Returns a service of the specified [serviceType], or `null`.
   Object? getService(Type serviceType, {Object? serviceKey}) {

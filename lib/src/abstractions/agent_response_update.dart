@@ -61,7 +61,8 @@ class AgentResponseUpdate {
   ChatFinishReason? finishReason;
 
   /// The concatenated text content of this update.
-  String get text => _contents?.map((c) => c is TextContent ? c.text : '').join() ?? '';
+  String get text =>
+      _contents?.map((c) => c is TextContent ? c.text : '').join() ?? '';
 
   @override
   String toString() => text;

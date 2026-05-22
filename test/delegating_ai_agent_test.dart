@@ -70,26 +70,20 @@ void main() {
       expect(updates.first.text, 'streamed');
     });
 
-    test(
-      'getServiceReturnsSelfIfCompatibleWithRequestAndKeyIsNull',
-      () {
-        final inner = _TestAgent();
-        final delegating = _TestDelegatingAgent(inner);
+    test('getServiceReturnsSelfIfCompatibleWithRequestAndKeyIsNull', () {
+      final inner = _TestAgent();
+      final delegating = _TestDelegatingAgent(inner);
 
-        final service = delegating.getService(_TestDelegatingAgent);
+      final service = delegating.getService(_TestDelegatingAgent);
 
-        expect(service, same(delegating));
-      },
-    );
+      expect(service, same(delegating));
+    });
 
     test('getServiceDelegatesToInnerIfKeyIsNotNull', () {
       final inner = _TestAgent();
       final delegating = _TestDelegatingAgent(inner);
 
-      final service = delegating.getService(
-        _TestAgent,
-        serviceKey: 'key',
-      );
+      final service = delegating.getService(_TestAgent, serviceKey: 'key');
 
       expect(service, isNot(same(delegating)));
     });
@@ -132,24 +126,21 @@ class _TestAgent extends AIAgent {
   @override
   Future<AgentSession> createSessionCore({
     CancellationToken? cancellationToken,
-  }) async =>
-      _TestSession();
+  }) async => _TestSession();
 
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
     Object? JsonSerializerOptions,
     CancellationToken? cancellationToken,
-  }) async =>
-      '{}';
+  }) async => '{}';
 
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
     Object? JsonSerializerOptions,
     CancellationToken? cancellationToken,
-  }) async =>
-      _TestSession();
+  }) async => _TestSession();
 
   @override
   Future<AgentResponse> runCore(
@@ -170,10 +161,7 @@ class _TestAgent extends AIAgent {
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
   }) async* {
-    yield AgentResponseUpdate(
-      role: ChatRole.assistant,
-      content: responseText,
-    );
+    yield AgentResponseUpdate(role: ChatRole.assistant, content: responseText);
   }
 }
 

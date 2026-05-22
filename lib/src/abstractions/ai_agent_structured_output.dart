@@ -33,8 +33,9 @@ extension AIAgentStructuredOutputExtensions on AIAgent {
       message: message,
       messages: messages,
     );
-    final result =
-        AgentResponseOf.deserializeFirstTopLevelObject<T>(response.text);
+    final result = AgentResponseOf.deserializeFirstTopLevelObject<T>(
+      response.text,
+    );
     return AgentResponseOf<T>(response, result as T);
   }
 }

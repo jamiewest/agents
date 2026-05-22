@@ -95,11 +95,7 @@ class HeadTailBuffer {
       return [0xC0 | (cp >> 6), 0x80 | (cp & 0x3F)];
     }
     if (cp < 0x10000) {
-      return [
-        0xE0 | (cp >> 12),
-        0x80 | ((cp >> 6) & 0x3F),
-        0x80 | (cp & 0x3F),
-      ];
+      return [0xE0 | (cp >> 12), 0x80 | ((cp >> 6) & 0x3F), 0x80 | (cp & 0x3F)];
     }
     return [
       0xF0 | (cp >> 18),

@@ -1,28 +1,28 @@
 import '../../../abstractions/agent_response.dart';
 import '../../../abstractions/agent_session.dart';
-import 'sub_agents_provider.dart';
+import 'background_agents_provider.dart';
 
-/// Holds non-serializable runtime references for in-flight sub-tasks within a
-/// single parent session.
+/// Holds non-serializable runtime references for in-flight background tasks
+/// within a single parent session.
 ///
 /// Runtime task state is not JSON-serializable. After deserialization (e.g.,
 /// after a restart), a fresh empty instance is created and any
-/// previously-running tasks are marked as lost by [SubAgentsProvider].
-class SubAgentRuntimeState {
-  SubAgentRuntimeState();
+/// previously-running tasks are marked as lost by [BackgroundAgentsProvider].
+class BackgroundAgentRuntimeState {
+  BackgroundAgentRuntimeState();
 
   /// Gets the mapping of task IDs to their in-flight [Future] instances.
-  final Map<int, SubAgentRuntimeTask> inFlightTasks = {};
+  final Map<int, BackgroundAgentRuntimeTask> inFlightTasks = {};
 
-  /// Gets the mapping of task IDs to their sub-agent [AgentSession] instances,
-  /// needed for `ContinueTask`.
-  final Map<int, AgentSession> subTaskSessions = {};
+  /// Gets the mapping of task IDs to their background agent [AgentSession]
+  /// instances, needed for `ContinueTask`.
+  final Map<int, AgentSession> backgroundTaskSessions = {};
 }
 
 /// Tracks the completion state of a Dart [Future] while preserving the C#
 /// provider's explicit task-finalization shape.
-class SubAgentRuntimeTask {
-  SubAgentRuntimeTask(this.task) {
+class BackgroundAgentRuntimeTask {
+  BackgroundAgentRuntimeTask(this.task) {
     completion = task.then<void>(
       (value) {
         isCompleted = true;

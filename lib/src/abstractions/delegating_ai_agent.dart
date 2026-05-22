@@ -31,7 +31,9 @@ abstract class DelegatingAIAgent extends AIAgent {
   }
 
   @override
-  Future<AgentSession> createSessionCore({CancellationToken? cancellationToken}) {
+  Future<AgentSession> createSessionCore({
+    CancellationToken? cancellationToken,
+  }) {
     return innerAgent.createSession(cancellationToken: cancellationToken);
   }
 

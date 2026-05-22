@@ -10,9 +10,10 @@ extension AgentSessionExtensions on AgentSession {
   /// Returns `(true, messages)` if found; `(false, null)` otherwise. Only
   /// applicable when [InMemoryChatHistoryProvider] is in use.
   (bool, List<ChatMessage>?) tryGetInMemoryChatHistory({String? stateKey}) {
-    final (found, state) = stateBag.tryGetValue<InMemoryChatHistoryProviderState>(
-      stateKey ?? 'InMemoryChatHistoryProvider',
-    );
+    final (found, state) = stateBag
+        .tryGetValue<InMemoryChatHistoryProviderState>(
+          stateKey ?? 'InMemoryChatHistoryProvider',
+        );
     if (found && state != null) {
       return (true, state.messages);
     }
@@ -22,12 +23,10 @@ extension AgentSessionExtensions on AgentSession {
   /// Sets the in-memory chat history for this session.
   ///
   /// Only applicable when [InMemoryChatHistoryProvider] is in use.
-  void setInMemoryChatHistory(
-    List<ChatMessage> messages, {
-    String? stateKey,
-  }) {
+  void setInMemoryChatHistory(List<ChatMessage> messages, {String? stateKey}) {
     final key = stateKey ?? 'InMemoryChatHistoryProvider';
-    final (found, state) = stateBag.tryGetValue<InMemoryChatHistoryProviderState>(key);
+    final (found, state) = stateBag
+        .tryGetValue<InMemoryChatHistoryProviderState>(key);
     if (found && state != null) {
       state.messages = messages;
     } else {

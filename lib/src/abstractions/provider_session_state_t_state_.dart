@@ -10,8 +10,11 @@ class ProviderSessionState<TState> {
   /// Creates a [ProviderSessionState] with the given [stateInitializer] and
   /// [stateKey].
   // ignore_for_file: non_constant_identifier_names
-  ProviderSessionState(this._stateInitializer, this.stateKey,
-      {Object? JsonSerializerOptions});
+  ProviderSessionState(
+    this._stateInitializer,
+    this.stateKey, {
+    Object? JsonSerializerOptions,
+  });
 
   final TState Function(AgentSession?) _stateInitializer;
 
@@ -22,8 +25,7 @@ class ProviderSessionState<TState> {
   /// it using [_stateInitializer] if not present.
   TState getOrInitializeState(AgentSession? session) {
     if (session != null) {
-      final (found, state) =
-          session.stateBag.tryGetValue<TState>(stateKey);
+      final (found, state) = session.stateBag.tryGetValue<TState>(stateKey);
       if (found && state != null) return state;
     }
     final state = _stateInitializer(session);

@@ -8,12 +8,12 @@ import '../scope_id.dart';
 class UpdateKey {
   /// Creates an [UpdateKey] from an existing [ScopeId] and [key].
   UpdateKey(this.scopeId, this.key)
-      : assert(key.isNotEmpty, 'key must not be empty');
+    : assert(key.isNotEmpty, 'key must not be empty');
 
   /// Creates an [UpdateKey] from raw [executorId], optional [scopeName], and
   /// [key].
   UpdateKey.fromParts(String executorId, String? scopeName, String key)
-      : this(ScopeId(executorId, scopeName), key);
+    : this(ScopeId(executorId, scopeName), key);
 
   /// The scope identifier.
   final ScopeId scopeId;
@@ -28,8 +28,7 @@ class UpdateKey {
   ///
   /// When [strict] is `true`, also requires [ScopeId.executorId] to match.
   bool isMatchingScope(ScopeId other, {bool strict = false}) =>
-      scopeId == other &&
-      (!strict || scopeId.executorId == other.executorId);
+      scopeId == other && (!strict || scopeId.executorId == other.executorId);
 
   @override
   bool operator ==(Object other) {
