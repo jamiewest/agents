@@ -26,7 +26,7 @@ final class ResponseEdgeRunner extends EdgeRunner {
   @override
   DeliveryMapping? chaseEdge(
     MessageEnvelope envelope, {
-    IStepTracer? stepTracer,
+    StepTracer? stepTracer,
   }) {
     if (!envelope.isExternal) return null;
     if (executor.canAccept(envelope.message?.runtimeType ?? Null)) {

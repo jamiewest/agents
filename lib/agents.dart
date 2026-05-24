@@ -38,6 +38,7 @@ export 'src/abstractions/ai_context.dart';
 export 'src/abstractions/ai_context_provider.dart';
 export 'src/abstractions/chat_history_provider.dart'
     hide InvokedContext, InvokingContext;
+export 'src/abstractions/ai_content_extensions.dart';
 export 'src/abstractions/chat_message_extensions.dart';
 export 'src/abstractions/delegating_ai_agent.dart';
 export 'src/abstractions/in_memory_chat_history_provider.dart';
@@ -188,6 +189,9 @@ export 'src/ai/skills/programmatic/agent_inline_skill_script.dart';
 
 // Hosting
 export 'src/hosting/ai_host_agent.dart';
+export 'src/hosting/harness/chat_client_harness_extensions.dart';
+export 'src/hosting/harness/harness_agent.dart';
+export 'src/hosting/harness/harness_agent_options.dart';
 export 'src/hosting/host_application_builder_agent_extensions.dart';
 export 'src/hosting/host_application_builder_workflow_extensions.dart';
 export 'src/hosting/hosted_workflow_builder.dart';

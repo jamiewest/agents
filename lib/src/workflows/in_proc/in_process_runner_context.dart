@@ -69,7 +69,7 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
     required Workflow workflow,
     required String sessionId,
     required bool checkpointingEnabled,
-    required IEventSink outgoingEvents,
+    required EventSink outgoingEvents,
     required InProcStepTracer stepTracer,
     bool enableConcurrentRuns = false,
   }) : _workflow = workflow,
@@ -91,7 +91,7 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
 
   final Workflow _workflow;
   final String _sessionId;
-  final IEventSink _outgoingEvents;
+  final EventSink _outgoingEvents;
   final InProcStepTracer _stepTracer;
   final OutputFilter _outputFilter;
   final MessageRouter _edgeRouter;
@@ -107,7 +107,7 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
   final Map<String, List<MessageEnvelope>> _nextStep = {};
   final List<Future<void> Function()> _queuedExternalDeliveries = [];
   final Map<String, ExternalRequest<dynamic, dynamic>> _externalRequests = {};
-  final Map<String, ISuperStepRunner> _joinedRunners = {};
+  final Map<String, SuperStepRunnable> _joinedRunners = {};
   final Map<String, int> _requestCounters = {};
 
   /// Gets the state manager.
@@ -154,7 +154,7 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
 
   @override
   Future<String> attachSuperstepAsync(
-    ISuperStepRunner superStepRunner, {
+    SuperStepRunnable superStepRunner, {
     CancellationToken? cancellationToken,
   }) {
     String joinId;
@@ -175,7 +175,7 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
   /// Returns (creating if needed) the executor with [executorId].
   Future<Executor<dynamic, dynamic>> ensureExecutorAsync(
     String executorId, {
-    IStepTracer? tracer,
+    StepTracer? tracer,
     CancellationToken? cancellationToken,
   }) async {
     _checkEnded();
@@ -409,7 +409,7 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
   }
 
   /// The sub-workflow runners that have joined this execution context.
-  Iterable<ISuperStepRunner> get joinedSubworkflowRunners =>
+  Iterable<SuperStepRunnable> get joinedSubworkflowRunners =>
       _joinedRunners.values;
 }
 

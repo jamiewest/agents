@@ -225,7 +225,7 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  group('JsonWireSerializedValue IDelayedDeserialization', () {
+  group('JsonWireSerializedValue DelayedDeserialization', () {
     test('deserialize returns value when type matches', () {
       const wire = JsonWireSerializedValue(value: 'hello');
       expect(wire.deserialize<String>(), equals('hello'));
@@ -246,9 +246,9 @@ void main() {
       expect(wire.deserializeAs(int), isNull);
     });
 
-    test('implements IDelayedDeserialization', () {
+    test('implements DelayedDeserialization', () {
       const wire = JsonWireSerializedValue(value: 'x');
-      expect(wire, isA<IDelayedDeserialization>());
+      expect(wire, isA<DelayedDeserialization>());
     });
   });
 

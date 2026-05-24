@@ -269,7 +269,7 @@ void main() {
   });
 }
 
-class _CapturingTracer implements IStepTracer {
+class _CapturingTracer implements StepTracer {
   int statePublishedCount = 0;
 
   @override

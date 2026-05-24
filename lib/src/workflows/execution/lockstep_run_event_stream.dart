@@ -7,24 +7,24 @@ import 'super_step_join_context.dart';
 /// A [RunEventStream] that drives one superstep at a time.
 ///
 /// Events received via [enqueue] during a superstep are buffered, then yielded
-/// in batch once [ISuperStepRunner.runSuperStepAsync] returns. The next
+/// in batch once [SuperStepRunnable.runSuperStepAsync] returns. The next
 /// superstep is not started until the consumer has iterated all events from
 /// the current one, giving the caller fine-grained control over execution
 /// cadence.
 ///
 /// Construction is two-phase: create the stream, pass it as the runner's
-/// [IEventSink], then call [bindRunner] before iterating [events].
+/// [EventSink], then call [bindRunner] before iterating [events].
 final class LockstepRunEventStream implements RunEventStream {
   final List<WorkflowEvent> _buffer = [];
-  ISuperStepRunner? _runner;
+  SuperStepRunnable? _runner;
   Stream<WorkflowEvent>? _stream;
   bool _completed = false;
 
-  /// Binds the [ISuperStepRunner] that this stream will drive.
+  /// Binds the [SuperStepRunnable] that this stream will drive.
   ///
   /// Must be called before [events] is iterated. The runner must have been
   /// constructed with this instance as its outgoing event sink.
-  void bindRunner(ISuperStepRunner runner) {
+  void bindRunner(SuperStepRunnable runner) {
     assert(_runner == null, 'Runner is already bound.');
     _runner = runner;
   }

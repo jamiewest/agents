@@ -4,7 +4,7 @@ import 'message_envelope.dart';
 import 'step_tracer.dart';
 
 /// Implemented by edge runners that persist state across supersteps.
-abstract interface class IStatefulEdgeRunner {
+abstract interface class StatefulEdgeRunner {
   /// Exports the runner's internal state as a [PortableValue].
   PortableValue exportState();
 
@@ -21,6 +21,6 @@ abstract class EdgeRunner {
   /// edge accepts the message, or `null` when it does not apply.
   DeliveryMapping? chaseEdge(
     MessageEnvelope envelope, {
-    IStepTracer? stepTracer,
+    StepTracer? stepTracer,
   });
 }

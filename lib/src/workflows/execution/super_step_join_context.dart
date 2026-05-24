@@ -38,7 +38,7 @@ abstract interface class SuperStepJoinContext {
   ///
   /// Returns a join identifier that can be passed to [detachSuperstepAsync].
   Future<String> attachSuperstepAsync(
-    ISuperStepRunner superStepRunner, {
+    SuperStepRunnable superStepRunner, {
     CancellationToken? cancellationToken,
   });
 
@@ -47,7 +47,7 @@ abstract interface class SuperStepJoinContext {
 }
 
 /// Minimal interface for a runner that participates in a superstep.
-abstract interface class ISuperStepRunner {
+abstract interface class SuperStepRunnable {
   /// Gets the session identifier.
   String get sessionId;
 

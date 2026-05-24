@@ -2,7 +2,7 @@ import 'delayed_deserialization.dart';
 
 /// Stores a JSON-shaped value together with optional type metadata,
 /// supporting lazy deserialization when the target type is determined later.
-class JsonWireSerializedValue implements IDelayedDeserialization {
+class JsonWireSerializedValue implements DelayedDeserialization {
   /// Creates a JSON wire serialized value.
   const JsonWireSerializedValue({required this.value, this.typeId});
 

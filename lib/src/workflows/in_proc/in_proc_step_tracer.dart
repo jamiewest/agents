@@ -5,11 +5,11 @@ import '../super_step_completion_info.dart';
 import '../super_step_start_info.dart';
 import '../super_step_started_event.dart';
 
-/// [IStepTracer] implementation for in-process workflow execution.
+/// [StepTracer] implementation for in-process workflow execution.
 ///
 /// Tracks instantiated/activated executor IDs per superstep, the current step
 /// number, and state/checkpoint events.
-final class InProcStepTracer implements IStepTracer {
+final class InProcStepTracer implements StepTracer {
   int _nextStepNumber = 0;
 
   /// Gets the step number of the most recently started superstep.

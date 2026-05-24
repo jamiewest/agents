@@ -1,6 +1,6 @@
 /// Supports lazy deserialization of a value when the target type is not
 /// known until retrieval time.
-abstract interface class IDelayedDeserialization {
+abstract interface class DelayedDeserialization {
   /// Deserializes the stored value as [T].
   T deserialize<T>();
 

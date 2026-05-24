@@ -139,7 +139,7 @@ final class StateManager {
   // ── publish ──────────────────────────────────────────────────────────────
 
   /// Flushes all queued updates to their respective [StateScope]s.
-  void publishUpdates([IStepTracer? tracer]) {
+  void publishUpdates([StepTracer? tracer]) {
     if (_queuedUpdates.isEmpty) return;
 
     final updatesByScope = <ScopeId, Map<String, List<StateUpdate>>>{};

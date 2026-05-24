@@ -1,7 +1,7 @@
 import '../checkpoint_info.dart';
 
 /// Emits traces for key step lifecycle events within a workflow execution.
-abstract interface class IStepTracer {
+abstract interface class StepTracer {
   /// Records that [executorId] was activated.
   void traceActivated(String executorId);
 

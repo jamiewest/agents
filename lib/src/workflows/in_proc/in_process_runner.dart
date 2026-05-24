@@ -16,12 +16,12 @@ import 'in_proc_step_tracer.dart';
 import 'in_process_execution_options.dart';
 import 'in_process_runner_context.dart';
 
-/// In-process implementation of [ISuperStepRunner].
+/// In-process implementation of [SuperStepRunnable].
 ///
 /// Drives one superstep per [runSuperStepAsync] call: drains the message
 /// queue, invokes executors, routes their return values through edges,
 /// publishes state, and optionally creates a checkpoint.
-final class InProcessRunner implements ISuperStepRunner {
+final class InProcessRunner implements SuperStepRunnable {
   InProcessRunner._({
     required String sessionId,
     required Workflow workflow,
@@ -43,7 +43,7 @@ final class InProcessRunner implements ISuperStepRunner {
   factory InProcessRunner.topLevel({
     required Workflow workflow,
     required String sessionId,
-    required IEventSink outgoingEvents,
+    required EventSink outgoingEvents,
     InProcessExecutionOptions options = const InProcessExecutionOptions(),
     CheckpointManager? checkpointManager,
   }) {
@@ -89,7 +89,7 @@ final class InProcessRunner implements ISuperStepRunner {
     );
   }
 
-  // ── ISuperStepRunner ─────────────────────────────────────────────────────
+  // ── SuperStepRunnable ─────────────────────────────────────────────────────
 
   @override
   String get sessionId => _sessionId;
@@ -233,7 +233,7 @@ final class InProcessRunner implements ISuperStepRunner {
 
 // ── private ──────────────────────────────────────────────────────────────────
 
-class _ParentForwardingEventSink implements IEventSink {
+class _ParentForwardingEventSink implements EventSink {
   _ParentForwardingEventSink(this._parent);
   final SuperStepJoinContext _parent;
 

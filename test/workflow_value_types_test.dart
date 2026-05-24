@@ -210,15 +210,15 @@ void main() {
       expect(events.first, same(ev));
     });
 
-    test('implements IEventSink', () {
-      expect(ConcurrentEventSink(), isA<IEventSink>());
+    test('implements EventSink', () {
+      expect(ConcurrentEventSink(), isA<EventSink>());
     });
   });
 
   // ---------------------------------------------------------------------------
-  group('IStepTracer', () {
-    test('_NoOpTracer implements IStepTracer', () {
-      expect(_NoOpTracer(), isA<IStepTracer>());
+  group('StepTracer', () {
+    test('_NoOpTracer implements StepTracer', () {
+      expect(_NoOpTracer(), isA<StepTracer>());
     });
 
     test('all methods can be called without error', () {
@@ -305,7 +305,7 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  group('IDelayedDeserialization', () {
+  group('DelayedDeserialization', () {
     test('stub implementation deserializes to target type', () {
       final stub = _StringDeserializer('hello');
       expect(stub.deserialize<String>(), equals('hello'));
@@ -351,7 +351,7 @@ void main() {
       expect(pv.isValue<String>(), isFalse);
     });
 
-    test('asValue deserializes lazily via IDelayedDeserialization', () {
+    test('asValue deserializes lazily via DelayedDeserialization', () {
       final lazy = _StringDeserializer('lazy-value');
       final pv = PortableValue(lazy);
       expect(pv.asValue<String>(), equals('lazy-value'));
@@ -389,7 +389,7 @@ void main() {
       expect(pv.isType(int), isFalse);
     });
 
-    test('asType deserializes lazily via IDelayedDeserialization', () {
+    test('asType deserializes lazily via DelayedDeserialization', () {
       final lazy = _StringDeserializer('typed');
       final pv = PortableValue(lazy);
       expect(pv.asType(String), equals('typed'));
@@ -400,7 +400,7 @@ void main() {
 // ---------------------------------------------------------------------------
 // Test helpers
 
-class _StringDeserializer implements IDelayedDeserialization {
+class _StringDeserializer implements DelayedDeserialization {
   _StringDeserializer(this._value);
   final String _value;
 
@@ -412,7 +412,7 @@ class _StringDeserializer implements IDelayedDeserialization {
       targetType == String ? _value : null;
 }
 
-class _CountingDeserializer implements IDelayedDeserialization {
+class _CountingDeserializer implements DelayedDeserialization {
   _CountingDeserializer(this._factory);
   final String Function() _factory;
 
@@ -424,7 +424,7 @@ class _CountingDeserializer implements IDelayedDeserialization {
       targetType == String ? _factory() : null;
 }
 
-class _NoOpTracer implements IStepTracer {
+class _NoOpTracer implements StepTracer {
   @override
   void traceActivated(String executorId) {}
 

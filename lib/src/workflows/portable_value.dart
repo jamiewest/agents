@@ -3,7 +3,7 @@ import 'checkpointing/json_wire_serialized_value.dart';
 import 'checkpointing/type_id.dart';
 
 /// Wraps an arbitrary value alongside its [TypeId], supporting optional
-/// lazy deserialization via [IDelayedDeserialization].
+/// lazy deserialization via [DelayedDeserialization].
 class PortableValue {
   /// Creates a [PortableValue] wrapping [value].
   ///
@@ -23,7 +23,7 @@ class PortableValue {
 
   /// Returns the value cast to [T], or `null` if the cast fails.
   ///
-  /// If the underlying value implements [IDelayedDeserialization] and no
+  /// If the underlying value implements [DelayedDeserialization] and no
   /// cached result exists, it is deserialized and cached for future calls.
   T? asValue<T>() {
     final v = _value;
@@ -33,7 +33,7 @@ class PortableValue {
       if (cached is T) return cached as T;
       return null;
     }
-    if (v is IDelayedDeserialization) {
+    if (v is DelayedDeserialization) {
       final T result = v.deserialize<T>();
       _deserializedValueCache = result;
       return result;
@@ -45,7 +45,7 @@ class PortableValue {
   bool isValue<T>() => asValue<T>() != null;
 
   /// Returns the value if its runtime type is exactly [targetType],
-  /// or deserializes it via [IDelayedDeserialization] when available.
+  /// or deserializes it via [DelayedDeserialization] when available.
   ///
   /// Returns `null` when the type does not match. Uses exact runtime-type
   /// matching; use [asValue] for polymorphic checks.
@@ -55,7 +55,7 @@ class PortableValue {
     if (cached != null) {
       return cached.runtimeType == targetType ? cached : null;
     }
-    if (_value is IDelayedDeserialization) {
+    if (_value is DelayedDeserialization) {
       final result = _value.deserializeAs(targetType);
       _deserializedValueCache = result;
       return result;
@@ -67,7 +67,7 @@ class PortableValue {
   bool isType(Type targetType) => asType(targetType) != null;
 
   /// Returns `true` if the underlying value supports lazy deserialization.
-  bool get isDelayedDeserialization => _value is IDelayedDeserialization;
+  bool get isDelayedDeserialization => _value is DelayedDeserialization;
 
   /// Returns `true` if a deserialized value has been cached.
   bool get isDeserialized => _deserializedValueCache != null;

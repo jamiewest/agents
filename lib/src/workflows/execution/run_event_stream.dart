@@ -3,10 +3,10 @@ import 'concurrent_event_sink.dart';
 
 /// Abstract base for [WorkflowEvent] event streams.
 ///
-/// Extends [IEventSink] so implementations can be passed directly to
+/// Extends [EventSink] so implementations can be passed directly to
 /// [InProcessRunner.topLevel] as the outgoing event destination, letting events
 /// produced during execution flow immediately into the stream.
-abstract class RunEventStream implements IEventSink {
+abstract class RunEventStream implements EventSink {
   /// The stream of [WorkflowEvent]s produced by the workflow.
   Stream<WorkflowEvent> get events;
 
