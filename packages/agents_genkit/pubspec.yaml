@@ -1,0 +1,26 @@
+name: agents_genkit
+description: >-
+  Genkit adapters for the agents package. Wrap Genkit flows as AIAgent,
+  expose tools as AIContextProvider and AgentSkillsSource, and register
+  a Genkit-backed agent with a single addGenkitAgent() DI call.
+version: 0.1.0
+repository: https://github.com/jamiewest/agents
+
+topics:
+  - ai
+  - agents
+  - genkit
+  - llm
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  agents: ^1.1.0
+  extensions: ^0.3.26
+  extensions_genkit: ^0.1.0
+  genkit: ^0.13.2
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0
