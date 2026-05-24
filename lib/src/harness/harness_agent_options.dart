@@ -1,14 +1,14 @@
 import 'package:extensions/ai.dart';
 
-import '../../abstractions/ai_agent.dart';
-import '../../abstractions/ai_context_provider.dart';
-import '../../abstractions/chat_history_provider.dart';
-import '../../ai/harness/agent_mode/agent_mode_provider_options.dart';
-import '../../ai/harness/background_agents/background_agents_provider_options.dart';
-import '../../ai/harness/file_store/agent_file_store.dart';
-import '../../ai/skills/agent_skills_source.dart';
-import '../../tools/shell/shell_environment_provider_options.dart';
-import '../../tools/shell/shell_executor.dart';
+import '../abstractions/ai_agent.dart';
+import '../abstractions/ai_context_provider.dart';
+import '../abstractions/chat_history_provider.dart';
+import '../ai/harness/agent_mode/agent_mode_provider_options.dart';
+import '../ai/harness/background_agents/background_agents_provider_options.dart';
+import '../ai/harness/file_store/agent_file_store.dart';
+import '../ai/skills/agent_skills_source.dart';
+import '../tools/shell/shell_environment_provider_options.dart';
+import '../tools/shell/shell_executor.dart';
 
 /// Configuration options for a `HarnessAgent`.
 class HarnessAgentOptions {
