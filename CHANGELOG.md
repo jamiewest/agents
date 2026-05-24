@@ -1,3 +1,34 @@
+## 1.1.0
+
+**New**
+
+- `AIContentExtensions` — adds `concatText()` on `List<ChatMessage>`,
+  concatenating each message's text with newline separators (skipping empty
+  values). Ports `AIContentExtensions.ConcatText(IList<ChatMessage>)` from
+  `Microsoft.Agents.AI.Abstractions`. The companion overload on
+  `Iterable<AIContent>` is already provided by the `extensions` package.
+
+**Breaking**
+
+- Renamed five workflow execution interfaces to conform to the Dart convention
+  that every class is an implicit interface (no `IFoo` prefixes):
+  - `IStepTracer` → `StepTracer`
+  - `IEventSink` → `EventSink`
+  - `IStatefulEdgeRunner` → `StatefulEdgeRunner`
+  - `IDelayedDeserialization` → `DelayedDeserialization`
+  - `ISuperStepRunner` → `SuperStepRunnable` (renamed to avoid collision with
+    the concrete `SuperStepRunner` class)
+
+**Fixed**
+
+- Harness files (`HarnessAgent`, `HarnessAgentOptions`,
+  `ChatClientHarnessExtensions`) were placed at `lib/src/harness/` but their
+  relative imports and the barrel export in `agents.dart` expected
+  `lib/src/hosting/harness/`. Files moved to the correct location, resolving
+  73 analyzer errors.
+
+---
+
 ## 1.0.0
 
 Initial release — Dart port of four C# namespaces from the
