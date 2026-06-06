@@ -1,0 +1,5 @@
+dependency_overrides:
+  extensions:
+    path: /Users/jamie/Developer/extensions/packages/extensions
+  extensions_genkit:
+    path: /Users/jamie/Developer/extensions/packages/extensions_genkit

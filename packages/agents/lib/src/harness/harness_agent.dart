@@ -123,6 +123,7 @@ You are a helpful AI assistant that uses tools to complete tasks.
     final contextProviders = _buildContextProviders(options);
 
     final builder = ChatClientBuilder(chatClient);
+    builder.usePerServiceCallChatHistoryPersistence();
     builder.use((innerClient) {
       final functionClient = FunctionInvokingChatClient(innerClient);
       final maxIterations = options?.maximumIterationsPerRequest;
@@ -131,7 +132,6 @@ You are a helpful AI assistant that uses tools to complete tasks.
       }
       return functionClient;
     });
-    builder.usePerServiceCallChatHistoryPersistence();
     builder.useAIContextProviders([compactionProvider]);
 
     return builder.buildAIAgent(
@@ -205,7 +205,7 @@ You are a helpful AI assistant that uses tools to complete tasks.
       final fileMemoryStore =
           options?.fileMemoryStore ??
           FileSystemAgentFileStore(
-            p.join(Directory.current.path, 'agent-file-memory'),
+            p.join(Directory.systemTemp.path, 'agent-file-memory'),
           );
       providers.add(
         FileMemoryProvider(
@@ -218,14 +218,16 @@ You are a helpful AI assistant that uses tools to complete tasks.
     if (options?.disableFileAccess != true) {
       final fileAccessStore =
           options?.fileAccessStore ??
-          FileSystemAgentFileStore(p.join(Directory.current.path, 'working'));
+          FileSystemAgentFileStore(
+            p.join(Directory.systemTemp.path, 'working'),
+          );
       providers.add(FileAccessProvider(fileAccessStore));
     }
     if (options?.disableAgentSkillsProvider != true) {
       providers.add(
         options?.agentSkillsSource != null
             ? AgentSkillsProvider(source: options!.agentSkillsSource)
-            : AgentSkillsProvider(skillPath: Directory.current.path),
+            : AgentSkillsProvider(skillPath: Directory.systemTemp.path),
       );
     }
 

@@ -172,19 +172,17 @@ packages:
   extensions:
     dependency: "direct main"
     description:
-      name: extensions
-      sha256: "0b089a891a535ac531aedab8cd24ef31dd7ad3a5cfad773011f20b5eaf65d3bf"
-      url: "https://pub.dev"
-    source: hosted
+      path: "/Users/jamie/Developer/extensions/packages/extensions"
+      relative: false
+    source: path
     version: "0.3.26"
   extensions_genkit:
     dependency: "direct main"
     description:
-      name: extensions_genkit
-      sha256: "78f9dd84187df5fdc7789ded843b7a786ad1af89da3cfe770ac89903a6ccc41f"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.0"
+      path: "/Users/jamie/Developer/extensions/packages/extensions_genkit"
+      relative: false
+    source: path
+    version: "0.3.0"
   file:
     dependency: transitive
     description:

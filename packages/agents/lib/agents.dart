@@ -433,3 +433,19 @@ export 'src/workflows/specialized/workflow_host_executor.dart';
 
 // Workflows — visualization
 export 'src/workflows/visualization/workflow_visualizer.dart';
+
+// A2A
+export 'src/a2a/a2a_agent.dart';
+export 'src/a2a/a2a_agent_options.dart';
+export 'src/a2a/a2a_agent_session.dart';
+export 'src/a2a/a2a_continuation_token.dart';
+export 'src/a2a/extensions/a2a_client_extensions.dart';
+export 'src/a2a/extensions/a2a_agent_card_extensions.dart';
+
+// A2A hosting (server-side bridge)
+export 'src/hosting/a2a/a2a_agent_handler.dart';
+export 'src/hosting/a2a/a2a_run_decision_context.dart';
+export 'src/hosting/a2a/a2a_server_registration_options.dart';
+export 'src/hosting/a2a/a2a_server_service_collection_extensions.dart';
+export 'src/hosting/a2a/agent_run_mode.dart';
+export 'src/hosting/a2a/converters/message_converter.dart';
