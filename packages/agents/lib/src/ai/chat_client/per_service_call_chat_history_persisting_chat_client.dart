@@ -4,6 +4,7 @@ import 'package:extensions/system.dart';
 import '../../abstractions/ai_agent.dart';
 import 'chat_client_agent.dart';
 import 'chat_client_agent_session.dart';
+import 'chat_response_update_extensions.dart';
 
 /// A sentinel conversation ID used to signal to
 /// [FunctionInvokingChatClient] that the conversation is service-managed
@@ -164,7 +165,7 @@ class PerServiceCallChatHistoryPersistingChatClient
       rethrow;
     }
 
-    final chatResponse = _buildChatResponse(responseUpdates);
+    final chatResponse = responseUpdates.toChatResponse();
 
     await agent.notifyProvidersOfNewMessages(
       session,
@@ -237,31 +238,5 @@ class PerServiceCallChatHistoryPersistingChatClient
       options.conversationId = null;
     }
     return options;
-  }
-
-  static ChatResponse _buildChatResponse(List<ChatResponseUpdate> updates) {
-    final messages = <ChatMessage>[];
-    ChatMessage? current;
-    for (final update in updates) {
-      final needsNew =
-          current == null ||
-          current.role != (update.role ?? ChatRole.assistant) ||
-          current.authorName != update.authorName;
-      if (needsNew) {
-        current = ChatMessage(
-          role: update.role ?? ChatRole.assistant,
-          authorName: update.authorName,
-          contents: [],
-        );
-        messages.add(current);
-      }
-      current.contents.addAll(update.contents);
-    }
-    return ChatResponse(
-      messages: messages,
-      conversationId: updates.lastOrNull?.conversationId,
-      finishReason: updates.lastOrNull?.finishReason,
-      continuationToken: updates.lastOrNull?.continuationToken,
-    );
   }
 }

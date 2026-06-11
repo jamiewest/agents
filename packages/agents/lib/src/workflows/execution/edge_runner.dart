@@ -1,16 +1,6 @@
-import '../portable_value.dart';
 import 'delivery_mapping.dart';
 import 'message_envelope.dart';
 import 'step_tracer.dart';
-
-/// Implemented by edge runners that persist state across supersteps.
-abstract interface class StatefulEdgeRunner {
-  /// Exports the runner's internal state as a [PortableValue].
-  PortableValue exportState();
-
-  /// Imports previously exported [state].
-  void importState(PortableValue state);
-}
 
 /// Base class for all workflow edge runners.
 ///

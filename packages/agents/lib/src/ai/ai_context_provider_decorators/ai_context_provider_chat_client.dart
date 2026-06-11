@@ -5,6 +5,7 @@ import '../../abstractions/agent_run_context.dart';
 import '../../abstractions/ai_agent.dart';
 import '../../abstractions/ai_context.dart';
 import '../../abstractions/ai_context_provider.dart';
+import '../chat_client/chat_response_update_extensions.dart';
 
 /// A delegating chat client that enriches input messages, tools, and
 /// instructions by invoking a pipeline of [AIContextProvider] instances before
@@ -92,7 +93,7 @@ class AIContextProviderChatClient extends DelegatingChatClient {
       rethrow;
     }
 
-    final chatResponse = _toChatResponse(responseUpdates);
+    final chatResponse = responseUpdates.toChatResponse();
     await notifyProvidersOfSuccess(
       runContext,
       enriched.messages,
@@ -209,51 +210,5 @@ class AIContextProviderChatClient extends DelegatingChatClient {
       );
     }
     return List<AIContextProvider>.of(providers);
-  }
-
-  static ChatResponse _toChatResponse(List<ChatResponseUpdate> updates) {
-    final response = ChatResponse();
-    ChatMessage? currentMessage;
-
-    for (final update in updates) {
-      if (_needsNewMessage(currentMessage, update)) {
-        currentMessage = ChatMessage(
-          role: update.role ?? ChatRole.assistant,
-          authorName: update.authorName,
-          contents: [],
-        );
-        currentMessage.messageId = update.messageId;
-        currentMessage.createdAt = update.createdAt;
-        currentMessage.rawRepresentation = update.rawRepresentation;
-        response.messages.add(currentMessage);
-      }
-
-      currentMessage!.contents.addAll(update.contents);
-
-      response.responseId = update.responseId ?? response.responseId;
-      response.conversationId =
-          update.conversationId ?? response.conversationId;
-      response.createdAt = response.createdAt ?? update.createdAt;
-      response.finishReason = update.finishReason ?? response.finishReason;
-      response.modelId = update.modelId ?? response.modelId;
-      response.usage = update.usage ?? response.usage;
-      response.continuationToken =
-          update.continuationToken ?? response.continuationToken;
-      response.rawRepresentation =
-          update.rawRepresentation ?? response.rawRepresentation;
-      response.additionalProperties =
-          update.additionalProperties ?? response.additionalProperties;
-    }
-
-    return response;
-  }
-
-  static bool _needsNewMessage(
-    ChatMessage? currentMessage,
-    ChatResponseUpdate update,
-  ) {
-    return currentMessage == null ||
-        currentMessage.role != (update.role ?? ChatRole.assistant) ||
-        currentMessage.authorName != update.authorName;
   }
 }

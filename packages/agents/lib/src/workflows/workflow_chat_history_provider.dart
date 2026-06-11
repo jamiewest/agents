@@ -3,7 +3,7 @@ import 'package:extensions/system.dart';
 
 import '../abstractions/agent_session.dart';
 import '../abstractions/chat_history_provider.dart';
-import '../abstractions/provider_session_state_t_state_.dart';
+import '../abstractions/provider_session_state.dart';
 
 /// A [ChatHistoryProvider] that persists chat messages in the agent session
 /// state bag and supports bookmark-based incremental retrieval.

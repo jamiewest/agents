@@ -25,7 +25,7 @@ export 'src/abstractions/agent_abstractions_json_utilities.dart';
 export 'src/abstractions/agent_request_message_source_attribution.dart';
 export 'src/abstractions/agent_request_message_source_type.dart';
 export 'src/abstractions/agent_response_extensions.dart';
-export 'src/abstractions/agent_response_t_.dart';
+export 'src/abstractions/agent_response_of.dart';
 export 'src/abstractions/agent_run_context.dart';
 export 'src/abstractions/agent_session_extensions.dart';
 export 'src/abstractions/agent_session_state_bag.dart';
@@ -44,7 +44,7 @@ export 'src/abstractions/delegating_ai_agent.dart';
 export 'src/abstractions/in_memory_chat_history_provider.dart';
 export 'src/abstractions/in_memory_chat_history_provider_options.dart';
 export 'src/abstractions/message_ai_context_provider.dart';
-export 'src/abstractions/provider_session_state_t_state_.dart';
+export 'src/abstractions/provider_session_state.dart';
 
 // AI — core
 export 'src/ai/agent_extensions.dart';

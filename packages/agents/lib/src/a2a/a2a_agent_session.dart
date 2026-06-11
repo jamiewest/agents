@@ -38,6 +38,7 @@ class A2AAgentSession extends AgentSession {
     'contextId': contextId,
     'taskId': taskId,
     'taskState': taskState?.name,
+    'stateBag': stateBag.serialize(),
   });
 
   /// Creates an [A2AAgentSession] from previously serialized JSON.
@@ -53,6 +54,7 @@ class A2AAgentSession extends AgentSession {
               (s) => s.name == stateValue,
               orElse: () => A2ATaskState.unknown,
             ),
+      stateBag: AgentSessionStateBag.deserialize(map['stateBag'] as String?),
     );
   }
 }

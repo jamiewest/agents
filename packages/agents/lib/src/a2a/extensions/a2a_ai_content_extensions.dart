@@ -48,14 +48,18 @@ AIContent _toAIContent(A2APart part) {
       final bytes = base64.decode(file.bytes);
       return DataContent(
         Uint8List.fromList(bytes),
-        mediaType: file.mimeType.isEmpty ? 'application/octet-stream' : file.mimeType,
+        mediaType: file.mimeType.isEmpty
+            ? 'application/octet-stream'
+            : file.mimeType,
         name: file.name.isEmpty ? null : file.name,
       );
     }
     if (file is A2AFileWithUri) {
       return UriContent(
         Uri.parse(file.uri),
-        mediaType: file.mimeType.isEmpty ? 'application/octet-stream' : file.mimeType,
+        mediaType: file.mimeType.isEmpty
+            ? 'application/octet-stream'
+            : file.mimeType,
       );
     }
   }

@@ -11,7 +11,7 @@ import '../../abstractions/agent_session.dart';
 import '../../abstractions/ai_context.dart';
 import '../../abstractions/ai_context_provider.dart';
 import '../../abstractions/message_ai_context_provider.dart';
-import '../../abstractions/provider_session_state_t_state_.dart';
+import '../../abstractions/provider_session_state.dart';
 import '../agent_json_utilities.dart';
 import 'chat_history_memory_provider_options.dart';
 import 'chat_history_memory_provider_scope.dart';

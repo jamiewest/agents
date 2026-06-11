@@ -4,12 +4,15 @@ import 'checkpoint_info.dart';
 import 'checkpoint_manager.dart';
 import 'checkpointing/checkpoint.dart';
 import 'checkpointing/checkpoint_manager_impl.dart';
+import 'edge_id.dart';
 import 'executor.dart';
 import 'execution/edge_map.dart';
+import 'execution/fan_in_edge_state.dart';
 import 'execution/message_delivery.dart';
 import 'execution/message_envelope.dart';
 import 'execution/runner_context.dart';
 import 'execution/super_step_runner.dart';
+import 'fan_in_edge_data.dart';
 import 'run.dart';
 import 'run_status.dart';
 import 'streaming_run.dart';
@@ -121,6 +124,7 @@ class InProcessExecutionEnvironment implements WorkflowExecutionEnvironment {
     final run = Run(sessionId: effectiveSessionId, status: RunStatus.running);
     try {
       final context = await _createRunnerContext(workflow);
+      _restoreFanInState(context, restored);
       final runner = SuperStepRunner(
         context,
         sessionId: effectiveSessionId,
@@ -164,6 +168,7 @@ class InProcessExecutionEnvironment implements WorkflowExecutionEnvironment {
     );
     try {
       final context = await _createRunnerContext(workflow);
+      _restoreFanInState(context, restored);
       final runner = SuperStepRunner(
         context,
         sessionId: effectiveSessionId,
@@ -200,6 +205,28 @@ class InProcessExecutionEnvironment implements WorkflowExecutionEnvironment {
       edgeMap: EdgeMap(workflow.reflectEdges()),
       outputExecutorIds: workflow.reflectOutputExecutors(),
     );
+  }
+
+  void _restoreFanInState(RunnerContext context, Checkpoint restored) {
+    context.state.fanInStates.clear();
+    for (final entry in restored.fanInState.entries) {
+      final edgeId = EdgeId(entry.key);
+      final edgeData = context.edgeMap.edges
+          .map((edge) => edge.data)
+          .whereType<FanInEdgeData>()
+          .where((data) => data.id == edgeId)
+          .firstOrNull;
+      if (edgeData == null) {
+        throw StateError(
+          'Checkpoint references fan-in edge "${entry.key}" which does not '
+          'exist in the workflow.',
+        );
+      }
+      context.state.fanInStates[edgeId] = FanInEdgeState.restore(
+        edgeData,
+        entry.value.map(MessageEnvelope.fromPortable),
+      );
+    }
   }
 
   Future<Checkpoint> _restoreCheckpoint(

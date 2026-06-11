@@ -4,7 +4,7 @@ import 'package:extensions/system.dart';
 import '../../../abstractions/agent_session.dart';
 import '../../../abstractions/ai_context.dart';
 import '../../../abstractions/ai_context_provider.dart';
-import '../../../abstractions/provider_session_state_t_state_.dart';
+import '../../../abstractions/provider_session_state.dart';
 import '../../agent_json_utilities.dart';
 import 'agent_mode_provider_options.dart';
 import 'agent_mode_state.dart';

@@ -1,4 +1,5 @@
 import '../fan_in_edge_data.dart';
+import 'fan_in_edge_state.dart';
 import 'message_envelope.dart';
 import 'runner_state_data.dart';
 
@@ -11,6 +12,11 @@ class FanInEdgeRunner {
   final FanInEdgeData edgeData;
 
   /// Records [message] from [sourceExecutorId] and routes once complete.
+  ///
+  /// Buffered messages persist in [state] until every source has
+  /// contributed at least once; the released envelope carries a
+  /// `List<Object?>` of all buffered payloads ordered by source (in
+  /// [FanInEdgeData.sourceExecutorIds] order), then arrival.
   MessageEnvelope? tryRoute(
     String sourceExecutorId,
     Object? message,
@@ -19,18 +25,26 @@ class FanInEdgeRunner {
     if (!edgeData.sourceExecutorIds.contains(sourceExecutorId)) {
       return null;
     }
-    final sourceMessages = state.fanInMessages.putIfAbsent(
+    final edgeState = state.fanInStates.putIfAbsent(
       edgeData.id,
-      () => <String, Object?>{},
+      () => FanInEdgeState(edgeData),
     );
-    sourceMessages[sourceExecutorId] = message;
-    if (sourceMessages.length < edgeData.sourceExecutorIds.length) {
+    final grouped = edgeState.processMessage(
+      sourceExecutorId,
+      MessageEnvelope(
+        sourceExecutorId: sourceExecutorId,
+        targetExecutorId: edgeData.targetExecutorId,
+        message: message,
+      ),
+    );
+    if (grouped == null) {
       return null;
     }
     final values = <Object?>[
-      for (final source in edgeData.sourceExecutorIds) sourceMessages[source],
+      for (final source in edgeData.sourceExecutorIds)
+        for (final envelope in grouped[source] ?? const <MessageEnvelope>[])
+          envelope.message,
     ];
-    sourceMessages.clear();
     return MessageEnvelope(
       sourceExecutorId: sourceExecutorId,
       targetExecutorId: edgeData.targetExecutorId,

@@ -1,7 +1,7 @@
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
-import 'agent_response_t_.dart';
+import 'agent_response_of.dart';
 import 'agent_run_options.dart';
 import 'agent_session.dart';
 import 'ai_agent.dart';

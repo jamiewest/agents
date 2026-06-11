@@ -13,6 +13,7 @@ class Checkpoint {
     this.payload,
     Iterable<PortableMessageEnvelope> pendingMessages =
         const <PortableMessageEnvelope>[],
+    this.fanInState = const <String, List<PortableMessageEnvelope>>{},
     this.properties = const <String, Object?>{},
   }) : pendingMessages = List<PortableMessageEnvelope>.unmodifiable(
          pendingMessages,
@@ -36,6 +37,13 @@ class Checkpoint {
   /// Gets pending portable messages.
   final List<PortableMessageEnvelope> pendingMessages;
 
+  /// Gets buffered fan-in envelopes keyed by edge identifier.
+  ///
+  /// Captures messages held by partially satisfied fan-in edges so a
+  /// restored run keeps waiting only for the sources that have not yet
+  /// contributed.
+  final Map<String, List<PortableMessageEnvelope>> fanInState;
+
   /// Gets additional checkpoint properties.
   final Map<String, Object?> properties;
 
@@ -49,6 +57,13 @@ class Checkpoint {
     'pendingMessages': pendingMessages
         .map((message) => message.toJson())
         .toList(),
+    if (fanInState.isNotEmpty)
+      'fanInState': fanInState.map(
+        (edgeId, envelopes) => MapEntry(
+          edgeId,
+          envelopes.map((envelope) => envelope.toJson()).toList(),
+        ),
+      ),
     'properties': properties,
   };
 
@@ -70,6 +85,21 @@ class Checkpoint {
         .map(
           (value) =>
               PortableMessageEnvelope.fromJson(value.cast<String, Object?>()),
+        ),
+    fanInState: (json['fanInState'] as Map? ?? const <Object?, Object?>{})
+        .cast<String, Object?>()
+        .map(
+          (edgeId, envelopes) => MapEntry(
+            edgeId,
+            (envelopes as List)
+                .cast<Map>()
+                .map(
+                  (value) => PortableMessageEnvelope.fromJson(
+                    value.cast<String, Object?>(),
+                  ),
+                )
+                .toList(),
+          ),
         ),
     properties: (json['properties'] as Map? ?? const <Object?, Object?>{})
         .cast<String, Object?>(),

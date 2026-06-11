@@ -225,6 +225,12 @@ final class InProcessRunner implements SuperStepRunnable {
       pendingMessages: exported.queuedMessages.values
           .expand((envelopes) => envelopes)
           .map((e) => e.toPortable()),
+      fanInState: {
+        for (final entry in exported.fanInState.entries)
+          entry.key.value: entry.value
+              .map((envelope) => envelope.toPortable())
+              .toList(),
+      },
     );
     final info = await manager.saveCheckpointAsync(checkpoint);
     _context.stepTracer.traceCheckpointCreated(info);

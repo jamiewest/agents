@@ -16,8 +16,13 @@ extension A2AClientExtensions on A2AClient {
     String? name,
     String? description,
     LoggerFactory? loggerFactory,
-  }) => A2AAgent(this, id: id, name: name, description: description,
-          loggerFactory: loggerFactory);
+  }) => A2AAgent(
+    this,
+    id: id,
+    name: name,
+    description: description,
+    loggerFactory: loggerFactory,
+  );
 
   /// Creates an [A2AAgent] backed by this client using explicit options.
   A2AAgent asAIAgentWithOptions(

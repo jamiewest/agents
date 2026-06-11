@@ -5,7 +5,7 @@ import 'package:extensions/system.dart';
 import '../abstractions/ai_context.dart';
 import '../abstractions/ai_context_provider.dart';
 import '../abstractions/message_ai_context_provider.dart';
-import '../abstractions/provider_session_state_t_state_.dart';
+import '../abstractions/provider_session_state.dart';
 import 'agent_json_utilities.dart';
 import 'memory/chat_history_memory_provider_options.dart';
 import 'text_search_provider_options.dart';

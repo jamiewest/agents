@@ -4,6 +4,7 @@ import '../checkpoint_info.dart';
 import '../checkpoint_manager.dart';
 import '../checkpointing/checkpoint.dart';
 import '../checkpointing/checkpoint_manager_impl.dart';
+import '../edge_id.dart';
 import '../execution/concurrent_event_sink.dart';
 import '../execution/message_envelope.dart';
 import '../run.dart';
@@ -222,11 +223,18 @@ class InProcExecutionEnvironment implements WorkflowExecutionEnvironment {
       final envelope = MessageEnvelope.fromPortable(portable);
       (queuedMessages[envelope.targetExecutorId] ??= []).add(envelope);
     }
+    final fanInState = <EdgeId, List<MessageEnvelope>>{
+      for (final entry in checkpoint.fanInState.entries)
+        EdgeId(entry.key): entry.value
+            .map(MessageEnvelope.fromPortable)
+            .toList(),
+    };
     runner.context.stepTracer.reload(checkpoint.superStep);
     await runner.context.importStateAsync(
       instantiatedExecutors: const [],
       queuedMessages: queuedMessages,
       outstandingRequests: const [],
+      fanInState: fanInState,
       cancellationToken: token,
     );
   }

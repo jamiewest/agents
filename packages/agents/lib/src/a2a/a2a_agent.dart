@@ -51,9 +51,9 @@ final class A2AAgent extends AIAgent {
     LoggerFactory? loggerFactory,
   }) : _a2aClient = client,
        _agentOptions = options.clone(),
-       _logger =
-           (loggerFactory ?? NullLoggerFactory.instance)
-               .createLogger('A2AAgent');
+       _logger = (loggerFactory ?? NullLoggerFactory.instance).createLogger(
+         'A2AAgent',
+       );
 
   @override
   String? get name => _agentOptions.name;
@@ -141,8 +141,12 @@ final class A2AAgent extends AIAgent {
       if (taskResponse is A2AGetTaskSuccessResponse) {
         final task = taskResponse.result;
         if (task != null) {
-          _updateSession(typedSession, task.contextId, task.id,
-              task.status?.state);
+          _updateSession(
+            typedSession,
+            task.contextId,
+            task.id,
+            task.status?.state,
+          );
           return _taskToAgentResponse(task);
         }
       }
@@ -171,8 +175,12 @@ final class A2AAgent extends AIAgent {
         return _messageToAgentResponse(result);
       }
       if (result is A2ATask) {
-        _updateSession(typedSession, result.contextId, result.id,
-            result.status?.state);
+        _updateSession(
+          typedSession,
+          result.contextId,
+          result.id,
+          result.status?.state,
+        );
         return _taskToAgentResponse(result);
       }
     }
@@ -374,36 +382,35 @@ final class A2AAgent extends AIAgent {
 
   // ── Response converters ──────────────────────────────────────────────────
 
-  AgentResponse _messageToAgentResponse(A2AMessage message) => AgentResponse(
-    messages: [message.toChatMessage()],
-  )
-    ..agentId = id
-    ..responseId = message.messageId
-    ..finishReason = ChatFinishReason.stop
-    ..rawRepresentation = message
-    ..additionalProperties = message.metadata != null
-        ? Map<String, Object?>.from(message.metadata!)
-        : null;
+  AgentResponse _messageToAgentResponse(A2AMessage message) =>
+      AgentResponse(messages: [message.toChatMessage()])
+        ..agentId = id
+        ..responseId = message.messageId
+        ..finishReason = ChatFinishReason.stop
+        ..rawRepresentation = message
+        ..additionalProperties = message.metadata != null
+            ? Map<String, Object?>.from(message.metadata!)
+            : null;
 
-  AgentResponse _taskToAgentResponse(A2ATask task) => AgentResponse(
-    messages: task.toChatMessages() ?? [],
-  )
-    ..agentId = id
-    ..responseId = task.id
-    ..finishReason = _mapTaskStateToFinishReason(task.status?.state)
-    ..rawRepresentation = task
-    ..continuationToken = _createContinuationToken(task.id, task.status?.state)
-    ..additionalProperties = task.metadata != null
-        ? Map<String, Object?>.from(task.metadata!)
-        : null;
+  AgentResponse _taskToAgentResponse(A2ATask task) =>
+      AgentResponse(messages: task.toChatMessages() ?? [])
+        ..agentId = id
+        ..responseId = task.id
+        ..finishReason = _mapTaskStateToFinishReason(task.status?.state)
+        ..rawRepresentation = task
+        ..continuationToken = _createContinuationToken(
+          task.id,
+          task.status?.state,
+        )
+        ..additionalProperties = task.metadata != null
+            ? Map<String, Object?>.from(task.metadata!)
+            : null;
 
   AgentResponseUpdate _messageToAgentResponseUpdate(A2AMessage message) =>
       AgentResponseUpdate(
-        role: message.role == 'user' ? ChatRole.user : ChatRole.assistant,
-        contents: (message.parts ?? [])
-            .map((p) => p.toAIContent())
-            .toList(),
-      )
+          role: message.role == 'user' ? ChatRole.user : ChatRole.assistant,
+          contents: (message.parts ?? []).map((p) => p.toAIContent()).toList(),
+        )
         ..agentId = id
         ..responseId = message.messageId
         ..messageId = message.messageId
@@ -415,14 +422,17 @@ final class A2AAgent extends AIAgent {
 
   AgentResponseUpdate _taskToAgentResponseUpdate(A2ATask task) =>
       AgentResponseUpdate(
-        role: ChatRole.assistant,
-        contents: task.toAIContents(),
-      )
+          role: ChatRole.assistant,
+          contents: task.toAIContents(),
+        )
         ..agentId = id
         ..responseId = task.id
         ..finishReason = _mapTaskStateToFinishReason(task.status?.state)
         ..rawRepresentation = task
-        ..continuationToken = _createContinuationToken(task.id, task.status?.state)
+        ..continuationToken = _createContinuationToken(
+          task.id,
+          task.status?.state,
+        )
         ..additionalProperties = task.metadata != null
             ? Map<String, Object?>.from(task.metadata!)
             : null;
@@ -431,9 +441,9 @@ final class A2AAgent extends AIAgent {
     A2ATaskStatusUpdateEvent event,
   ) =>
       AgentResponseUpdate(
-        role: ChatRole.assistant,
-        contents: event.status?.getUserInputRequests() ?? [],
-      )
+          role: ChatRole.assistant,
+          contents: event.status?.getUserInputRequests() ?? [],
+        )
         ..agentId = id
         ..responseId = event.taskId
         ..messageId = event.status?.message?.messageId
@@ -447,9 +457,9 @@ final class A2AAgent extends AIAgent {
     A2ATaskArtifactUpdateEvent event,
   ) =>
       AgentResponseUpdate(
-        role: ChatRole.assistant,
-        contents: event.artifact?.toAIContents() ?? [],
-      )
+          role: ChatRole.assistant,
+          contents: event.artifact?.toAIContents() ?? [],
+        )
         ..agentId = id
         ..responseId = event.taskId
         ..rawRepresentation = event

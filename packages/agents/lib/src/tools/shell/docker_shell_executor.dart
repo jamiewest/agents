@@ -9,6 +9,7 @@ import 'package:extensions/system.dart';
 import 'container_user.dart';
 import 'docker_shell_executor_options.dart';
 import 'head_tail_buffer.dart';
+import 'process_exit.dart';
 import 'shell_executor.dart';
 import 'shell_family.dart';
 import 'shell_mode.dart';
@@ -256,33 +257,10 @@ class DockerShellExecutor extends ShellExecutor {
         .transform(const LineSplitter())
         .forEach(stderrBuf.appendLine);
 
-    bool timedOut = false;
-    int exitCode;
-
-    if (_options.timeout != null) {
-      Timer? timer;
-      final completer = Completer<int>();
-      timer = Timer(_options.timeout!, () {
-        if (!completer.isCompleted) {
-          timedOut = true;
-          try {
-            process.kill();
-          } catch (_) {}
-        }
-      });
-      process.exitCode.then((code) {
-        timer?.cancel();
-        if (!completer.isCompleted) completer.complete(code);
-      });
-      exitCode = await completer.future;
-    } else {
-      exitCode = await process.exitCode;
-    }
+    final exit = await waitForProcessExit(process, timeout: _options.timeout);
 
     await Future.wait([stdoutDone, stderrDone]);
     stopwatch.stop();
-
-    if (timedOut) exitCode = 124;
 
     final (stdout, stdoutTruncated) = stdoutBuf.toFinalString();
     final (stderr, stderrTruncated) = stderrBuf.toFinalString();
@@ -290,10 +268,10 @@ class DockerShellExecutor extends ShellExecutor {
     return ShellResult(
       stdout: stdout,
       stderr: stderr,
-      exitCode: exitCode,
+      exitCode: exit.timedOut ? 124 : exit.exitCode,
       duration: stopwatch.elapsed,
       truncated: stdoutTruncated || stderrTruncated,
-      timedOut: timedOut,
+      timedOut: exit.timedOut,
     );
   }
 

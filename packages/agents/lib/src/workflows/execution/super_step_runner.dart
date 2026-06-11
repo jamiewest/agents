@@ -176,6 +176,13 @@ class SuperStepRunner {
       superStep: stepNumber,
       workflow: WorkflowInfo.fromWorkflow(context.workflow),
       pendingMessages: pendingMessages.map((message) => message.toPortable()),
+      fanInState: {
+        for (final entry in context.state.fanInStates.entries)
+          if (entry.value.pending.isNotEmpty)
+            entry.key.value: entry.value.pending
+                .map((envelope) => envelope.toPortable())
+                .toList(),
+      },
     );
     lastCheckpoint = await manager.saveCheckpointAsync(checkpoint);
   }

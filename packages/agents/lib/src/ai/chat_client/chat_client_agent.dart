@@ -18,6 +18,7 @@ import 'chat_client_agent_log_messages.dart';
 import 'chat_client_agent_options.dart';
 import 'chat_client_agent_run_options.dart';
 import 'chat_client_agent_session.dart';
+import 'chat_response_update_extensions.dart';
 import 'per_service_call_chat_history_persisting_chat_client.dart';
 
 /// Provides an [AIAgent] that delegates to a [ChatClient] implementation.
@@ -301,7 +302,7 @@ final class ChatClientAgent extends AIAgent {
         rethrow;
       }
 
-      final chatResponse = _buildChatResponse(responseUpdates);
+      final chatResponse = responseUpdates.toChatResponse();
       final forceEndOfRunPersistence =
           continuationToken != null ||
           chatOpts?.allowBackgroundResponses == true;
@@ -837,34 +838,6 @@ final class ChatClientAgent extends AIAgent {
 
   bool get _requiresPerServiceCallChatHistoryPersistence =>
       _agentOptions?.requirePerServiceCallChatHistoryPersistence == true;
-
-  static ChatResponse _buildChatResponse(List<ChatResponseUpdate> updates) {
-    final messages = <ChatMessage>[];
-    ChatMessage? current;
-
-    for (final update in updates) {
-      final needsNew =
-          current == null ||
-          current.role != (update.role ?? ChatRole.assistant) ||
-          current.authorName != update.authorName;
-      if (needsNew) {
-        current = ChatMessage(
-          role: update.role ?? ChatRole.assistant,
-          authorName: update.authorName,
-          contents: [],
-        );
-        messages.add(current);
-      }
-      current.contents.addAll(update.contents);
-    }
-
-    return ChatResponse(
-      messages: messages,
-      conversationId: updates.lastOrNull?.conversationId,
-      finishReason: updates.lastOrNull?.finishReason,
-      continuationToken: updates.lastOrNull?.continuationToken,
-    );
-  }
 
   void _warnOnMissingPerServiceCallChatHistoryPersistingChatClient() {
     if (_agentOptions?.useProvidedChatClientAsIs != true) return;

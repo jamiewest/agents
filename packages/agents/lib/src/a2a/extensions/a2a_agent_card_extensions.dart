@@ -13,9 +13,7 @@ extension A2AAgentCardExtensions on A2AAgentCard {
   /// Supports the
   /// [Curated Registries (Catalog-Based Discovery)](https://github.com/a2aproject/A2A/blob/main/docs/topics/agent-discovery.md#2-curated-registries-catalog-based-discovery)
   /// mechanism.
-  AIAgent asAIAgent({
-    LoggerFactory? loggerFactory,
-  }) {
+  AIAgent asAIAgent({LoggerFactory? loggerFactory}) {
     final client = A2AClient(url);
     return client.asAIAgentWithOptions(
       A2AAgentOptions(name: name, description: description),

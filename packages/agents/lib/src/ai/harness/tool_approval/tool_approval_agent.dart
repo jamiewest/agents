@@ -7,7 +7,7 @@ import '../../../abstractions/agent_run_options.dart';
 import '../../../abstractions/agent_session.dart';
 import '../../../abstractions/ai_agent.dart';
 import '../../../abstractions/delegating_ai_agent.dart';
-import '../../../abstractions/provider_session_state_t_state_.dart';
+import '../../../abstractions/provider_session_state.dart';
 import '../../../json_stubs.dart';
 import '../../agent_json_utilities.dart';
 import 'always_approve_tool_approval_response_content.dart';

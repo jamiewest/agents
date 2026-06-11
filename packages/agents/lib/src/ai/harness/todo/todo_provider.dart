@@ -7,7 +7,7 @@ import 'package:pool/pool.dart';
 import '../../../abstractions/agent_session.dart';
 import '../../../abstractions/ai_context.dart';
 import '../../../abstractions/ai_context_provider.dart';
-import '../../../abstractions/provider_session_state_t_state_.dart';
+import '../../../abstractions/provider_session_state.dart';
 import '../../agent_json_utilities.dart';
 import 'todo_complete_input.dart';
 import 'todo_item.dart';

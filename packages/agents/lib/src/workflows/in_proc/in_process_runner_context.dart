@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:extensions/system.dart';
 
+import '../edge_id.dart';
 import '../execution/concurrent_event_sink.dart';
 import '../execution/edge_map.dart';
+import '../execution/fan_in_edge_state.dart';
 import '../execution/message_envelope.dart';
 import '../execution/output_filter.dart';
 import '../execution/runner_state_data.dart';
@@ -15,6 +17,7 @@ import '../executor.dart';
 import '../executor_binding.dart';
 import '../external_request.dart';
 import '../external_response.dart';
+import '../fan_in_edge_data.dart';
 import '../message_router.dart';
 import '../request_info_event.dart';
 import '../request_port.dart';
@@ -349,6 +352,7 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
     List<String> instantiatedExecutors,
     Map<String, List<MessageEnvelope>> queuedMessages,
     List<ExternalRequest<dynamic, dynamic>> outstandingRequests,
+    Map<EdgeId, List<MessageEnvelope>> fanInState,
   })
   exportState() {
     _checkEnded();
@@ -356,6 +360,10 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
       instantiatedExecutors: List<String>.of(_executors.keys),
       queuedMessages: Map<String, List<MessageEnvelope>>.of(_nextStep),
       outstandingRequests: List.of(_externalRequests.values),
+      fanInState: {
+        for (final entry in _edgeRouter.state.fanInStates.entries)
+          if (entry.value.pending.isNotEmpty) entry.key: entry.value.pending,
+      },
     );
   }
 
@@ -364,6 +372,7 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
     required List<String> instantiatedExecutors,
     required Map<String, List<MessageEnvelope>> queuedMessages,
     required List<ExternalRequest<dynamic, dynamic>> outstandingRequests,
+    Map<EdgeId, List<MessageEnvelope>> fanInState = const {},
     CancellationToken? cancellationToken,
   }) async {
     _checkEnded();
@@ -374,6 +383,24 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
     _externalRequests.clear();
     for (final req in outstandingRequests) {
       _externalRequests[req.requestId] = req;
+    }
+    _edgeRouter.state.fanInStates.clear();
+    for (final entry in fanInState.entries) {
+      final edgeData = _edgeRouter.edgeMap.edges
+          .map((edge) => edge.data)
+          .whereType<FanInEdgeData>()
+          .where((data) => data.id == entry.key)
+          .firstOrNull;
+      if (edgeData == null) {
+        throw StateError(
+          'Checkpoint references fan-in edge "${entry.key}" which does not '
+          'exist in the workflow.',
+        );
+      }
+      _edgeRouter.state.fanInStates[entry.key] = FanInEdgeState.restore(
+        edgeData,
+        entry.value,
+      );
     }
     for (final id in instantiatedExecutors) {
       if (!_executors.containsKey(id)) {
