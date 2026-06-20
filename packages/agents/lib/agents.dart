@@ -148,6 +148,20 @@ export 'src/ai/harness/todo/todo_provider.dart';
 export 'src/ai/harness/todo/todo_provider_options.dart';
 export 'src/ai/harness/todo/todo_state.dart';
 
+// AI — harness / loop
+export 'src/ai/harness/loop/ai_judge_loop_evaluator.dart';
+export 'src/ai/harness/loop/ai_judge_loop_evaluator_options.dart';
+export 'src/ai/harness/loop/completion_marker_loop_evaluator.dart';
+export 'src/ai/harness/loop/completion_marker_loop_evaluator_options.dart';
+export 'src/ai/harness/loop/delegate_loop_evaluator.dart';
+export 'src/ai/harness/loop/loop_agent.dart';
+export 'src/ai/harness/loop/loop_agent_options.dart';
+export 'src/ai/harness/loop/loop_context.dart';
+export 'src/ai/harness/loop/loop_evaluation.dart';
+export 'src/ai/harness/loop/loop_evaluator.dart';
+export 'src/ai/harness/loop/todo_completion_loop_evaluator.dart';
+export 'src/ai/harness/loop/todo_completion_loop_evaluator_options.dart';
+
 // AI — harness / tool approval
 export 'src/ai/harness/tool_approval/always_approve_tool_approval_response_content.dart';
 export 'src/ai/harness/tool_approval/tool_approval_agent.dart';
@@ -265,6 +279,10 @@ export 'src/workflows/handoff_tool_call_filtering_behavior.dart';
 export 'src/workflows/handoff_workflow_builder.dart';
 export 'src/workflows/identified.dart';
 export 'src/workflows/in_process_execution.dart';
+export 'src/workflows/magentic_plan_review_request.dart';
+export 'src/workflows/magentic_plan_review_response.dart';
+export 'src/workflows/magentic_progress_ledger.dart';
+export 'src/workflows/magentic_workflow_builder.dart';
 export 'src/workflows/message_merger.dart';
 export 'src/workflows/message_router.dart';
 export 'src/workflows/open_telemetry_workflow_builder_extensions.dart';
@@ -423,6 +441,13 @@ export 'src/workflows/specialized/handoff_agent_executor.dart';
 export 'src/workflows/specialized/handoff_end_executor.dart';
 export 'src/workflows/specialized/handoff_messages_filter.dart';
 export 'src/workflows/specialized/handoff_start_executor.dart';
+export 'src/workflows/specialized/magentic/magentic_orchestrator.dart'
+    show
+        MagenticOrchestrator,
+        MagenticOrchestratorEvent,
+        MagenticPlanCreatedEvent,
+        MagenticReplannedEvent,
+        MagenticProgressLedgerUpdatedEvent;
 export 'src/workflows/specialized/handoff_state.dart';
 export 'src/workflows/specialized/handoff_target.dart';
 export 'src/workflows/specialized/multi_party_conversation.dart';
