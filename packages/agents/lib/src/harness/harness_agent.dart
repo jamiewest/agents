@@ -99,6 +99,8 @@ You are a helpful AI assistant that uses tools to complete tasks.
     final compactionStrategy = ContextWindowCompactionStrategy(
       maxContextWindowTokens,
       maxOutputTokens,
+      summarizationChatClient: options?.summarizationChatClient ?? chatClient,
+      enableSummarization: options?.enableSummarizationCompaction ?? false,
     );
     final chatHistoryProvider =
         options?.chatHistoryProvider ??

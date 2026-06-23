@@ -37,6 +37,8 @@ class HarnessAgentOptions {
     this.openTelemetrySourceName,
     this.backgroundAgents,
     this.backgroundAgentsProviderOptions,
+    this.summarizationChatClient,
+    this.enableSummarizationCompaction = false,
     this.shellExecutor,
     this.shellEnvironmentProviderOptions,
   });
@@ -112,6 +114,14 @@ class HarnessAgentOptions {
 
   /// Optional configuration for the background agents context provider.
   BackgroundAgentsProviderOptions? backgroundAgentsProviderOptions;
+
+  /// Chat client used for compaction summarization when summarization is
+  /// enabled. Defaults to the primary agent client.
+  ChatClient? summarizationChatClient;
+
+  /// When `true`, compaction may summarize old chat history before falling
+  /// back to truncation. Defaults off to preserve existing behavior.
+  bool enableSummarizationCompaction;
 
   /// Shell executor used to enable shell tools and environment context.
   ShellExecutor? shellExecutor;

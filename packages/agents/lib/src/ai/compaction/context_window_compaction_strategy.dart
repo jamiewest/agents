@@ -1,3 +1,4 @@
+import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
 import 'package:extensions/system.dart';
 
@@ -5,6 +6,7 @@ import 'compaction_message_index.dart';
 import 'compaction_strategy.dart';
 import 'compaction_triggers.dart';
 import 'pipeline_compaction_strategy.dart';
+import 'summarization_compaction_strategy.dart';
 import 'tool_result_compaction_strategy.dart';
 import 'truncation_compaction_strategy.dart';
 
@@ -17,6 +19,8 @@ class ContextWindowCompactionStrategy extends CompactionStrategy {
     this.maxOutputTokens, {
     double? toolEvictionThreshold,
     double? truncationThreshold,
+    ChatClient? summarizationChatClient,
+    bool enableSummarization = false,
   }) : toolEvictionThreshold =
            toolEvictionThreshold ?? defaultToolEvictionThreshold,
        truncationThreshold = truncationThreshold ?? defaultTruncationThreshold,
@@ -61,6 +65,12 @@ class ContextWindowCompactionStrategy extends CompactionStrategy {
         CompactionTriggers.tokensExceed(toolEvictionTokens),
         minimumPreservedGroups: 2,
       ),
+      if (enableSummarization && summarizationChatClient != null)
+        SummarizationCompactionStrategy(
+          summarizationChatClient,
+          CompactionTriggers.tokensExceed(truncationTokens),
+          target: CompactionTriggers.tokensBelow(toolEvictionTokens),
+        ),
       TruncationCompactionStrategy(
         CompactionTriggers.tokensExceed(truncationTokens),
         minimumPreservedGroups: 2,

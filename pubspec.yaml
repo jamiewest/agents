@@ -6,4 +6,4 @@ environment:
 
 workspace:
   - packages/agents
-  - packages/agents_genkit
+  - packages/agents_flutter

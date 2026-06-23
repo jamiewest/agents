@@ -15,6 +15,7 @@ import 'package:agents/src/ai/compaction/compaction_message_group.dart';
 import 'package:agents/src/ai/compaction/compaction_message_index.dart';
 import 'package:agents/src/ai/compaction/compaction_provider.dart';
 import 'package:agents/src/ai/compaction/compaction_triggers.dart';
+import 'package:agents/src/ai/compaction/context_window_compaction_strategy.dart';
 import 'package:agents/src/ai/compaction/sliding_window_compaction_strategy.dart';
 import 'package:agents/src/ai/compaction/summarization_compaction_strategy.dart';
 import 'package:agents/src/ai/compaction/tool_result_compaction_strategy.dart';
@@ -212,6 +213,53 @@ void main() {
         'answer 2',
       ]);
     });
+
+    test('context window summarization uses supplied utility client', () async {
+      final index = CompactionMessageIndex.create(_longConversation());
+      final utilityClient = _SummaryChatClient('utility summary');
+      final strategy = ContextWindowCompactionStrategy(
+        120,
+        20,
+        truncationThreshold: 0.6,
+        toolEvictionThreshold: 0.5,
+        summarizationChatClient: utilityClient,
+        enableSummarization: true,
+      );
+
+      final compacted = await strategy.compact(index);
+
+      expect(compacted, isTrue);
+      expect(utilityClient.capturedMessages, isNotEmpty);
+      expect(
+        index.groups.any(
+          (group) =>
+              group.kind == CompactionGroupKind.summary &&
+              group.messages.single.text == '[Summary]\nutility summary',
+        ),
+        isTrue,
+      );
+    });
+
+    test('context window does not summarize unless enabled', () async {
+      final index = CompactionMessageIndex.create(_longConversation());
+      final utilityClient = _SummaryChatClient('utility summary');
+      final strategy = ContextWindowCompactionStrategy(
+        120,
+        20,
+        truncationThreshold: 0.6,
+        toolEvictionThreshold: 0.5,
+        summarizationChatClient: utilityClient,
+      );
+
+      final compacted = await strategy.compact(index);
+
+      expect(compacted, isTrue);
+      expect(utilityClient.capturedMessages, isEmpty);
+      expect(
+        index.groups.any((group) => group.kind == CompactionGroupKind.summary),
+        isFalse,
+      );
+    });
   });
 
   group('CompactionProvider', () {
@@ -268,6 +316,20 @@ List<ChatMessage> _plainConversation() => [
   ChatMessage.fromText(ChatRole.assistant, 'answer 1'),
   ChatMessage.fromText(ChatRole.user, 'question 2'),
   ChatMessage.fromText(ChatRole.assistant, 'answer 2'),
+];
+
+List<ChatMessage> _longConversation() => [
+  ChatMessage.fromText(ChatRole.system, 'system'),
+  for (var i = 0; i < 12; i++) ...[
+    ChatMessage.fromText(
+      ChatRole.user,
+      'question $i ${List.filled(8, 'long user text').join(' ')}',
+    ),
+    ChatMessage.fromText(
+      ChatRole.assistant,
+      'answer $i ${List.filled(8, 'long assistant text').join(' ')}',
+    ),
+  ],
 ];
 
 List<ChatMessage> _messagesWithToolCall() => [

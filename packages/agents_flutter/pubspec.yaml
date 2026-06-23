@@ -5,6 +5,7 @@ description: >-
   the AIContextProvider interface.
 version: 0.0.1
 homepage:
+resolution: workspace
 
 environment:
   sdk: ^3.12.0
@@ -15,7 +16,8 @@ dependencies:
   background_downloader: ^9.5.5
   clock: ^1.1.2
   connectivity_plus: ^7.1.1
-  extensions: ^0.3.27
+  extensions: ^0.3.28
+  extensions_flutter: ^0.4.2
   flutter:
     sdk: flutter
   flutter_timezone: ^5.1.0

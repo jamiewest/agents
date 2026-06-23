@@ -1,7 +1,23 @@
 # Changelog
 
-## 1.3.0
+## 1.4.0
 
+- Add loop agents under `harness/loop/`: `LoopAgent` and `LoopAgentOptions`
+  run an inner agent repeatedly until an evaluator signals completion, with
+  pluggable `LoopEvaluator` strategies — `AIJudgeLoopEvaluator`,
+  `CompletionMarkerLoopEvaluator`, `TodoCompletionLoopEvaluator`, and
+  `DelegateLoopEvaluator` — plus `LoopContext`, `LoopEvaluation`, and
+  `JudgeVerdict` support types.
+- Add Magentic multi-agent orchestration to the workflows engine:
+  `MagenticWorkflowBuilder`, `MagenticOrchestrator`, the plan-review
+  request/response messages, and the progress ledger (ports the upstream
+  Magentic manager/orchestrator pattern).
+- Add OpenAI-compatible hosting under `hosting/open_ai/`: shelf-based
+  routers and handlers for the Chat Completions, Conversations, and
+  Responses APIs, backed by in-memory storage, exposed through
+  `open_ai_hosting_service_collection_extensions`.
+- Add `shelf: ^1.4.0` and `shelf_router: ^1.1.0` dependencies for the
+  OpenAI hosting routers.
 - Fix fan-in edges losing buffered messages across checkpoint/resume: pending
   fan-in contributions are now captured in `Checkpoint.fanInState` and
   restored on resume (both the in-proc and legacy execution engines). Old
