@@ -13,6 +13,43 @@ signal on demand.
 | Connectivity | `ConnectivityContextProvider` — injects an offline marker when the device has no network | `get_connectivity` — current connection type(s) |
 | Wake lock | — | `set_wake_lock` — enable or disable automatic screen sleep |
 
+Also available: `get_app_info`, the `DeviceContextProvider` + `get_device_info`,
+the `LocationContextProvider` + `get_current_location`/`geocode_address`, and the
+`NetworkContextProvider` + `get_current_network_info`.
+
+## Flutter harness agent
+
+`FlutterHarnessAgent` is the one-call way to get a full
+[`HarnessAgent`](../agents) — compaction, function invocation, per-call chat
+history persistence — preconfigured with the Flutter capabilities. Safe-core
+capabilities (temporal, connectivity, app info, device info) are on by default;
+location, detailed network info, and the wake-lock tool are opt-in.
+
+Directly from a `ChatClient`:
+
+```dart
+final agent = chatClient.asFlutterHarnessAgent(
+  1050000, // model context-window tokens
+  128000,  // model per-response output tokens
+  options: FlutterHarnessAgentOptions()..enableLocation = true,
+);
+```
+
+Or via dependency injection, registering the device/app info background services
+and an `AIAgent` resolvable from the provider:
+
+```dart
+services.addFlutter((flutter) => flutter.useFlutterHarnessAgent(
+  configure: (options) => options.enableNetworkInfo = true,
+));
+```
+
+`ServiceCollection.addFlutterHarness(...)` and
+`HostApplicationBuilder.addFlutterHarness(...)` are the same registration without
+the `FlutterBuilder` wrapper. The direct path populates the device and app info
+caches in the background; the DI path uses `DeviceInfoHostedService` and
+`PackageInfoHostedService` instead.
+
 ## Registration
 
 Via dependency injection:

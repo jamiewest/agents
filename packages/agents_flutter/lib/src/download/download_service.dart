@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:background_downloader/background_downloader.dart';
-import 'package:extensions/system.dart';
+import 'package:extensions/system.dart' show Disposable;
 
 import 'download_request.dart';
 import 'download_update.dart';
@@ -26,6 +26,106 @@ DownloadTask buildDownloadTask(DownloadRequest request) => DownloadTask(
   metaData: request.metaData ?? '',
 );
 
+/// Minimal download backend used by [DownloadService].
+abstract interface class DownloadBackend {
+  /// A stream of plugin task updates.
+  Stream<TaskUpdate> get updates;
+
+  /// Activates the backend's task tracking and resume behavior.
+  Future<void> start();
+
+  /// Downloads [task] and completes with its final plugin status update.
+  Future<TaskStatusUpdate> download(
+    DownloadTask task, {
+    void Function(TaskStatus)? onStatus,
+    void Function(double)? onProgress,
+  });
+
+  /// Enqueues [task] for background download.
+  Future<bool> enqueue(DownloadTask task);
+
+  /// Pauses [task].
+  Future<bool> pause(DownloadTask task);
+
+  /// Resumes [task].
+  Future<bool> resume(DownloadTask task);
+
+  /// Cancels the task with [taskId].
+  Future<bool> cancelTaskWithId(String taskId);
+
+  /// Returns a task by id, if known to the backend.
+  Future<Task?> taskForId(String taskId);
+
+  /// Configures download notifications.
+  void configureNotification({
+    TaskNotification? running,
+    TaskNotification? complete,
+    TaskNotification? error,
+    bool progressBar,
+  });
+}
+
+// coverage:ignore-start
+/// [DownloadBackend] backed by the `background_downloader` plugin.
+final class FileDownloaderBackend implements DownloadBackend {
+  /// Creates a plugin-backed download backend.
+  FileDownloaderBackend({FileDownloader? downloader})
+    : _downloader = downloader ?? FileDownloader();
+
+  final FileDownloader _downloader;
+
+  @override
+  Stream<TaskUpdate> get updates => _downloader.updates;
+
+  @override
+  Future<void> start() => _downloader.start();
+
+  @override
+  Future<TaskStatusUpdate> download(
+    DownloadTask task, {
+    void Function(TaskStatus)? onStatus,
+    void Function(double)? onProgress,
+  }) {
+    return _downloader.download(
+      task,
+      onStatus: onStatus,
+      onProgress: onProgress,
+    );
+  }
+
+  @override
+  Future<bool> enqueue(DownloadTask task) => _downloader.enqueue(task);
+
+  @override
+  Future<bool> pause(DownloadTask task) => _downloader.pause(task);
+
+  @override
+  Future<bool> resume(DownloadTask task) => _downloader.resume(task);
+
+  @override
+  Future<bool> cancelTaskWithId(String taskId) =>
+      _downloader.cancelTaskWithId(taskId);
+
+  @override
+  Future<Task?> taskForId(String taskId) => _downloader.taskForId(taskId);
+
+  @override
+  void configureNotification({
+    TaskNotification? running,
+    TaskNotification? complete,
+    TaskNotification? error,
+    bool progressBar = false,
+  }) {
+    _downloader.configureNotification(
+      running: running,
+      complete: complete,
+      error: error,
+      progressBar: progressBar,
+    );
+  }
+}
+// coverage:ignore-end
+
 /// Downloads files in the background, surviving the app being backgrounded or
 /// killed.
 ///
@@ -49,12 +149,16 @@ class DownloadService implements Disposable {
   /// [downloader] defaults to the shared [FileDownloader] singleton and can be
   /// overridden in tests. Most code depends on this concrete type or fakes it
   /// via Dart's implicit interface (`implements DownloadService`).
-  DownloadService({FileDownloader? downloader})
-    : _downloader = downloader ?? FileDownloader() {
-    _subscription = _downloader.updates.listen(_onUpdate, onError: (_) {});
+  DownloadService({FileDownloader? downloader, DownloadBackend? backend})
+    : assert(
+        downloader == null || backend == null,
+        'Provide either downloader or backend, not both.',
+      ),
+      _backend = backend ?? FileDownloaderBackend(downloader: downloader) {
+    _subscription = _backend.updates.listen(_onUpdate, onError: (_) {});
   }
 
-  final FileDownloader _downloader;
+  final DownloadBackend _backend;
   final StreamController<DownloadUpdate> _updates =
       StreamController<DownloadUpdate>.broadcast();
   final Map<String, DownloadTask> _tasks = {};
@@ -65,7 +169,7 @@ class DownloadService implements Disposable {
 
   /// Activates the task database and reschedules downloads interrupted by an
   /// app restart. Call once at startup.
-  Future<void> start() => _downloader.start();
+  Future<void> start() => _backend.start();
 
   /// Downloads [request] and completes with its final status.
   ///
@@ -77,7 +181,7 @@ class DownloadService implements Disposable {
     void Function(double progress)? onProgress,
     void Function(DownloadStatus status)? onStatus,
   }) async {
-    final result = await _downloader.download(
+    final result = await _backend.download(
       buildDownloadTask(request),
       onProgress: onProgress,
       onStatus: onStatus == null
@@ -94,7 +198,7 @@ class DownloadService implements Disposable {
   Future<String?> enqueue(DownloadRequest request) async {
     final task = buildDownloadTask(request);
     _tasks[task.taskId] = task;
-    final enqueued = await _downloader.enqueue(task);
+    final enqueued = await _backend.enqueue(task);
     if (!enqueued) {
       _tasks.remove(task.taskId);
       return null;
@@ -106,18 +210,18 @@ class DownloadService implements Disposable {
   Future<bool> pause(String taskId) async {
     final task = await _taskForId(taskId);
     if (task == null) return false;
-    return _downloader.pause(task);
+    return _backend.pause(task);
   }
 
   /// Resumes the paused download with [taskId], if it is known.
   Future<bool> resume(String taskId) async {
     final task = await _taskForId(taskId);
     if (task == null) return false;
-    return _downloader.resume(task);
+    return _backend.resume(task);
   }
 
   /// Cancels the download with [taskId].
-  Future<bool> cancel(String taskId) => _downloader.cancelTaskWithId(taskId);
+  Future<bool> cancel(String taskId) => _backend.cancelTaskWithId(taskId);
 
   /// Configures the OS notifications shown for downloads.
   ///
@@ -135,7 +239,7 @@ class DownloadService implements Disposable {
     TaskNotification? notification(String? title) =>
         title == null ? null : TaskNotification(title, '{filename}');
 
-    _downloader.configureNotification(
+    _backend.configureNotification(
       running: notification(runningTitle),
       complete: notification(completeTitle),
       error: notification(errorTitle),
@@ -149,7 +253,7 @@ class DownloadService implements Disposable {
   Future<DownloadTask?> _taskForId(String taskId) async {
     final cached = _tasks[taskId];
     if (cached != null) return cached;
-    final recovered = await _downloader.taskForId(taskId);
+    final recovered = await _backend.taskForId(taskId);
     return recovered is DownloadTask ? recovered : null;
   }
 
