@@ -32,7 +32,7 @@ packages:
     source: hosted
     version: "2.0.3"
   anthropic_sdk_dart:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: anthropic_sdk_dart
       sha256: a5a1cc97d4253dd039c3bc36a8eb2fe14bb59c120765f5b91c5fabb8576129e8
@@ -274,18 +274,16 @@ packages:
   extensions:
     dependency: "direct main"
     description:
-      name: extensions
-      sha256: c4aa097b5732a98777c72fda242abe26090ecf1939e7ec47ec0c7750bf3b693f
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.3.28"
+      path: "../../../../extensions/packages/extensions"
+      relative: true
+    source: path
+    version: "0.4.0"
   extensions_flutter:
-    dependency: transitive
+    dependency: "direct main"
     description:
-      name: extensions_flutter
-      sha256: "5767e222322197dbbe1b9ae3953571000382978681dc4a8de72b908633e51a94"
-      url: "https://pub.dev"
-    source: hosted
+      path: "../../../../extensions/packages/extensions_flutter"
+      relative: true
+    source: path
     version: "0.4.2"
   ffi:
     dependency: transitive

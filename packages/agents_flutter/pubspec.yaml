@@ -18,8 +18,10 @@ dependencies:
   connectivity_plus: ^7.1.1
   cross_file: ^0.3.5+2
   device_info_plus: ^13.2.0
-  extensions: ^0.3.28
-  extensions_flutter: ^0.4.2
+  extensions:
+    path: ../../../extensions/packages/extensions
+  extensions_flutter:
+    path: ../../../extensions/packages/extensions_flutter
   file_selector: ^1.1.0
   flutter:
     sdk: flutter

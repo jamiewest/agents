@@ -1,20 +1,59 @@
-// ignore_for_file: non_constant_identifier_names
-
-import 'dart:async';
-
 import 'package:agents/agents.dart';
 import 'package:agents_flutter/agents_flutter.dart';
-import 'package:extensions/ai.dart' as ai;
-import 'package:extensions/system.dart';
+import 'package:anthropic_sdk_dart/anthropic_sdk_dart.dart' as anthropic;
+import 'package:extensions/extensions.dart';
+import 'package:extensions_flutter/extensions_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-void main() {
-  runApp(const AgentsFlutterExampleApp());
+const _anthropicApiKey = String.fromEnvironment('ANTHROPIC_API_KEY');
+const _anthropicModel = String.fromEnvironment(
+  'ANTHROPIC_MODEL',
+  defaultValue: 'claude-sonnet-4-6',
+);
+const _anthropicMaxTokensValue = String.fromEnvironment(
+  'ANTHROPIC_MAX_TOKENS',
+  defaultValue: '4096',
+);
+const _defaultAnthropicMaxTokens = 4096;
+
+final _builder = Host.createApplicationBuilder()
+  ..services.addFlutter((flutter) {
+    if (_hasAnthropicApiKey) {
+      final chatClient = anthropic.AnthropicClient.withApiKey(_anthropicApiKey)
+          .asChatClient(
+            modelId: _anthropicModel,
+            defaultMaxTokens: _anthropicMaxTokens,
+          );
+
+      flutter.useFlutterHarnessAgent(chatClient: chatClient);
+    }
+
+    flutter.runApp(
+      (services) => AgentsFlutterExampleApp(
+        agent: _hasAnthropicApiKey
+            ? services.getRequiredService<AIAgent>()
+            : null,
+      ),
+    );
+  });
+
+final host = _builder.build();
+
+Future<void> main() async => host.run();
+
+bool get _hasAnthropicApiKey => _anthropicApiKey.trim().isNotEmpty;
+
+int get _anthropicMaxTokens {
+  final value = int.tryParse(_anthropicMaxTokensValue);
+  if (value == null || value <= 0) return _defaultAnthropicMaxTokens;
+  return value;
 }
 
 class AgentsFlutterExampleApp extends StatelessWidget {
-  const AgentsFlutterExampleApp({super.key});
+  const AgentsFlutterExampleApp({this.agent, super.key});
+
+  final AIAgent? agent;
 
   @override
   Widget build(BuildContext context) {
@@ -23,78 +62,198 @@ class AgentsFlutterExampleApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        textTheme: GoogleFonts.googleSansCodeTextTheme(),
+        textTheme: GoogleFonts.outfitTextTheme(),
         useMaterial3: true,
       ),
-      home: const ChatDemoScreen(),
+      home: agent == null
+          ? const MissingApiKeyScreen()
+          : ChatDemoScreen(agent: agent!),
+    );
+  }
+}
+
+class MissingApiKeyScreen extends StatelessWidget {
+  const MissingApiKeyScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('agents_flutter chat UI')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Anthropic API key required', style: textTheme.titleLarge),
+                const SizedBox(height: 12),
+                Text(
+                  'Run the example with an Anthropic key supplied as a '
+                  'compile-time define:',
+                  style: textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 16),
+                SelectableText(
+                  'flutter run --dart-define=ANTHROPIC_API_KEY=sk-ant-...',
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontFamily: 'monospace',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'For Flutter web, keep this local-demo only: browser builds '
+                  'expose client-side API keys. Production apps should proxy '
+                  'Anthropic requests through a backend.',
+                  style: textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
 class ChatDemoScreen extends StatefulWidget {
-  const ChatDemoScreen({super.key});
+  const ChatDemoScreen({required this.agent, super.key});
+
+  final AIAgent agent;
 
   @override
   State<ChatDemoScreen> createState() => _ChatDemoScreenState();
 }
 
 class _ChatDemoScreenState extends State<ChatDemoScreen> {
-  late final AgentLlmProvider _provider;
+  late final Future<AgentLlmProvider> _providerFuture;
+  AgentLlmProvider? _provider;
 
   @override
   void initState() {
     super.initState();
-    // This demo uses a keyless fake agent so it runs with no API credentials.
-    // With a real ChatClient, swap in a FlutterHarnessAgent to get the full
-    // harness plus the Flutter device-capability providers and tools:
-    //
-    //   final agent = chatClient.asFlutterHarnessAgent(
-    //     1050000, // model context-window tokens
-    //     128000,  // model per-response output tokens
-    //     options: FlutterHarnessAgentOptions()..enableLocation = true,
-    //   );
-    //
-    // Or register it through DI:
-    //
-    //   services.addFlutter((flutter) => flutter.useFlutterHarnessAgent(
-    //     configure: (options) => options.enableNetworkInfo = true,
-    //   ));
-    _provider = AgentLlmProvider(
-      agent: _DemoAgent(),
-      session: _DemoAgentSession(),
-    );
+    _providerFuture = _createProvider();
+  }
+
+  Future<AgentLlmProvider> _createProvider() async {
+    final session = await widget.agent.createSession();
+    final provider = AgentLlmProvider(agent: widget.agent, session: session);
+    _provider = provider;
+    return provider;
   }
 
   @override
   void dispose() {
-    _provider.dispose();
+    _provider?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder<AgentLlmProvider>(
+      future: _providerFuture,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _SessionErrorScreen(error: snapshot.error!);
+        }
+
+        final provider = snapshot.data;
+        if (provider == null) {
+          return const _SessionLoadingScreen();
+        }
+
+        return _ChatScreen(provider: provider);
+      },
+    );
+  }
+}
+
+class _SessionLoadingScreen extends StatelessWidget {
+  const _SessionLoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      appBar: _ChatAppBar(),
+      body: Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
+class _SessionErrorScreen extends StatelessWidget {
+  const _SessionErrorScreen({required this.error});
+
+  final Object error;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('agents_flutter chat UI'),
-        actions: [
+      appBar: const _ChatAppBar(),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Could not start the agent session.\n\n$error',
+            style: textTheme.bodyLarge,
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatScreen extends StatelessWidget {
+  const _ChatScreen({required this.provider});
+
+  final AgentLlmProvider provider;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: _ChatAppBar(onClear: () => provider.history = const []),
+      body: LlmChatView(
+        provider: provider,
+        style: _demoStyle(),
+        welcomeMessage: 'Ask Claude anything.',
+        suggestions: const [
+          'Show me a markdown response',
+          'What Flutter device context can you see?',
+          'Stream a short checklist',
+        ],
+        enableAttachments: false,
+        enableVoiceNotes: false,
+      ),
+    );
+  }
+}
+
+class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _ChatAppBar({this.onClear});
+
+  final VoidCallback? onClear;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      title: const Text('agents_flutter chat UI'),
+      actions: [
+        if (onClear != null)
           IconButton(
             tooltip: 'Clear chat',
             icon: const Icon(Icons.delete_outline),
-            onPressed: () => _provider.history = const [],
+            onPressed: onClear,
           ),
-        ],
-      ),
-      body: LlmChatView(
-        provider: _provider,
-        style: _demoStyle(),
-        welcomeMessage: 'Ask the demo agent anything.',
-        suggestions: const [
-          'Show me a markdown response',
-          'What do attachments look like?',
-          'Stream a short checklist',
-        ],
-        enableVoiceNotes: false,
-      ),
+      ],
     );
   }
 }
@@ -119,97 +278,4 @@ LlmChatViewStyle _demoStyle() {
     llmMessageStyle: LlmMessageStyle(icon: Icons.auto_awesome),
     fileAttachmentStyle: FileAttachmentStyle(icon: Icons.insert_drive_file),
   );
-}
-
-class _DemoAgent extends AIAgent {
-  @override
-  String? get name => 'Demo Agent';
-
-  @override
-  Future<AgentSession> createSessionCore({
-    CancellationToken? cancellationToken,
-  }) async {
-    return _DemoAgentSession();
-  }
-
-  @override
-  Future<AgentResponse> runCore(
-    Iterable<ai.ChatMessage> messages, {
-    AgentSession? session,
-    AgentRunOptions? options,
-    CancellationToken? cancellationToken,
-  }) async {
-    return AgentResponse(
-      message: ai.ChatMessage.fromText(
-        ai.ChatRole.assistant,
-        _composeReply(messages),
-      ),
-    );
-  }
-
-  @override
-  Stream<AgentResponseUpdate> runCoreStreaming(
-    Iterable<ai.ChatMessage> messages, {
-    AgentSession? session,
-    AgentRunOptions? options,
-    CancellationToken? cancellationToken,
-  }) async* {
-    final reply = _composeReply(messages);
-    for (final chunk in _chunks(reply, 28)) {
-      await Future<void>.delayed(const Duration(milliseconds: 35));
-      yield AgentResponseUpdate(role: ai.ChatRole.assistant, content: chunk);
-    }
-  }
-
-  @override
-  Future<dynamic> serializeSessionCore(
-    AgentSession session, {
-    Object? JsonSerializerOptions,
-    CancellationToken? cancellationToken,
-  }) async {
-    return '{}';
-  }
-
-  @override
-  Future<AgentSession> deserializeSessionCore(
-    dynamic serializedState, {
-    Object? JsonSerializerOptions,
-    CancellationToken? cancellationToken,
-  }) async {
-    return _DemoAgentSession();
-  }
-
-  String _composeReply(Iterable<ai.ChatMessage> messages) {
-    final message = messages.last;
-    final prompt = message.text.trim();
-    final dataCount = message.contents.whereType<ai.DataContent>().length;
-    final linkCount = message.contents.whereType<ai.UriContent>().length;
-
-    return '''
-## Demo response
-
-You sent:
-
-> ${prompt.isEmpty ? '(empty prompt)' : prompt}
-
-This came through the real `AgentLlmProvider` adapter:
-
-- Text content: `${prompt.length}` characters
-- File or image attachments: `$dataCount`
-- Link attachments: `$linkCount`
-
-Try adding an attachment or selecting another suggestion to see the transcript update.
-''';
-  }
-
-  Iterable<String> _chunks(String text, int size) sync* {
-    for (var index = 0; index < text.length; index += size) {
-      final end = index + size > text.length ? text.length : index + size;
-      yield text.substring(index, end);
-    }
-  }
-}
-
-class _DemoAgentSession extends AgentSession {
-  _DemoAgentSession() : super(AgentSessionStateBag(null));
 }
