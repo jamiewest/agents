@@ -36,4 +36,11 @@ class AgentFileSkillsSourceOptions {
   /// defaults to `references` and `assets`. When set, replaces the defaults
   /// entirely.
   Iterable<String>? resourceDirectories;
+
+  /// Maximum depth to scan for resource files within each resource directory.
+  ///
+  /// A value of `1` scans only the resource directory itself. A value of `2`
+  /// scans the resource directory and its immediate child directories. When
+  /// `null`, defaults to `1`, preserving the historical behavior.
+  int? resourceSearchDepth;
 }

@@ -46,6 +46,9 @@ export 'src/abstractions/in_memory_chat_history_provider_options.dart';
 export 'src/abstractions/message_ai_context_provider.dart';
 export 'src/abstractions/provider_session_state.dart';
 
+// Anthropic
+export 'src/anthropic/anthropic.dart';
+
 // AI — core
 export 'src/ai/agent_extensions.dart';
 export 'src/ai/agent_json_utilities.dart';
@@ -58,6 +61,7 @@ export 'src/ai/logging_agent_builder_extensions.dart';
 export 'src/ai/open_telemetry_agent.dart';
 export 'src/ai/open_telemetry_agent_builder_extensions.dart';
 export 'src/ai/open_telemetry_consts.dart';
+export 'src/ai/open_ai/open_ai.dart';
 export 'src/ai/text_search_provider.dart';
 export 'src/ai/text_search_provider_options.dart';
 
@@ -200,6 +204,19 @@ export 'src/ai/skills/programmatic/agent_inline_skill.dart';
 export 'src/ai/skills/programmatic/agent_inline_skill_content_builder.dart';
 export 'src/ai/skills/programmatic/agent_inline_skill_resource.dart';
 export 'src/ai/skills/programmatic/agent_inline_skill_script.dart';
+
+// MCP
+export 'src/mcp/agent_mcp_skill_resource.dart';
+export 'src/mcp/agent_mcp_skills_source.dart'
+    show AgentMcpSkill, AgentMcpSkillsSource, McpSkillIndex, McpSkillIndexEntry;
+export 'src/mcp/agent_mcp_skills_source_options.dart';
+export 'src/mcp/agent_skills_provider_builder_mcp_extensions.dart';
+export 'src/mcp/mcp_client_task_extensions.dart'
+    show
+        McpClientAIFunction,
+        McpClientTaskExtensions,
+        TaskAwareMcpClientAIFunction;
+export 'src/mcp/mcp_task_options.dart';
 
 // Hosting
 export 'src/hosting/ai_host_agent.dart';

@@ -21,6 +21,7 @@ import 'package:agents/src/ai/skills/decorators/filtering_agent_skills_source.da
 import 'package:agents/src/ai/skills/file/agent_file_skill.dart';
 import 'package:agents/src/ai/skills/file/agent_file_skill_script.dart';
 import 'package:agents/src/ai/skills/file/agent_file_skills_source.dart';
+import 'package:agents/src/ai/skills/file/agent_file_skills_source_options.dart';
 import 'package:agents/src/ai/skills/programmatic/agent_inline_skill.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
@@ -248,6 +249,36 @@ Use the file skill.
         ], NullLogger.instance).toList(),
         ['.', 'refs'],
       );
+    });
+
+    test('honors resource search depth', () async {
+      final root = await Directory.systemTemp.createTemp(
+        'agent_skills_depth_test_',
+      );
+      addTearDown(() => root.deleteSync(recursive: true));
+      final skillDir = Directory('${root.path}/depth-skill')..createSync();
+      File('${skillDir.path}/SKILL.md').writeAsStringSync('''
+---
+name: depth-skill
+description: Depth skill
+---
+Use the depth skill.
+''');
+      Directory(
+        '${skillDir.path}/references/nested',
+      ).createSync(recursive: true);
+      File(
+        '${skillDir.path}/references/nested/guide.md',
+      ).writeAsStringSync('guide');
+
+      final shallow = await AgentFileSkillsSource([root.path]).getSkills();
+      expect(shallow.single.resources, isEmpty);
+
+      final deep = await AgentFileSkillsSource(
+        [root.path],
+        options: AgentFileSkillsSourceOptions()..resourceSearchDepth = 2,
+      ).getSkills();
+      expect(deep.single.resources!.single.name, 'references/nested/guide.md');
     });
 
     test('skips invalid frontmatter and mismatched directory names', () async {

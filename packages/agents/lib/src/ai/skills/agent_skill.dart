@@ -1,3 +1,5 @@
+import 'package:extensions/system.dart';
+
 import 'agent_skill_frontmatter.dart';
 import 'agent_skill_resource.dart';
 import 'agent_skill_script.dart';
@@ -27,11 +29,37 @@ abstract class AgentSkill {
   /// description, and body (instructions, resources, scripts).
   String get content;
 
+  /// Gets the full skill content asynchronously.
+  ///
+  /// Remote skill implementations may override this to fetch content lazily.
+  Future<String> getContent({CancellationToken? cancellationToken}) async {
+    return content;
+  }
+
   /// Gets the resources associated with this skill, or `null` if none.
   ///
   /// The default implementation returns `null`. Override this property in
   /// derived classes to provide skill-specific resources.
   List<AgentSkillResource>? get resources {
+    return null;
+  }
+
+  /// Finds or resolves a skill resource by name.
+  ///
+  /// Remote skill implementations may override this to fetch resources lazily.
+  Future<AgentSkillResource?> getResource(
+    String name, {
+    CancellationToken? cancellationToken,
+  }) async {
+    final values = resources;
+    if (values == null) {
+      return null;
+    }
+    for (final resource in values) {
+      if (resource.name == name) {
+        return resource;
+      }
+    }
     return null;
   }
 

@@ -1,0 +1,336 @@
+import 'dart:collection';
+import 'dart:convert';
+
+import 'package:agents/agents.dart';
+import 'package:anthropic_sdk_dart/anthropic_sdk_dart.dart' as anthropic;
+import 'package:extensions/ai.dart';
+import 'package:http/http.dart' as http;
+import 'package:test/test.dart';
+
+void main() {
+  group('AnthropicChatClient', () {
+    test('builds Anthropic request from chat options and messages', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(_messageJson(text: 'ok')),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+        defaultMaxTokens: 123,
+        betas: const ['test-beta'],
+      );
+
+      await client.getResponse(
+        messages: [
+          ChatMessage.fromText(ChatRole.system, 'System message'),
+          ChatMessage.fromText(ChatRole.user, 'Hello'),
+        ],
+        options: ChatOptions(
+          modelId: 'claude-option',
+          instructions: 'Base instructions',
+          temperature: 0.2,
+          topP: 0.9,
+          topK: 40,
+          stopSequences: ['STOP'],
+        ),
+      );
+
+      final request = httpClient.requests.single;
+      expect(request.headers['anthropic-beta'], 'test-beta');
+      expect(request.jsonBody['model'], 'claude-option');
+      expect(request.jsonBody['max_tokens'], 123);
+      expect(request.jsonBody['system'], 'Base instructions\n\nSystem message');
+      expect(request.jsonBody['temperature'], 0.2);
+      expect(request.jsonBody['top_p'], 0.9);
+      expect(request.jsonBody['top_k'], 40);
+      expect(request.jsonBody['stop_sequences'], ['STOP']);
+      expect(request.jsonBody['stream'], isNull);
+      expect(request.jsonBody['messages'], [
+        {
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': 'Hello'},
+          ],
+        },
+      ]);
+    });
+
+    test('maps tools and required tool choice', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(_messageJson(text: 'ok')),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+      );
+
+      await client.getResponse(
+        messages: [ChatMessage.fromText(ChatRole.user, 'Use a tool')],
+        options: ChatOptions(
+          tools: [
+            _TestFunction(
+              name: 'lookup',
+              description: 'Looks up a value.',
+              parametersSchema: {
+                'type': 'object',
+                'properties': {
+                  'query': {'type': 'string'},
+                },
+                'required': ['query'],
+                'additionalProperties': false,
+              },
+            ),
+          ],
+          toolMode: ChatToolMode.requireSpecific('lookup'),
+          allowMultipleToolCalls: false,
+        ),
+      );
+
+      final body = httpClient.requests.single.jsonBody;
+      expect(body['tools'], [
+        {
+          'name': 'lookup',
+          'description': 'Looks up a value.',
+          'input_schema': {
+            'additionalProperties': false,
+            'type': 'object',
+            'properties': {
+              'query': {'type': 'string'},
+            },
+            'required': ['query'],
+          },
+        },
+      ]);
+      expect(body['tool_choice'], {
+        'type': 'tool',
+        'name': 'lookup',
+        'disable_parallel_tool_use': true,
+      });
+    });
+
+    test('maps response text, tool calls, finish reason, and usage', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(
+          _messageJson(
+            stopReason: 'tool_use',
+            content: [
+              {'type': 'text', 'text': 'Calling lookup.'},
+              {
+                'type': 'tool_use',
+                'id': 'toolu_1',
+                'name': 'lookup',
+                'input': {'query': 'dart'},
+              },
+            ],
+            usage: {'input_tokens': 10, 'output_tokens': 5},
+          ),
+        ),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+      );
+
+      final response = await client.getResponse(
+        messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+      );
+
+      expect(response.responseId, 'msg_1');
+      expect(response.modelId, 'claude-test');
+      expect(response.finishReason, ChatFinishReason.toolCalls);
+      expect(response.usage!.inputTokenCount, 10);
+      expect(response.usage!.outputTokenCount, 5);
+      expect(response.usage!.totalTokenCount, 15);
+      expect(response.rawRepresentation, isA<anthropic.Message>());
+
+      final contents = response.messages.single.contents;
+      expect((contents[0] as TextContent).text, 'Calling lookup.');
+      final call = contents[1] as FunctionCallContent;
+      expect(call.callId, 'toolu_1');
+      expect(call.name, 'lookup');
+      expect(call.arguments, {'query': 'dart'});
+    });
+
+    test('maps streaming text deltas and final usage update', () async {
+      final httpClient = _FakeHttpClient([
+        _sseResponse([
+          _sse('message_start', {
+            'type': 'message_start',
+            'message': _messageJson(text: ''),
+          }),
+          _sse('content_block_delta', {
+            'type': 'content_block_delta',
+            'index': 0,
+            'delta': {'type': 'text_delta', 'text': 'Hel'},
+          }),
+          _sse('content_block_delta', {
+            'type': 'content_block_delta',
+            'index': 0,
+            'delta': {'type': 'text_delta', 'text': 'lo'},
+          }),
+          _sse('message_delta', {
+            'type': 'message_delta',
+            'delta': {'stop_reason': 'end_turn'},
+            'usage': {'output_tokens': 2, 'input_tokens': 4},
+          }),
+          _sse('message_stop', {'type': 'message_stop'}),
+        ]),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+      );
+
+      final updates = await client
+          .getStreamingResponse(
+            messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+          )
+          .toList();
+
+      expect(updates, hasLength(3));
+      expect(updates[0].text, 'Hel');
+      expect(updates[1].text, 'lo');
+      expect(updates[2].finishReason, ChatFinishReason.stop);
+      expect(updates[2].usage!.inputTokenCount, 4);
+      expect(updates[2].usage!.outputTokenCount, 2);
+      expect(updates[2].rawRepresentation, isA<anthropic.MessageDeltaEvent>());
+      expect(httpClient.requests.single.jsonBody['stream'], isTrue);
+    });
+
+    test('AnthropicClient.asAIAgent applies settings and factory', () {
+      final anthropicClient = _anthropicClient(_FakeHttpClient([]));
+      var factoryCalled = false;
+
+      final agent = anthropicClient.asAIAgent(
+        modelId: 'claude-default',
+        instructions: 'Instructions',
+        name: 'ClaudeAgent',
+        description: 'Anthropic-backed agent',
+        tools: [_TestFunction(name: 'lookup')],
+        clientFactory: (innerClient) {
+          factoryCalled = true;
+          expect(innerClient, isA<AnthropicChatClient>());
+          return innerClient;
+        },
+      );
+
+      expect(factoryCalled, isTrue);
+      expect(agent.name, 'ClaudeAgent');
+      expect(agent.description, 'Anthropic-backed agent');
+      expect(agent.instructions, 'Instructions');
+      expect(agent.chatOptions!.tools, hasLength(1));
+    });
+  });
+}
+
+anthropic.AnthropicClient _anthropicClient(http.Client httpClient) {
+  return anthropic.AnthropicClient(
+    config: const anthropic.AnthropicConfig(
+      authProvider: anthropic.ApiKeyProvider('test-key'),
+      baseUrl: 'https://anthropic.test',
+      retryPolicy: anthropic.RetryPolicy(maxRetries: 0),
+    ),
+    httpClient: httpClient,
+  );
+}
+
+Map<String, Object?> _messageJson({
+  String text = 'ok',
+  String stopReason = 'end_turn',
+  List<Map<String, Object?>>? content,
+  Map<String, Object?> usage = const {'input_tokens': 1, 'output_tokens': 1},
+}) {
+  return {
+    'id': 'msg_1',
+    'type': 'message',
+    'role': 'assistant',
+    'content':
+        content ??
+        [
+          {'type': 'text', 'text': text},
+        ],
+    'model': 'claude-test',
+    'stop_reason': stopReason,
+    'usage': usage,
+  };
+}
+
+http.Response _jsonResponse(Map<String, Object?> body) {
+  return http.Response(
+    jsonEncode(body),
+    200,
+    headers: {'content-type': 'application/json'},
+  );
+}
+
+http.Response _sseResponse(List<String> events) {
+  return http.Response(
+    events.join(),
+    200,
+    headers: {'content-type': 'text/event-stream'},
+  );
+}
+
+String _sse(String event, Map<String, Object?> data) {
+  return 'event: $event\n'
+      'data: ${jsonEncode(data)}\n\n';
+}
+
+final class _RecordedRequest {
+  _RecordedRequest({
+    required this.method,
+    required this.url,
+    required this.headers,
+    required this.body,
+  });
+
+  final String method;
+  final Uri url;
+  final Map<String, String> headers;
+  final String body;
+
+  Map<String, dynamic> get jsonBody => jsonDecode(body) as Map<String, dynamic>;
+}
+
+final class _FakeHttpClient extends http.BaseClient {
+  _FakeHttpClient(List<http.Response> responses)
+    : _responses = Queue.of(responses);
+
+  final Queue<http.Response> _responses;
+  final requests = <_RecordedRequest>[];
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final body = request is http.Request
+        ? request.body
+        : await request.finalize().bytesToString();
+    requests.add(
+      _RecordedRequest(
+        method: request.method,
+        url: request.url,
+        headers: Map.of(request.headers),
+        body: body,
+      ),
+    );
+
+    if (_responses.isEmpty) {
+      throw StateError('No fake response queued for ${request.url}.');
+    }
+
+    final response = _responses.removeFirst();
+    return http.StreamedResponse(
+      Stream.value(response.bodyBytes),
+      response.statusCode,
+      headers: response.headers,
+      request: request,
+    );
+  }
+}
+
+final class _TestFunction extends AIFunctionDeclaration {
+  _TestFunction({
+    required super.name,
+    super.description,
+    super.parametersSchema,
+  });
+}

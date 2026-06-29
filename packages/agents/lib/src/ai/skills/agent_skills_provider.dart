@@ -133,8 +133,11 @@ Only load what is needed, when it is needed.''';
           },
           'required': ['skillName'],
         },
-        callback: (arguments, {cancellationToken}) async =>
-            loadSkill(skills, _stringArgument(arguments, 'skillName')),
+        callback: (arguments, {cancellationToken}) => loadSkill(
+          skills,
+          _stringArgument(arguments, 'skillName'),
+          cancellationToken: cancellationToken,
+        ),
       ),
     ];
 
@@ -228,7 +231,11 @@ Only load what is needed, when it is needed.''';
         .replaceAll(scriptInstructionsPlaceholder, scriptInstruction);
   }
 
-  String loadSkill(List<AgentSkill> skills, String skillName) {
+  Future<String> loadSkill(
+    List<AgentSkill> skills,
+    String skillName, {
+    CancellationToken? cancellationToken,
+  }) async {
     if (skillName.trim().isEmpty) {
       return 'Error: Skill name cannot be empty.';
     }
@@ -237,7 +244,7 @@ Only load what is needed, when it is needed.''';
       return 'Error: Skill $skillName not found.';
     }
     logSkillLoading(_logger, skillName);
-    return skill.content;
+    return skill.getContent(cancellationToken: cancellationToken);
   }
 
   Future<Object?> readSkillResource(
@@ -257,7 +264,10 @@ Only load what is needed, when it is needed.''';
     if (skill == null) {
       return 'Error: Skill $skillName not found.';
     }
-    final resource = _findByName(skill.resources, resourceName);
+    final resource = await skill.getResource(
+      resourceName,
+      cancellationToken: cancellationToken,
+    );
     if (resource == null) {
       return 'Error: Resource $resourceName not found in skill "$skillName".';
     }

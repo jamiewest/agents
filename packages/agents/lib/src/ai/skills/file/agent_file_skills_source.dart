@@ -49,6 +49,15 @@ class AgentFileSkillsSource extends AgentSkillsSource {
       options?.resourceDirectories ?? defaultResourceDirectories,
       _logger,
     ).toList();
+    final resourceSearchDepth = options?.resourceSearchDepth ?? 1;
+    if (resourceSearchDepth < 1) {
+      throw ArgumentError.value(
+        resourceSearchDepth,
+        'resourceSearchDepth',
+        'Resource search depth must be greater than or equal to 1.',
+      );
+    }
+    _resourceSearchDepth = resourceSearchDepth;
   }
 
   static const String skillFileName = 'SKILL.md';
@@ -82,6 +91,7 @@ class AgentFileSkillsSource extends AgentSkillsSource {
   late final Set<String> _allowedScriptExtensions;
   late final List<String> _scriptDirectories;
   late final List<String> _resourceDirectories;
+  late final int _resourceSearchDepth;
   final AgentFileSkillScriptRunner? _scriptRunner;
   final FileSystem _fs;
   final Logger _logger;
@@ -243,36 +253,64 @@ class AgentFileSkillsSource extends AgentSkillsSource {
       if (!_fs.directory(targetDirectory).existsSync()) {
         continue;
       }
-      for (final entry
-          in _fs.directory(targetDirectory).listSync(followLinks: false)) {
-        if (entry is! File) {
-          continue;
-        }
-        final filePath = entry.path;
-        final fileName = p.basename(filePath);
-        if (fileName == skillFileName) {
-          continue;
-        }
-        final extension = p.extension(filePath).toLowerCase();
-        if (extension.isEmpty ||
-            !_allowedResourceExtensions.contains(extension)) {
-          logResourceSkippedExtension(_logger, skillName, filePath, extension);
-          continue;
-        }
-        final resolvedFilePath = p.canonicalize(filePath);
-        if (!resolvedFilePath.startsWith(targetDirectory)) {
-          logResourcePathTraversal(_logger, skillName, filePath);
-          continue;
-        }
-        final relativePath = normalizePath(
-          resolvedFilePath.substring(skillDirectoryFullPath.length),
-        );
-        resources.add(
-          AgentFileSkillResource(relativePath, resolvedFilePath, fs: _fs),
-        );
-      }
+      discoverResourceFilesInDirectory(
+        targetDirectory,
+        skillDirectoryFullPath,
+        skillName,
+        resources,
+        currentDepth: 1,
+      );
     }
     return resources;
+  }
+
+  void discoverResourceFilesInDirectory(
+    String targetDirectory,
+    String skillDirectoryFullPath,
+    String skillName,
+    List<AgentFileSkillResource> resources, {
+    required int currentDepth,
+  }) {
+    for (final entry
+        in _fs.directory(targetDirectory).listSync(followLinks: false)) {
+      if (entry is Directory) {
+        if (currentDepth < _resourceSearchDepth) {
+          discoverResourceFilesInDirectory(
+            '${p.canonicalize(entry.path)}${p.separator}',
+            skillDirectoryFullPath,
+            skillName,
+            resources,
+            currentDepth: currentDepth + 1,
+          );
+        }
+        continue;
+      }
+      if (entry is! File) {
+        continue;
+      }
+      final filePath = entry.path;
+      final fileName = p.basename(filePath);
+      if (fileName == skillFileName) {
+        continue;
+      }
+      final extension = p.extension(filePath).toLowerCase();
+      if (extension.isEmpty ||
+          !_allowedResourceExtensions.contains(extension)) {
+        logResourceSkippedExtension(_logger, skillName, filePath, extension);
+        continue;
+      }
+      final resolvedFilePath = p.canonicalize(filePath);
+      if (!resolvedFilePath.startsWith(skillDirectoryFullPath)) {
+        logResourcePathTraversal(_logger, skillName, filePath);
+        continue;
+      }
+      final relativePath = normalizePath(
+        resolvedFilePath.substring(skillDirectoryFullPath.length),
+      );
+      resources.add(
+        AgentFileSkillResource(relativePath, resolvedFilePath, fs: _fs),
+      );
+    }
   }
 
   List<AgentFileSkillScript> discoverScriptFiles(
