@@ -69,6 +69,7 @@ final class AnthropicChatClient implements ChatClient {
 
       String? responseId;
       String? effectiveModelId;
+      final toolUses = <int, _StreamingToolUse>{};
 
       await for (final event in stream) {
         cancellationToken?.throwIfCancellationRequested();
@@ -77,11 +78,32 @@ final class AnthropicChatClient implements ChatClient {
           case anthropic.MessageStartEvent(:final message):
             responseId = message.id;
             effectiveModelId = message.model;
+          case anthropic.ContentBlockStartEvent(
+            :final index,
+            :final contentBlock,
+          ):
+            if (contentBlock is anthropic.ToolUseBlock) {
+              toolUses[index] = _StreamingToolUse(contentBlock);
+            }
           case anthropic.ContentBlockDeltaEvent(:final delta):
             if (delta is anthropic.TextDelta && delta.text.isNotEmpty) {
               yield ChatResponseUpdate(
                 role: ChatRole.assistant,
                 contents: [TextContent(delta.text)],
+                responseId: responseId,
+                modelId: effectiveModelId,
+                rawRepresentation: event,
+              );
+            } else if (delta is anthropic.InputJsonDelta) {
+              toolUses[event.index]?.write(delta.partialJson);
+            }
+          case anthropic.ContentBlockStopEvent(:final index):
+            final toolUse = toolUses.remove(index);
+            if (toolUse != null) {
+              final block = toolUse.toBlock();
+              yield ChatResponseUpdate(
+                role: ChatRole.assistant,
+                contents: [toolUse.toFunctionCall(block)],
                 responseId: responseId,
                 modelId: effectiveModelId,
                 rawRepresentation: event,
@@ -461,4 +483,54 @@ final class _AbortTrigger {
   }
 
   void dispose() => _registration.dispose();
+}
+
+final class _StreamingToolUse {
+  _StreamingToolUse(this.initialBlock);
+
+  final anthropic.ToolUseBlock initialBlock;
+  final StringBuffer _inputJson = StringBuffer();
+
+  void write(String partialJson) {
+    _inputJson.write(partialJson);
+  }
+
+  anthropic.ToolUseBlock toBlock() {
+    return anthropic.ToolUseBlock(
+      id: initialBlock.id,
+      name: initialBlock.name,
+      input: _arguments().$1,
+      caller: initialBlock.caller,
+    );
+  }
+
+  FunctionCallContent toFunctionCall(anthropic.ToolUseBlock block) {
+    final (arguments, exception) = _arguments();
+    return FunctionCallContent(
+        callId: block.id,
+        name: block.name,
+        arguments: Map<String, Object?>.from(arguments),
+      )
+      ..exception = exception
+      ..rawRepresentation = block;
+  }
+
+  (Map<String, dynamic>, Exception?) _arguments() {
+    final rawJson = _inputJson.toString();
+    if (rawJson.isEmpty) {
+      return (Map<String, dynamic>.from(initialBlock.input), null);
+    }
+
+    try {
+      final decoded = jsonDecode(rawJson);
+      if (decoded is Map<String, dynamic>) return (decoded, null);
+      if (decoded is Map) return (Map<String, dynamic>.from(decoded), null);
+      return (
+        Map<String, dynamic>.from(initialBlock.input),
+        FormatException('Anthropic tool input must be a JSON object.', rawJson),
+      );
+    } on Exception catch (exception) {
+      return (Map<String, dynamic>.from(initialBlock.input), exception);
+    }
+  }
 }

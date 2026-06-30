@@ -30,6 +30,14 @@ class AgentLlmProvider extends LlmProvider with ChangeNotifier {
 
   final List<ChatMessage> _history;
 
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   @override
   Stream<String> generateStream(
     String prompt, {
@@ -47,12 +55,17 @@ class AgentLlmProvider extends LlmProvider with ChangeNotifier {
     final llmMessage = ChatMessage.llm();
     _history.addAll([userMessage, llmMessage]);
 
-    yield* _runAgent(prompt, attachments: attachments).map((chunk) {
-      llmMessage.append(chunk);
-      return chunk;
-    });
-
-    notifyListeners();
+    try {
+      yield* _runAgent(prompt, attachments: attachments).map((chunk) {
+        llmMessage.append(chunk);
+        return chunk;
+      });
+    } finally {
+      // Notify after both success and streaming errors so listeners can
+      // persist the transcript either way. The generator's finally can run
+      // after disposal (e.g. navigating away mid-stream), so guard for that.
+      if (!_disposed) notifyListeners();
+    }
   }
 
   @override

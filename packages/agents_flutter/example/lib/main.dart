@@ -1,9 +1,17 @@
+import 'dart:async';
+import 'dart:developer' as developer;
+
+import 'package:agents/agents.dart'
+    show AIAgent, AgentSession, ChatHistoryProvider, InMemoryChatHistoryProvider;
 import 'package:agents_flutter/agents_flutter.dart';
+import 'package:extensions/ai.dart' as ai;
 import 'package:extensions_flutter/extensions_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:extensions/extensions.dart';
+import 'package:extensions/extensions.dart' hide ChatMessage;
 
+import 'ui/chat_sessions/chat_session_record.dart';
+import 'ui/chat_sessions/chat_session_store.dart';
 import 'ui/providers/providers.dart';
 import 'ui/views/configured_agents/configured_agents.dart';
 import 'ui/views/llm_chat_view/llm_chat_view.dart';
@@ -277,6 +285,7 @@ class _ChatScreenState extends State<ChatScreen> {
   late final Future<AgentLlmProvider> _providerFuture;
   bool _initialized = false;
   AgentLlmProvider? _provider;
+  DateTime? _createdAt;
 
   @override
   void didChangeDependencies() {
@@ -285,17 +294,88 @@ class _ChatScreenState extends State<ChatScreen> {
     _initialized = true;
     _providerFuture = _createProvider(
       context.getRequiredService<ConfiguredAgentFactory>(),
+      ChatSessionStore(context.getRequiredService<KeyValueStore>()),
     );
   }
 
   Future<AgentLlmProvider> _createProvider(
     ConfiguredAgentFactory factory,
+    ChatSessionStore store,
   ) async {
+    final record = await store.load(widget.agent.id);
+    _createdAt = record?.createdAt;
+
     final agent = await factory.createAgent(widget.agent);
-    final session = await agent.createSession();
-    final provider = AgentLlmProvider(agent: agent, session: session);
+    final serialized = record?.serializedSession;
+    final session = serialized != null
+        ? await agent.deserializeSession(serialized)
+        : await agent.createSession();
+
+    if (record != null) {
+      _seedAgentHistory(agent, session, record.history);
+    }
+
+    final provider = AgentLlmProvider(
+      agent: agent,
+      session: session,
+      history: record?.history ?? const [],
+    );
+    // Attach after restore so persistence reflects ongoing turns only.
+    provider.addListener(() => _persist(store, agent, session, provider));
     _provider = provider;
     return provider;
+  }
+
+  /// Re-seeds the agent's in-memory chat history from a restored transcript.
+  ///
+  /// Serialized sessions for in-memory history providers only carry a
+  /// conversation id, so the prior context must be replayed here for the next
+  /// model call to see it. Sessions with a server-managed conversation id
+  /// ignore the seed.
+  void _seedAgentHistory(
+    AIAgent agent,
+    AgentSession session,
+    List<ChatMessage> history,
+  ) {
+    final provider = agent.getServiceOf<ChatHistoryProvider>();
+    if (provider is! InMemoryChatHistoryProvider) return;
+    provider.setMessages(session, [
+      for (final message in history)
+        if (message.text != null && message.text!.isNotEmpty)
+          ai.ChatMessage.fromText(
+            message.origin.isUser ? ai.ChatRole.user : ai.ChatRole.assistant,
+            message.text!,
+          ),
+    ]);
+  }
+
+  Future<void> _persist(
+    ChatSessionStore store,
+    AIAgent agent,
+    AgentSession session,
+    AgentLlmProvider provider,
+  ) async {
+    try {
+      final serialized = await agent.serializeSession(session);
+      final now = DateTime.now();
+      _createdAt ??= now;
+      await store.save(
+        ChatSessionRecord(
+          agentId: widget.agent.id,
+          history: provider.history.toList(),
+          createdAt: _createdAt!,
+          updatedAt: now,
+          serializedSession: serialized is String ? serialized : null,
+        ),
+      );
+    } catch (e, s) {
+      developer.log(
+        'Failed to persist chat session.',
+        name: 'agents_flutter_example.chat_sessions',
+        error: e,
+        stackTrace: s,
+      );
+    }
   }
 
   @override

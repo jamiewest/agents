@@ -6,7 +6,8 @@ import 'package:agents/agents.dart';
 import 'package:agents_flutter/agents_flutter.dart' as ui;
 import 'package:agents_flutter_example/ui/providers/implementations/agent_llm_provider.dart';
 import 'package:agents_flutter_example/ui/providers/providers.dart';
-import '../lib/ui/providers/interface/chat_message.dart' as ui_messages;
+import 'package:agents_flutter_example/ui/providers/interface/chat_message.dart'
+    as ui_messages;
 import 'package:extensions/ai.dart' as ai;
 import 'package:extensions/system.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -106,6 +107,31 @@ void main() {
         expect(provider.history.last.origin, MessageOrigin.llm);
       },
     );
+
+    test('notifies listeners after successful streaming', () async {
+      final agent = _FakeAgent(updates: [_textUpdate('done')]);
+      final provider = AgentLlmProvider(agent: agent);
+      var notificationCount = 0;
+      provider.addListener(() => notificationCount++);
+
+      await provider.sendMessageStream('go').toList();
+
+      expect(notificationCount, 1);
+    });
+
+    test('notifies listeners after a streaming error', () async {
+      final agent = _FakeAgent(error: StateError('boom'));
+      final provider = AgentLlmProvider(agent: agent);
+      var notificationCount = 0;
+      provider.addListener(() => notificationCount++);
+
+      await expectLater(
+        provider.sendMessageStream('go').toList(),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(notificationCount, 1);
+    });
 
     test('notifies listeners when history is replaced', () {
       final provider = AgentLlmProvider(agent: _FakeAgent());

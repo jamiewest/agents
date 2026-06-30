@@ -2,11 +2,27 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:agents/agents.dart' show ChatClientAgent;
 import 'package:agents_flutter/agents_flutter.dart';
+import 'package:extensions/ai.dart';
 import 'package:extensions/dependency_injection.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+const _source = ModelSourceConfig(
+  id: 's-openai',
+  providerType: ProviderType.openAiCompatible,
+  displayName: 'Local',
+  endpoint: 'http://localhost:4321/v1',
+);
+const _model = ModelConfig(
+  id: 'm-openai',
+  sourceId: 's-openai',
+  modelId: 'gpt-test',
+);
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('addConfiguredAgents', () {
     test('resolves the manager and factory as singletons', () {
       // Arrange.
@@ -95,6 +111,43 @@ void main() {
         identical(provider.getRequiredService<KeyValueStore>(), preexisting),
         isTrue,
       );
+    });
+
+    test('passes harness configuration to resolved factories', () async {
+      // Arrange.
+      final services = ServiceCollection()
+        ..addConfiguredAgents(
+          configureHarness: (options) => options.enableWakeLock = true,
+          keyValueStore: (_) => InMemoryKeyValueStore(),
+          secretStore: (_) => InMemorySecretStore(),
+        );
+      final provider = services.buildServiceProvider();
+      final manager = provider.getRequiredService<ConfiguredAgentsManager>();
+      await manager.saveSource(_source, apiKey: 'sk-openai');
+      await manager.saveModel(_model);
+      const agent = SavedAgentConfig(
+        id: 'a1',
+        name: 'Helper',
+        modelId: 'm-openai',
+      );
+      await manager.saveAgent(agent);
+
+      // Act.
+      final built = await provider
+          .getRequiredService<ConfiguredAgentFactory>()
+          .createAgent(agent);
+      final chatOptions = built.getServiceOf<ChatOptions>()!;
+      final providerTypes = built
+          .getServiceOf<ChatClientAgent>()!
+          .aiContextProviders!
+          .map((contextProvider) => contextProvider.runtimeType)
+          .toList();
+      final toolNames = chatOptions.tools!.map((tool) => tool.name).toList();
+
+      // Assert.
+      expect(providerTypes, contains(ConnectivityContextProvider));
+      expect(toolNames, contains('set_wake_lock'));
+      expect(toolNames, contains('get_connectivity'));
     });
   });
 }

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:agents/agents.dart'
+    show AgentModeProvider, ChatClientAgent, TodoProvider;
 import 'package:agents_flutter/agents_flutter.dart';
 import 'package:extensions/ai.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,6 +53,8 @@ Future<void> _ignoreParseErrors(Future<void> Function() action) async {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('ConfiguredChatClientFactory', () {
     test(
       'targets the configured OpenAI-compatible endpoint with the key',
@@ -201,7 +205,7 @@ void main() {
       );
     });
 
-    test('builds an agent when fully configured', () async {
+    test('builds a Flutter harness agent when fully configured', () async {
       final manager = buildManager();
       await manager.saveSource(_openAiSource, apiKey: 'sk-openai');
       await manager.saveModel(_openAiModel);
@@ -211,11 +215,121 @@ void main() {
         modelId: 'm-openai',
         instructions: 'be brief',
         temperature: 0.2,
+        maxOutputTokens: 321,
       );
       await manager.saveAgent(agent);
 
       final built = await ConfiguredAgentFactory(manager).createAgent(agent);
+      final inner = built.getServiceOf<ChatClientAgent>()!;
+      final providerTypes = inner.aiContextProviders!
+          .map((provider) => provider.runtimeType)
+          .toList();
+      final chatOptions = built.getServiceOf<ChatOptions>()!;
+      final toolNames = chatOptions.tools!.map((tool) => tool.name).toList();
+
       expect(built.name, 'Helper');
+      expect(providerTypes, contains(TodoProvider));
+      expect(providerTypes, contains(AgentModeProvider));
+      expect(providerTypes, contains(ConnectivityContextProvider));
+      expect(toolNames, contains('get_connectivity'));
+      expect(chatOptions.modelId, 'gpt-test');
+      expect(chatOptions.instructions, contains('be brief'));
+      expect(chatOptions.temperature, 0.2);
+      expect(chatOptions.maxOutputTokens, 321);
     });
+
+    test(
+      'uses a safe default max output when the saved agent is blank',
+      () async {
+        final manager = buildManager();
+        await manager.saveSource(_anthropicSource, apiKey: 'sk-ant');
+        await manager.saveModel(_anthropicModel);
+        const agent = SavedAgentConfig(
+          id: 'a1',
+          name: 'Helper',
+          modelId: 'm-anthropic',
+        );
+        await manager.saveAgent(agent);
+
+        final built = await ConfiguredAgentFactory(manager).createAgent(agent);
+        final chatOptions = built.getServiceOf<ChatOptions>()!;
+
+        expect(chatOptions.modelId, 'claude-test');
+        expect(
+          chatOptions.maxOutputTokens,
+          defaultConfiguredAgentMaxOutputTokens,
+        );
+      },
+    );
+
+    test(
+      'applies configured harness options before saved agent settings',
+      () async {
+        final manager = buildManager();
+        await manager.saveSource(_openAiSource, apiKey: 'sk-openai');
+        await manager.saveModel(_openAiModel);
+        const agent = SavedAgentConfig(
+          id: 'a1',
+          name: 'Helper',
+          modelId: 'm-openai',
+          instructions: 'saved instructions',
+          maxOutputTokens: 256,
+        );
+        await manager.saveAgent(agent);
+
+        final built = await ConfiguredAgentFactory(
+          manager,
+          configureHarness: (options) => options
+            ..enableWakeLock = true
+            ..disableTodoProvider = true
+            ..chatOptions = ChatOptions(
+              instructions: 'shared instructions',
+              temperature: 0.8,
+              maxOutputTokens: 999,
+            ),
+        ).createAgent(agent);
+        final inner = built.getServiceOf<ChatClientAgent>()!;
+        final providerTypes = inner.aiContextProviders!
+            .map((provider) => provider.runtimeType)
+            .toList();
+        final chatOptions = built.getServiceOf<ChatOptions>()!;
+        final toolNames = chatOptions.tools!.map((tool) => tool.name).toList();
+
+        expect(providerTypes, isNot(contains(TodoProvider)));
+        expect(providerTypes, contains(ConnectivityContextProvider));
+        expect(toolNames, contains('set_wake_lock'));
+        expect(chatOptions.instructions, contains('saved instructions'));
+        expect(
+          chatOptions.instructions,
+          isNot(contains('shared instructions')),
+        );
+        expect(chatOptions.temperature, isNull);
+        expect(chatOptions.maxOutputTokens, 256);
+      },
+    );
+
+    test(
+      'uses shared harness max output when the saved agent is blank',
+      () async {
+        final manager = buildManager();
+        await manager.saveSource(_openAiSource, apiKey: 'sk-openai');
+        await manager.saveModel(_openAiModel);
+        const agent = SavedAgentConfig(
+          id: 'a1',
+          name: 'Helper',
+          modelId: 'm-openai',
+        );
+        await manager.saveAgent(agent);
+
+        final built = await ConfiguredAgentFactory(
+          manager,
+          configureHarness: (options) =>
+              options.chatOptions = ChatOptions(maxOutputTokens: 512),
+        ).createAgent(agent);
+        final chatOptions = built.getServiceOf<ChatOptions>()!;
+
+        expect(chatOptions.maxOutputTokens, 512);
+      },
+    );
   });
 }

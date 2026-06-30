@@ -4,6 +4,8 @@
 
 import 'package:extensions_flutter/extensions_flutter.dart';
 
+import '../flutter_harness_agent_options.dart';
+import '../flutter_harness_service_collection_extensions.dart';
 import 'agent_configuration_store.dart';
 import 'configured_agent_factory.dart';
 import 'configured_agents_manager.dart';
@@ -25,7 +27,14 @@ extension ConfiguredAgentsServiceCollectionExtensions on ServiceCollection {
   /// the [SecretStore] is a [FlutterSecureSecretStore]. Supply [keyValueStore]
   /// or [secretStore] to override either — for example, with an in-memory
   /// store in tests or on platforms where the defaults are unavailable.
+  ///
+  /// The harness settings are passed to [ConfiguredAgentFactory] for every
+  /// saved agent it creates. Saved-agent metadata and chat settings override
+  /// shared harness defaults for that agent.
   ServiceCollection addConfiguredAgents({
+    int maxContextWindowTokens = defaultFlutterHarnessMaxContextWindowTokens,
+    int maxOutputTokens = defaultConfiguredAgentMaxOutputTokens,
+    void Function(FlutterHarnessAgentOptions options)? configureHarness,
     KeyValueStore Function(ServiceProvider sp)? keyValueStore,
     SecretStore Function(ServiceProvider sp)? secretStore,
   }) {
@@ -49,8 +58,12 @@ extension ConfiguredAgentsServiceCollectionExtensions on ServiceCollection {
       ),
     );
     tryAddSingleton<ConfiguredAgentFactory>(
-      (sp) =>
-          ConfiguredAgentFactory(sp.getRequiredService<ConfiguredAgentsManager>()),
+      (sp) => ConfiguredAgentFactory(
+        sp.getRequiredService<ConfiguredAgentsManager>(),
+        maxContextWindowTokens: maxContextWindowTokens,
+        maxOutputTokens: maxOutputTokens,
+        configureHarness: configureHarness,
+      ),
     );
     return this;
   }
@@ -72,11 +85,19 @@ extension ConfiguredAgentsFlutterBuilderExtensions on FlutterBuilder {
   ///
   /// Delegates to
   /// [ConfiguredAgentsServiceCollectionExtensions.addConfiguredAgents].
+  /// The harness settings are passed to each configured agent created by the
+  /// registered [ConfiguredAgentFactory].
   FlutterBuilder useConfiguredAgents({
+    int maxContextWindowTokens = defaultFlutterHarnessMaxContextWindowTokens,
+    int maxOutputTokens = defaultConfiguredAgentMaxOutputTokens,
+    void Function(FlutterHarnessAgentOptions options)? configureHarness,
     KeyValueStore Function(ServiceProvider sp)? keyValueStore,
     SecretStore Function(ServiceProvider sp)? secretStore,
   }) {
     services.addConfiguredAgents(
+      maxContextWindowTokens: maxContextWindowTokens,
+      maxOutputTokens: maxOutputTokens,
+      configureHarness: configureHarness,
       keyValueStore: keyValueStore,
       secretStore: secretStore,
     );

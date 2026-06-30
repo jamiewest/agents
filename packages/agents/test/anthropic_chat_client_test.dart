@@ -217,6 +217,90 @@ void main() {
       expect(httpClient.requests.single.jsonBody['stream'], isTrue);
     });
 
+    test('maps streaming text, tool calls, and final usage update', () async {
+      final httpClient = _FakeHttpClient([
+        _sseResponse([
+          _sse('message_start', {
+            'type': 'message_start',
+            'message': _messageJson(text: ''),
+          }),
+          _sse('content_block_start', {
+            'type': 'content_block_start',
+            'index': 0,
+            'content_block': {'type': 'text', 'text': ''},
+          }),
+          _sse('content_block_delta', {
+            'type': 'content_block_delta',
+            'index': 0,
+            'delta': {'type': 'text_delta', 'text': 'Calling lookup.'},
+          }),
+          _sse('content_block_stop', {
+            'type': 'content_block_stop',
+            'index': 0,
+          }),
+          _sse('content_block_start', {
+            'type': 'content_block_start',
+            'index': 1,
+            'content_block': {
+              'type': 'tool_use',
+              'id': 'toolu_1',
+              'name': 'lookup',
+              'input': <String, Object?>{},
+            },
+          }),
+          _sse('content_block_delta', {
+            'type': 'content_block_delta',
+            'index': 1,
+            'delta': {'type': 'input_json_delta', 'partial_json': '{"query":'},
+          }),
+          _sse('content_block_delta', {
+            'type': 'content_block_delta',
+            'index': 1,
+            'delta': {'type': 'input_json_delta', 'partial_json': '"dart"}'},
+          }),
+          _sse('content_block_stop', {
+            'type': 'content_block_stop',
+            'index': 1,
+          }),
+          _sse('message_delta', {
+            'type': 'message_delta',
+            'delta': {'stop_reason': 'tool_use'},
+            'usage': {'output_tokens': 7, 'input_tokens': 12},
+          }),
+          _sse('message_stop', {'type': 'message_stop'}),
+        ]),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+      );
+
+      final updates = await client
+          .getStreamingResponse(
+            messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+          )
+          .toList();
+
+      expect(updates, hasLength(3));
+      expect(updates[0].text, 'Calling lookup.');
+
+      final call = updates[1].contents.single as FunctionCallContent;
+      expect(call.callId, 'toolu_1');
+      expect(call.name, 'lookup');
+      expect(call.arguments, {'query': 'dart'});
+      expect(call.exception, isNull);
+      expect(call.rawRepresentation, isA<anthropic.ToolUseBlock>());
+      expect(
+        updates[1].rawRepresentation,
+        isA<anthropic.ContentBlockStopEvent>(),
+      );
+
+      expect(updates[2].finishReason, ChatFinishReason.toolCalls);
+      expect(updates[2].usage!.inputTokenCount, 12);
+      expect(updates[2].usage!.outputTokenCount, 7);
+      expect(httpClient.requests.single.jsonBody['stream'], isTrue);
+    });
+
     test('AnthropicClient.asAIAgent applies settings and factory', () {
       final anthropicClient = _anthropicClient(_FakeHttpClient([]));
       var factoryCalled = false;
