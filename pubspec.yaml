@@ -6,6 +6,7 @@ environment:
 
 workspace:
   - packages/agents
+  - packages/agents_app
   - packages/agents_flutter
   - packages/agents_llama
 

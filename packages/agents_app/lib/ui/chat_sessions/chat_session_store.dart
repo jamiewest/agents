@@ -20,7 +20,7 @@ class ChatSessionStore {
   final KeyValueStore _store;
 
   /// The key prefix under which chat sessions are stored.
-  static const String keyPrefix = 'agents_flutter_example.chat_session.';
+  static const String keyPrefix = 'agents_app.chat_session.';
 
   static String _keyFor(String agentId) => '$keyPrefix$agentId';
 
@@ -36,7 +36,7 @@ class ChatSessionStore {
     } catch (e, s) {
       developer.log(
         'Ignoring corrupt chat session payload for "$agentId".',
-        name: 'agents_flutter_example.chat_sessions',
+        name: 'agents_app.chat_sessions',
         error: e,
         stackTrace: s,
       );

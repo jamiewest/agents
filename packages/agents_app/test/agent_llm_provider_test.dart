@@ -3,10 +3,8 @@
 import 'dart:typed_data';
 
 import 'package:agents/agents.dart';
-import 'package:agents_flutter/agents_flutter.dart' as ui;
-import 'package:agents_flutter_example/ui/providers/implementations/agent_llm_provider.dart';
-import 'package:agents_flutter_example/ui/providers/providers.dart';
-import 'package:agents_flutter_example/ui/providers/interface/chat_message.dart'
+import 'package:agents_app/ui/providers/providers.dart';
+import 'package:agents_app/ui/providers/interface/chat_message.dart'
     as ui_messages;
 import 'package:extensions/ai.dart' as ai;
 import 'package:extensions/system.dart';

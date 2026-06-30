@@ -5,9 +5,9 @@
 import 'dart:convert';
 
 import 'package:agents_flutter/agents_flutter.dart';
-import 'package:agents_flutter_example/ui/chat_sessions/chat_session_record.dart';
-import 'package:agents_flutter_example/ui/chat_sessions/chat_session_store.dart';
-import 'package:agents_flutter_example/ui/providers/providers.dart';
+import 'package:agents_app/ui/chat_sessions/chat_session_record.dart';
+import 'package:agents_app/ui/chat_sessions/chat_session_store.dart';
+import 'package:agents_app/ui/providers/providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 ChatMessage _llmText(String text) =>

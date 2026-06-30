@@ -217,9 +217,9 @@ providers still throwing without a key.
 
 ## Phase 5 — Example app wiring
 
-Under `packages/agents_flutter/example/`.
+Under `packages/agents_app/`.
 
-1. Add `agents_llama: { path: ../../agents_llama }` to the example pubspec; bundle
+1. Add `agents_llama: { path: ../agents_llama }` to the app pubspec; bundle
    wllama wasm (depend on the package's assets).
 2. `lib/main.dart` — register a `localLlama` resolver via the new
    `useConfiguredAgents(chatClientFactory: ...)` param. The resolver:

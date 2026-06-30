@@ -46,7 +46,7 @@ final _builder = Host.createApplicationBuilder()
             _createLocalLlamaClient(sp, source: source, model: model),
       ),
     );
-    flutter.runApp((services) => const AgentsFlutterExampleApp());
+    flutter.runApp((services) => const AgentsApp());
   });
 
 final host = _builder.build();
@@ -346,14 +346,14 @@ Future<String> _downloadLocalModel(
   return path;
 }
 
-/// Root of the configured-agents example app.
-class AgentsFlutterExampleApp extends StatelessWidget {
-  /// Creates the example app.
-  const AgentsFlutterExampleApp({super.key});
+/// Root of the configured-agents app.
+class AgentsApp extends StatelessWidget {
+  /// Creates the agents app.
+  const AgentsApp({super.key});
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'agents_flutter example',
+    title: 'agents_app',
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
@@ -675,7 +675,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e, s) {
       developer.log(
         'Failed to persist chat session.',
-        name: 'agents_flutter_example.chat_sessions',
+        name: 'agents_app.chat_sessions',
         error: e,
         stackTrace: s,
       );
