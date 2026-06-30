@@ -86,51 +86,47 @@ class TextOrAudioInput extends StatelessWidget {
               minHeight: _minInputHeight,
               maxHeight: _maxInputHeight,
             ),
-            child:
-                _waveController.isRecording
-                    ? WaveformRecorder(
-                      controller: _waveController,
-                      height: _voiceNoteRecorderStyle.height!,
-                      waveColor: _voiceNoteRecorderStyle.waveColor!,
-                      durationTextStyle:
-                          _voiceNoteRecorderStyle.durationTextStyle!,
-                      onRecordingStopped: _onRecordingStopped,
-                    )
-                    : ChatTextField(
-                      minLines: 1,
-                      maxLines: 1024,
-                      controller: _textController,
-                      autofocus: _autofocus,
-                      focusNode: _focusNode,
-                      textInputAction:
-                          isMobile
-                              ? TextInputAction.newline
-                              : TextInputAction.done,
-                      onSubmitted:
-                          _inputState == InputState.canSubmitPrompt
-                              ? (_) => _onSubmitPrompt()
-                              : (_) => _focusNode.requestFocus(),
-                      style: _inputStyle.textStyle!,
-                      hintText: _inputStyle.hintText!,
-                      hintStyle: _inputStyle.hintStyle!,
-                      hintPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
+            child: _waveController.isRecording
+                ? WaveformRecorder(
+                    controller: _waveController,
+                    height: _voiceNoteRecorderStyle.height!,
+                    waveColor: _voiceNoteRecorderStyle.waveColor!,
+                    durationTextStyle:
+                        _voiceNoteRecorderStyle.durationTextStyle!,
+                    onRecordingStopped: _onRecordingStopped,
+                  )
+                : ChatTextField(
+                    minLines: 1,
+                    maxLines: 1024,
+                    controller: _textController,
+                    autofocus: _autofocus,
+                    focusNode: _focusNode,
+                    textInputAction: isMobile
+                        ? TextInputAction.newline
+                        : TextInputAction.done,
+                    onSubmitted: _inputState == InputState.canSubmitPrompt
+                        ? (_) => _onSubmitPrompt()
+                        : (_) => _focusNode.requestFocus(),
+                    style: _inputStyle.textStyle!,
+                    hintText: _inputStyle.hintText!,
+                    hintStyle: _inputStyle.hintStyle!,
+                    hintPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
+                  ),
           ),
         ),
       ),
       Align(
         alignment: Alignment.topRight,
-        child:
-            _onCancelEdit != null
-                ? EditingIndicator(
-                  onCancelEdit: _onCancelEdit,
-                  cancelButtonStyle: _cancelButtonStyle,
-                  editingTitle: _chatStrings.editing,
-                )
-                : const SizedBox(),
+        child: _onCancelEdit != null
+            ? EditingIndicator(
+                onCancelEdit: _onCancelEdit,
+                cancelButtonStyle: _cancelButtonStyle,
+                editingTitle: _chatStrings.editing,
+              )
+            : const SizedBox(),
       ),
     ],
   );

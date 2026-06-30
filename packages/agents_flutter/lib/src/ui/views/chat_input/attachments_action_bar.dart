@@ -171,8 +171,13 @@ class _AttachmentActionBarState extends State<AttachmentActionBar> {
       final message = chatStrings.formatUnableToPickImage(ex.toString());
       if (context.mounted) {
         // I just checked this! ^^^
-        // ignore: use_build_context_synchronously
-        AdaptiveSnackBar.show(context, message);
+        AdaptiveSnackBar.show(
+          // ignore: use_build_context_synchronously
+          context,
+          message,
+          copyText: message,
+          copyLabel: chatStrings.copy,
+        );
       }
     }
   }
@@ -186,8 +191,13 @@ class _AttachmentActionBarState extends State<AttachmentActionBar> {
       final message = chatStrings.formatUnableToPickFile(ex.toString());
       if (context.mounted) {
         // I just checked this! ^^^
-        // ignore: use_build_context_synchronously
-        AdaptiveSnackBar.show(context, message);
+        AdaptiveSnackBar.show(
+          // ignore: use_build_context_synchronously
+          context,
+          message,
+          copyText: message,
+          copyLabel: chatStrings.copy,
+        );
       }
     }
   }
@@ -201,8 +211,13 @@ class _AttachmentActionBarState extends State<AttachmentActionBar> {
       final message = chatStrings.formatUnableToPickUrl(ex.toString());
       if (context.mounted) {
         // I just checked this! ^^^
-        // ignore: use_build_context_synchronously
-        AdaptiveSnackBar.show(context, message);
+        AdaptiveSnackBar.show(
+          // ignore: use_build_context_synchronously
+          context,
+          message,
+          copyText: message,
+          copyLabel: chatStrings.copy,
+        );
       }
     }
   }

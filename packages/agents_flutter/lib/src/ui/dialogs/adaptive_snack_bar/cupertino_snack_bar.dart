@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 /// A widget that displays a Cupertino-style snack bar.
 ///
@@ -15,15 +16,19 @@ import 'package:flutter/cupertino.dart';
 class CupertinoSnackBar extends StatefulWidget {
   /// Creates a [CupertinoSnackBar].
   ///
-  /// All parameters are required:
   /// * [message] is the text to display in the snack bar.
   /// * [animationDurationMillis] defines how long the slide animations take.
   /// * [waitDurationMillis] sets how long the snack bar stays visible before
   ///   dismissing.
+  /// * [copyText] is the text copied to the clipboard when the copy button is
+  ///   tapped. When null, no copy button is shown.
+  /// * [copyLabel] is the tooltip/semantic label for the copy button.
   const CupertinoSnackBar({
     required this.message,
     required this.animationDurationMillis,
     required this.waitDurationMillis,
+    this.copyText,
+    this.copyLabel = 'Copy',
     super.key,
   });
 
@@ -35,6 +40,14 @@ class CupertinoSnackBar extends StatefulWidget {
 
   /// The duration for which the snack bar remains visible in milliseconds.
   final int waitDurationMillis;
+
+  /// The text copied to the clipboard when the copy button is tapped.
+  ///
+  /// When null, no copy button is shown.
+  final String? copyText;
+
+  /// The semantic label for the copy button.
+  final String copyLabel;
 
   @override
   State<CupertinoSnackBar> createState() => _CupertinoSnackBarState();
@@ -64,13 +77,33 @@ class _CupertinoSnackBarState extends State<CupertinoSnackBar> {
     child: CupertinoPopupSurface(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Text(
-          widget.message,
-          style: const TextStyle(
-            fontSize: 14,
-            color: CupertinoColors.secondaryLabel,
-          ),
-          textAlign: TextAlign.center,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                widget.message,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: CupertinoColors.secondaryLabel,
+                ),
+                textAlign: widget.copyText == null
+                    ? TextAlign.center
+                    : TextAlign.start,
+              ),
+            ),
+            if (widget.copyText != null)
+              CupertinoButton(
+                padding: const EdgeInsets.only(left: 8),
+                minimumSize: Size.zero,
+                onPressed: () =>
+                    Clipboard.setData(ClipboardData(text: widget.copyText!)),
+                child: Semantics(
+                  label: widget.copyLabel,
+                  button: true,
+                  child: const Icon(CupertinoIcons.doc_on_clipboard, size: 18),
+                ),
+              ),
+          ],
         ),
       ),
     ),

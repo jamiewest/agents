@@ -400,6 +400,8 @@ class _LlmChatViewState extends State<LlmChatView>
             context: context,
             content: Text(error.toString()),
             showOK: true,
+            copyText: error.toString(),
+            copyLabel: widget.strings.copy,
           );
         }
     }

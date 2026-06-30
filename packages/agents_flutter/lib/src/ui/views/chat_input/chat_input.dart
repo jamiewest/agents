@@ -256,7 +256,12 @@ class _ChatInputState extends State<ChatInput> {
     final file = _waveController.file;
 
     if (file == null) {
-      AdaptiveSnackBar.show(context, _viewModel!.strings.unableToRecordAudio);
+      AdaptiveSnackBar.show(
+        context,
+        _viewModel!.strings.unableToRecordAudio,
+        copyText: _viewModel!.strings.unableToRecordAudio,
+        copyLabel: _viewModel!.strings.copy,
+      );
       return;
     }
 

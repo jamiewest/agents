@@ -3,6 +3,7 @@ library;
 export 'package:clock/clock.dart' show Clock;
 
 export 'src/chat_client_flutter_extensions.dart';
+export 'src/configured_agents/configured_agents.dart';
 export 'src/connectivity/connectivity_context_provider.dart';
 export 'src/connectivity/connectivity_monitor.dart';
 export 'src/connectivity/connectivity_service_collection_extensions.dart';
@@ -43,6 +44,7 @@ export 'src/temporal/temporal_tool.dart';
 export 'src/ui/providers/providers.dart' hide ChatMessage;
 export 'src/ui/strings/strings.dart';
 export 'src/ui/styles/styles.dart';
+export 'src/ui/views/configured_agents/configured_agents.dart';
 export 'src/ui/views/llm_chat_view/llm_chat_view.dart';
 export 'src/ui/views/response_builder.dart';
 export 'src/wake_lock/wake_lock_tool.dart';

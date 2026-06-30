@@ -5,6 +5,7 @@
 import 'package:flutter/cupertino.dart'
     show CupertinoAlertDialog, CupertinoDialogAction, showCupertinoDialog;
 import 'package:flutter/material.dart' show AlertDialog, TextButton, showDialog;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 
 import '../utility.dart';
@@ -25,6 +26,10 @@ class AdaptiveAlertDialog {
   ///   * [showOK]: A boolean flag indicating whether to display an "OK" button
   ///     in the dialog. Defaults to false. If false, the dialog will be
   ///     barrier dismissible.
+  ///   * [copyText]: When non-null, the dialog shows a "Copy" button that
+  ///     copies this text to the clipboard. Used to let users copy error
+  ///     messages shown in [content].
+  ///   * [copyLabel]: The label for the copy button. Defaults to `'Copy'`.
   ///
   /// Returns a [Future] that resolves with the result value when the dialog is
   /// dismissed.
@@ -34,40 +39,51 @@ class AdaptiveAlertDialog {
     required BuildContext context,
     required Widget content,
     bool showOK = false,
-  }) =>
-      isCupertinoApp(context)
-          ? showCupertinoDialog<T>(
-            context: context,
-            barrierDismissible: !showOK,
-            builder:
-                (context) => CupertinoAlertDialog(
-                  content: content,
-                  actions: [
-                    if (showOK)
-                      CupertinoDialogAction(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('OK'),
-                      ),
-                  ],
+    String? copyText,
+    String copyLabel = 'Copy',
+  }) => isCupertinoApp(context)
+      ? showCupertinoDialog<T>(
+          context: context,
+          barrierDismissible: !showOK,
+          builder: (context) => CupertinoAlertDialog(
+            content: content,
+            actions: [
+              if (copyText != null)
+                CupertinoDialogAction(
+                  onPressed: () =>
+                      Clipboard.setData(ClipboardData(text: copyText)),
+                  child: Text(copyLabel),
                 ),
-          )
-          : showDialog<T>(
-            context: context,
-            barrierDismissible: !showOK,
-            builder:
-                (context) => Builder(
-                  builder: (context) {
-                    return AlertDialog(
-                      content: content,
-                      actions: [
-                        if (showOK)
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('OK'),
-                          ),
-                      ],
-                    );
-                  },
+              if (showOK)
+                CupertinoDialogAction(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
                 ),
-          );
+            ],
+          ),
+        )
+      : showDialog<T>(
+          context: context,
+          barrierDismissible: !showOK,
+          builder: (context) => Builder(
+            builder: (context) {
+              return AlertDialog(
+                content: content,
+                actions: [
+                  if (copyText != null)
+                    TextButton(
+                      onPressed: () =>
+                          Clipboard.setData(ClipboardData(text: copyText)),
+                      child: Text(copyLabel),
+                    ),
+                  if (showOK)
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('OK'),
+                    ),
+                ],
+              );
+            },
+          ),
+        );
 }
