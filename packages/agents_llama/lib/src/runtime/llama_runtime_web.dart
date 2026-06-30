@@ -29,8 +29,6 @@ final class WebLlamaRuntime implements LlamaRuntime {
     String? localPath,
     LlamaLoadProgress? onProgress,
   }) async {
-    await _validateModelUrlForWeb(spec.modelUrl);
-
     final constructor = web.window.getProperty<JSFunction?>('Wllama'.toJS);
     if (constructor == null) {
       throw StateError(
@@ -48,21 +46,44 @@ final class WebLlamaRuntime implements LlamaRuntime {
       }.jsify(),
     );
 
-    await instance.callMethodVarArgs<JSPromise<JSAny?>>(
-      'loadModelFromUrl'.toJS,
-      [
-        spec.modelUrl.toString().toJS,
+    final selectedLocalPath = localPath?.trim();
+    if (selectedLocalPath != null && selectedLocalPath.isNotEmpty) {
+      final blob = await _fetchBlob(selectedLocalPath);
+      await instance.callMethodVarArgs<JSPromise<JSAny?>>('loadModel'.toJS, [
+        <web.Blob>[blob].toJS,
         <String, Object?>{
           'n_ctx': spec.contextSize,
           'n_gpu_layers': spec.gpuLayers,
-          'useCache': true,
-          if (onProgress != null)
-            'progressCallback': _createProgressCallback(onProgress),
         }.jsify(),
-      ],
-    ).toDart;
+      ]).toDart;
+    } else {
+      await _validateModelUrlForWeb(spec.modelUrl);
+
+      await instance.callMethodVarArgs<JSPromise<JSAny?>>(
+        'loadModelFromUrl'.toJS,
+        [
+          spec.modelUrl.toString().toJS,
+          <String, Object?>{
+            'n_ctx': spec.contextSize,
+            'n_gpu_layers': spec.gpuLayers,
+            'useCache': true,
+            if (onProgress != null)
+              'progressCallback': _createProgressCallback(onProgress),
+          }.jsify(),
+        ],
+      ).toDart;
+    }
 
     return _WebLlamaSession(instance);
+  }
+
+  static Future<web.Blob> _fetchBlob(String objectUrl) async {
+    final response = await web.window
+        .callMethodVarArgs<JSPromise<web.Response>>('fetch'.toJS, [
+          objectUrl.toJS,
+        ])
+        .toDart;
+    return response.blob().toDart;
   }
 
   static Future<void> _validateModelUrlForWeb(Uri modelUrl) async {
