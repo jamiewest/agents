@@ -1,6 +1,12 @@
 import 'package:agents_flutter/agents_flutter.dart';
+import 'package:extensions_flutter/extensions_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:extensions/extensions.dart';
+
+import 'ui/providers/providers.dart';
+import 'ui/views/configured_agents/configured_agents.dart';
+import 'ui/views/llm_chat_view/llm_chat_view.dart';
 
 // Optional seed values so the demo can start with a working Anthropic agent.
 // Supply them as compile-time defines, e.g.
@@ -13,33 +19,25 @@ const _seedModel = String.fromEnvironment(
   defaultValue: 'claude-haiku-4-5-20251001',
 );
 
-void main() => runApp(const AgentsFlutterExampleApp());
+// This is how we build and run the application, dont stray.
+// <start>
+final _builder = Host.createApplicationBuilder()
+  ..logging.setMinimumLevel(LogLevel.trace)
+  ..services.addFlutter((flutter) {
+    flutter.useFlutterHarnessAgent();
+    flutter.useConfiguredAgents();
+    flutter.runApp((services) => const AgentsFlutterExampleApp());
+  });
+
+final host = _builder.build();
+
+Future<void> main() async => await host.run();
+// </start>
 
 /// Root of the configured-agents example app.
-class AgentsFlutterExampleApp extends StatefulWidget {
+class AgentsFlutterExampleApp extends StatelessWidget {
   /// Creates the example app.
   const AgentsFlutterExampleApp({super.key});
-
-  @override
-  State<AgentsFlutterExampleApp> createState() =>
-      _AgentsFlutterExampleAppState();
-}
-
-class _AgentsFlutterExampleAppState extends State<AgentsFlutterExampleApp> {
-  late final ConfiguredAgentsManager _manager;
-  late final ConfiguredAgentFactory _factory;
-
-  @override
-  void initState() {
-    super.initState();
-    final keyValueStore = SharedPreferencesKeyValueStore();
-    _manager = ConfiguredAgentsManager(
-      sources: ModelSourceStore(keyValueStore),
-      agents: AgentConfigurationStore(keyValueStore),
-      secrets: FlutterSecureSecretStore(),
-    );
-    _factory = ConfiguredAgentFactory(_manager);
-  }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -50,46 +48,45 @@ class _AgentsFlutterExampleAppState extends State<AgentsFlutterExampleApp> {
       textTheme: GoogleFonts.outfitTextTheme(),
       useMaterial3: true,
     ),
-    home: HomeScreen(manager: _manager, factory: _factory),
+    home: const HomeScreen(),
   );
 }
 
 /// Lists configured agents and opens the settings surface and chat.
 class HomeScreen extends StatefulWidget {
   /// Creates a [HomeScreen].
-  const HomeScreen({required this.manager, required this.factory, super.key});
-
-  /// The configuration coordinator.
-  final ConfiguredAgentsManager manager;
-
-  /// Resolves saved agents into runnable agents.
-  final ConfiguredAgentFactory factory;
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late Future<void> _ready;
+  late final Future<void> _ready;
+  bool _initialized = false;
 
   // Bumped whenever the saved agents may have changed (e.g. after returning
   // from settings) to force [_AgentList] to rebuild from storage.
   int _agentListToken = 0;
 
   @override
-  void initState() {
-    super.initState();
-    _ready = _seedIfNeeded();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    _initialized = true;
+    _ready = _seedIfNeeded(
+      context.getRequiredService<ConfiguredAgentsManager>(),
+    );
   }
 
-  Future<void> _seedIfNeeded() async {
+  Future<void> _seedIfNeeded(ConfiguredAgentsManager manager) async {
     if (_seedApiKey.trim().isEmpty) return;
-    final existing = await widget.manager.sources.listSources();
+    final existing = await manager.sources.listSources();
     if (existing.isNotEmpty) return;
 
     const sourceId = 'seed-anthropic';
     const modelId = 'seed-anthropic-model';
-    await widget.manager.saveSource(
+    await manager.saveSource(
       const ModelSourceConfig(
         id: sourceId,
         providerType: ProviderType.anthropic,
@@ -97,7 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       apiKey: _seedApiKey,
     );
-    await widget.manager.saveModel(
+    await manager.saveModel(
       const ModelConfig(
         id: modelId,
         sourceId: sourceId,
@@ -105,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
         displayName: 'Claude',
       ),
     );
-    await widget.manager.saveAgent(
+    await manager.saveAgent(
       const SavedAgentConfig(
         id: 'seed-anthropic-agent',
         name: 'Claude',
@@ -117,22 +114,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openSettings() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => SettingsScreen(manager: widget.manager),
-      ),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen()));
     if (mounted) {
       setState(() => _agentListToken++);
     }
   }
 
   void _openChat(SavedAgentConfig agent) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ChatScreen(agent: agent, factory: widget.factory),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => ChatScreen(agent: agent)));
   }
 
   @override
@@ -155,7 +148,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         return _AgentList(
           key: ValueKey(_agentListToken),
-          manager: widget.manager,
           onSelected: _openChat,
           onManage: _openSettings,
         );
@@ -166,13 +158,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _AgentList extends StatefulWidget {
   const _AgentList({
-    required this.manager,
     required this.onSelected,
     required this.onManage,
     super.key,
   });
 
-  final ConfiguredAgentsManager manager;
   final void Function(SavedAgentConfig agent) onSelected;
   final VoidCallback onManage;
 
@@ -181,12 +171,18 @@ class _AgentList extends StatefulWidget {
 }
 
 class _AgentListState extends State<_AgentList> {
-  late Future<List<SavedAgentConfig>> _agents;
+  late final Future<List<SavedAgentConfig>> _agents;
+  bool _initialized = false;
 
   @override
-  void initState() {
-    super.initState();
-    _agents = widget.manager.agents.listAgents();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    _initialized = true;
+    _agents = context
+        .getRequiredService<ConfiguredAgentsManager>()
+        .agents
+        .listAgents();
   }
 
   @override
@@ -231,21 +227,21 @@ class _AgentListState extends State<_AgentList> {
 /// [ConfiguredAgentsView].
 class SettingsScreen extends StatelessWidget {
   /// Creates a [SettingsScreen].
-  const SettingsScreen({required this.manager, super.key});
-
-  /// The configuration coordinator.
-  final ConfiguredAgentsManager manager;
+  const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Manage agents')),
-    body: Column(
-      children: [
-        const _WebSecurityNotice(),
-        Expanded(child: ConfiguredAgentsView(manager: manager)),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final manager = context.getRequiredService<ConfiguredAgentsManager>();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Manage agents')),
+      body: Column(
+        children: [
+          const _WebSecurityNotice(),
+          Expanded(child: ConfiguredAgentsView(manager: manager)),
+        ],
+      ),
+    );
+  }
 }
 
 class _WebSecurityNotice extends StatelessWidget {
@@ -268,13 +264,10 @@ class _WebSecurityNotice extends StatelessWidget {
 /// Resolves a saved agent and shows a chat against it.
 class ChatScreen extends StatefulWidget {
   /// Creates a [ChatScreen].
-  const ChatScreen({required this.agent, required this.factory, super.key});
+  const ChatScreen({required this.agent, super.key});
 
   /// The saved agent to chat with.
   final SavedAgentConfig agent;
-
-  /// Resolves the saved agent into a runnable agent.
-  final ConfiguredAgentFactory factory;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -282,16 +275,23 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   late final Future<AgentLlmProvider> _providerFuture;
+  bool _initialized = false;
   AgentLlmProvider? _provider;
 
   @override
-  void initState() {
-    super.initState();
-    _providerFuture = _createProvider();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    _initialized = true;
+    _providerFuture = _createProvider(
+      context.getRequiredService<ConfiguredAgentFactory>(),
+    );
   }
 
-  Future<AgentLlmProvider> _createProvider() async {
-    final agent = await widget.factory.createAgent(widget.agent);
+  Future<AgentLlmProvider> _createProvider(
+    ConfiguredAgentFactory factory,
+  ) async {
+    final agent = await factory.createAgent(widget.agent);
     final session = await agent.createSession();
     final provider = AgentLlmProvider(agent: agent, session: session);
     _provider = provider;

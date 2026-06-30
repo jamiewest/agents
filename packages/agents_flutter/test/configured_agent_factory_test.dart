@@ -119,6 +119,40 @@ void main() {
         isNot(contains('anthropic-dangerous-direct-browser-access')),
       );
     });
+
+    test('rejects an API key with a non-Latin-1 character', () {
+      // A right single quotation mark (U+2019) is a common paste artifact that
+      // browser fetch cannot send as a header value.
+      const factory = ConfiguredChatClientFactory();
+
+      expect(
+        () => factory.createChatClient(
+          source: _anthropicSource,
+          model: _anthropicModel,
+          apiKey: 'sk-ant’key',
+        ),
+        throwsA(
+          isA<ConfiguredAgentException>().having(
+            (e) => e.message,
+            'message',
+            contains('U+2019'),
+          ),
+        ),
+      );
+    });
+
+    test('accepts a plain ASCII API key', () {
+      const factory = ConfiguredChatClientFactory();
+
+      expect(
+        () => factory.createChatClient(
+          source: _anthropicSource,
+          model: _anthropicModel,
+          apiKey: 'sk-ant-api03-abcDEF123',
+        ),
+        returnsNormally,
+      );
+    });
   });
 
   group('ConfiguredAgentFactory', () {

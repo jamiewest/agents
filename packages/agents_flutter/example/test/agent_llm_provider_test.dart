@@ -4,8 +4,9 @@ import 'dart:typed_data';
 
 import 'package:agents/agents.dart';
 import 'package:agents_flutter/agents_flutter.dart' as ui;
-import 'package:agents_flutter/src/ui/providers/interface/chat_message.dart'
-    as ui_messages;
+import 'package:agents_flutter_example/ui/providers/implementations/agent_llm_provider.dart';
+import 'package:agents_flutter_example/ui/providers/providers.dart';
+import '../lib/ui/providers/interface/chat_message.dart' as ui_messages;
 import 'package:extensions/ai.dart' as ai;
 import 'package:extensions/system.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,7 +15,7 @@ void main() {
   group('AgentLlmProvider', () {
     test('sends the prompt as agent text content', () async {
       final agent = _FakeAgent(updates: [_textUpdate('hello back')]);
-      final provider = ui.AgentLlmProvider(agent: agent);
+      final provider = AgentLlmProvider(agent: agent);
 
       await provider.sendMessageStream('hello').toList();
 
@@ -28,13 +29,13 @@ void main() {
 
     test('maps file and image attachments to data content', () async {
       final agent = _FakeAgent();
-      final provider = ui.AgentLlmProvider(agent: agent);
-      final file = ui.FileAttachment(
+      final provider = AgentLlmProvider(agent: agent);
+      final file = FileAttachment(
         name: 'notes.txt',
         mimeType: 'text/plain',
         bytes: Uint8List.fromList([1, 2, 3]),
       );
-      final image = ui.ImageFileAttachment(
+      final image = ImageFileAttachment(
         name: 'photo.png',
         mimeType: 'image/png',
         bytes: Uint8List.fromList([4, 5, 6]),
@@ -57,8 +58,8 @@ void main() {
 
     test('maps link attachments to URI content', () async {
       final agent = _FakeAgent();
-      final provider = ui.AgentLlmProvider(agent: agent);
-      final attachment = ui.LinkAttachment(
+      final provider = AgentLlmProvider(agent: agent);
+      final attachment = LinkAttachment(
         name: 'Dart',
         url: Uri.parse('https://dart.dev/'),
         mimeType: 'text/html',
@@ -78,14 +79,14 @@ void main() {
       final agent = _FakeAgent(
         updates: [_textUpdate('hel'), _textUpdate('lo')],
       );
-      final provider = ui.AgentLlmProvider(agent: agent);
+      final provider = AgentLlmProvider(agent: agent);
 
       final chunks = await provider.sendMessageStream('say hello').toList();
 
       expect(chunks, ['hel', 'lo']);
       expect(provider.history, hasLength(2));
-      expect(provider.history.first.origin, ui.MessageOrigin.user);
-      expect(provider.history.last.origin, ui.MessageOrigin.llm);
+      expect(provider.history.first.origin, MessageOrigin.user);
+      expect(provider.history.last.origin, MessageOrigin.llm);
       expect(provider.history.last.text, 'hello');
     });
 
@@ -93,21 +94,21 @@ void main() {
       'keeps a user and assistant transcript pair when streaming fails',
       () async {
         final agent = _FakeAgent(error: StateError('boom'));
-        final provider = ui.AgentLlmProvider(agent: agent);
+        final provider = AgentLlmProvider(agent: agent);
 
         await expectLater(
           provider.sendMessageStream('explode').toList(),
           throwsA(isA<StateError>()),
         );
         expect(provider.history, hasLength(2));
-        expect(provider.history.first.origin, ui.MessageOrigin.user);
+        expect(provider.history.first.origin, MessageOrigin.user);
         expect(provider.history.first.text, 'explode');
-        expect(provider.history.last.origin, ui.MessageOrigin.llm);
+        expect(provider.history.last.origin, MessageOrigin.llm);
       },
     );
 
     test('notifies listeners when history is replaced', () {
-      final provider = ui.AgentLlmProvider(agent: _FakeAgent());
+      final provider = AgentLlmProvider(agent: _FakeAgent());
       var notificationCount = 0;
       provider.addListener(() => notificationCount++);
 
@@ -121,7 +122,7 @@ void main() {
       final session = _FakeSession();
       final options = AgentRunOptions();
       final agent = _FakeAgent();
-      final provider = ui.AgentLlmProvider(
+      final provider = AgentLlmProvider(
         agent: agent,
         session: session,
         optionsBuilder: () => options,

@@ -7,7 +7,7 @@
 
 import 'dart:convert';
 
-import '../../providers/interface/attachments.dart';
+import 'attachments.dart';
 import 'message_origin.dart';
 
 /// Represents a message in a chat conversation.

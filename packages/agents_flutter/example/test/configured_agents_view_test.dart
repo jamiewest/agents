@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'package:agents_flutter/agents_flutter.dart';
+import 'package:agents_flutter_example/ui/views/configured_agents/configured_agents.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

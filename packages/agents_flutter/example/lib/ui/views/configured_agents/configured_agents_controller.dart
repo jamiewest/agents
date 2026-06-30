@@ -2,13 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:agents_flutter/agents_flutter.dart';
 import 'package:flutter/foundation.dart';
-
-import '../../../configured_agents/configured_agent_exception.dart';
-import '../../../configured_agents/configured_agents_manager.dart';
-import '../../../configured_agents/models/model_config.dart';
-import '../../../configured_agents/models/model_source_config.dart';
-import '../../../configured_agents/models/saved_agent_config.dart';
 
 /// Mutable view-model for the configured-agents UI.
 ///

@@ -2,13 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:agents_flutter/agents_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
-import '../../../configured_agents/configured_agents_manager.dart';
-import '../../../configured_agents/models/model_config.dart';
-import '../../../configured_agents/models/model_source_config.dart';
-import '../../../configured_agents/models/saved_agent_config.dart';
 import '../../dialogs/adaptive_snack_bar/adaptive_snack_bar.dart';
 import '../../strings/configured_agents_strings.dart';
 import '../../styles/configured_agents_style.dart';

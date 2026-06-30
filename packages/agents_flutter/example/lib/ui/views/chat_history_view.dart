@@ -7,7 +7,7 @@ import 'package:flutter/widgets.dart';
 import '../providers/interface/chat_message.dart';
 import '../providers/interface/message_origin.dart';
 import '../styles/llm_chat_view_style.dart';
-import '../views/chat_input/chat_suggestion_view.dart';
+import 'chat_input/chat_suggestion_view.dart';
 
 import '../chat_view_model/chat_view_model_client.dart';
 import 'chat_message_view/llm_message_view.dart';
