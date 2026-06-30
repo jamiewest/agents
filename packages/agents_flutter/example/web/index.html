@@ -7,6 +7,10 @@
     <meta name="description" content="agents_flutter chat UI example" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>agents_flutter example</title>
+    <script type="module">
+      import { Wllama } from 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.5.1/esm/index.js';
+      globalThis.Wllama = Wllama;
+    </script>
   </head>
   <body>
     <script src="flutter_bootstrap.js" async></script>

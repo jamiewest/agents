@@ -2,10 +2,16 @@ import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:agents/agents.dart'
-    show AIAgent, AgentSession, ChatHistoryProvider, InMemoryChatHistoryProvider;
+    show
+        AIAgent,
+        AgentSession,
+        ChatHistoryProvider,
+        InMemoryChatHistoryProvider;
 import 'package:agents_flutter/agents_flutter.dart';
+import 'package:agents_llama/agents_llama.dart' as llama;
 import 'package:extensions/ai.dart' as ai;
 import 'package:extensions_flutter/extensions_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:extensions/extensions.dart' hide ChatMessage;
@@ -32,8 +38,14 @@ const _seedModel = String.fromEnvironment(
 final _builder = Host.createApplicationBuilder()
   ..logging.setMinimumLevel(LogLevel.trace)
   ..services.addFlutter((flutter) {
+    flutter.services.addDownloadService();
     flutter.useFlutterHarnessAgent();
-    flutter.useConfiguredAgents();
+    flutter.useConfiguredAgents(
+      chatClientFactory: (sp) => ConfiguredChatClientFactory(
+        customClientResolver: ({required source, required model, httpClient}) =>
+            _createLocalLlamaClient(sp, source: source, model: model),
+      ),
+    );
     flutter.runApp((services) => const AgentsFlutterExampleApp());
   });
 
@@ -41,6 +53,210 @@ final host = _builder.build();
 
 Future<void> main() async => await host.run();
 // </start>
+
+enum _LocalLlamaPhase { idle, downloading, loading, ready, error }
+
+@immutable
+class _LocalLlamaStatus {
+  const _LocalLlamaStatus({
+    required this.phase,
+    required this.message,
+    this.progress,
+  });
+
+  static const idle = _LocalLlamaStatus(
+    phase: _LocalLlamaPhase.idle,
+    message: '',
+  );
+
+  final _LocalLlamaPhase phase;
+  final String message;
+  final double? progress;
+
+  bool get isVisible => phase != _LocalLlamaPhase.idle;
+}
+
+final class _LocalLlamaProgressRegistry extends ChangeNotifier {
+  final Map<String, _LocalLlamaStatus> _statuses = {};
+
+  _LocalLlamaStatus statusFor(String modelId) =>
+      _statuses[modelId] ?? _LocalLlamaStatus.idle;
+
+  void update(String modelId, _LocalLlamaStatus status) {
+    _statuses[modelId] = status;
+    notifyListeners();
+  }
+}
+
+final _localLlamaProgress = _LocalLlamaProgressRegistry();
+
+ai.ChatClient _createLocalLlamaClient(
+  ServiceProvider services, {
+  required ModelSourceConfig source,
+  required ModelConfig model,
+}) {
+  final spec = _localLlamaSpec(source: source, model: model);
+  final runtime = llama.createLlamaRuntime();
+  llama.LlamaSession? loaded;
+
+  Future<llama.LlamaSession> sessionProvider() async {
+    final current = loaded;
+    if (current != null) return current;
+
+    try {
+      if (kIsWeb) {
+        _localLlamaProgress.update(
+          model.id,
+          const _LocalLlamaStatus(
+            phase: _LocalLlamaPhase.loading,
+            message: 'Loading local model from browser cache...',
+          ),
+        );
+        loaded = await runtime.loadModel(
+          spec,
+          onProgress: (progress) {
+            _localLlamaProgress.update(
+              model.id,
+              _LocalLlamaStatus(
+                phase: _LocalLlamaPhase.downloading,
+                message: 'Downloading local model to browser cache...',
+                progress: progress.clamp(0, 1).toDouble(),
+              ),
+            );
+          },
+        );
+      } else {
+        final localPath = await _downloadLocalModel(services, spec, model.id);
+        _localLlamaProgress.update(
+          model.id,
+          const _LocalLlamaStatus(
+            phase: _LocalLlamaPhase.loading,
+            message: 'Loading local model...',
+          ),
+        );
+        loaded = await runtime.loadModel(spec, localPath: localPath);
+      }
+      _localLlamaProgress.update(
+        model.id,
+        const _LocalLlamaStatus(
+          phase: _LocalLlamaPhase.ready,
+          message: 'Local model ready.',
+          progress: 1,
+        ),
+      );
+    } on Object catch (error) {
+      _localLlamaProgress.update(
+        model.id,
+        _LocalLlamaStatus(
+          phase: _LocalLlamaPhase.error,
+          message: 'Local model failed: $error',
+        ),
+      );
+      rethrow;
+    }
+    return loaded!;
+  }
+
+  return llama.createLlamaChatClient(
+    spec: spec,
+    sessionProvider: sessionProvider,
+    isThinkingEnabled: () => spec.enableThinking,
+  );
+}
+
+llama.ModelSpec _localLlamaSpec({
+  required ModelSourceConfig source,
+  required ModelConfig model,
+}) {
+  final settings = model.settings;
+  final format = settings['llama.format']?.trim();
+  if (format != null && format.isNotEmpty && format != 'gemma') {
+    throw ConfiguredAgentException('Unsupported local llama format "$format".');
+  }
+
+  final modelUrl = settings['llama.modelUrl']?.trim();
+  if (modelUrl == null || modelUrl.isEmpty) {
+    throw ConfiguredAgentException('Local llama model URL is required.');
+  }
+
+  Uri? optionalUrl(String key) {
+    final value = settings[key]?.trim();
+    return value == null || value.isEmpty ? null : Uri.parse(value);
+  }
+
+  int intSetting(String key, int fallback) {
+    final value = settings[key]?.trim();
+    if (value == null || value.isEmpty) return fallback;
+    return int.tryParse(value) ?? fallback;
+  }
+
+  return llama.ModelSpec(
+    id: model.modelId,
+    displayName: model.label,
+    modelUrl: Uri.parse(modelUrl),
+    mmprojUrl: optionalUrl('llama.mmprojUrl'),
+    draftUrl: optionalUrl('llama.draftModelUrl'),
+    contextSize: intSetting('llama.contextSize', 4096),
+    gpuLayers: intSetting('llama.gpuLayers', 999),
+    format: const llama.GemmaChatFormat(),
+  );
+}
+
+Future<String> _downloadLocalModel(
+  ServiceProvider services,
+  llama.ModelSpec spec,
+  String modelId,
+) async {
+  final downloads = services.getRequiredService<DownloadService>();
+  final filename = spec.modelUrl.pathSegments.isEmpty
+      ? '$modelId.gguf'
+      : spec.modelUrl.pathSegments.last;
+  final request = DownloadRequest(
+    url: spec.modelUrl.toString(),
+    filename: filename,
+    directory: 'local_llama/$modelId',
+    metaData: spec.id,
+  );
+  final path = await downloads.filePathFor(request);
+  _localLlamaProgress.update(
+    modelId,
+    const _LocalLlamaStatus(
+      phase: _LocalLlamaPhase.downloading,
+      message: 'Downloading local model...',
+      progress: 0,
+    ),
+  );
+  final status = await downloads.download(
+    request,
+    onProgress: (progress) {
+      _localLlamaProgress.update(
+        modelId,
+        _LocalLlamaStatus(
+          phase: _LocalLlamaPhase.downloading,
+          message: 'Downloading local model...',
+          progress: progress.clamp(0, 1),
+        ),
+      );
+    },
+    onStatus: (status) {
+      if (status == DownloadStatus.running) {
+        _localLlamaProgress.update(
+          modelId,
+          const _LocalLlamaStatus(
+            phase: _LocalLlamaPhase.downloading,
+            message: 'Downloading local model...',
+          ),
+        );
+      }
+    },
+  );
+  if (status != DownloadStatus.complete) {
+    throw ConfiguredAgentException(
+      'Local llama model download failed with status $status.',
+    );
+  }
+  return path;
+}
 
 /// Root of the configured-agents example app.
 class AgentsFlutterExampleApp extends StatelessWidget {
@@ -405,13 +621,104 @@ class _ChatScreenState extends State<ChatScreen> {
         if (provider == null) {
           return const Center(child: CircularProgressIndicator());
         }
-        return LlmChatView(
-          provider: provider,
-          welcomeMessage: 'Ask ${widget.agent.name} anything.',
-          enableAttachments: false,
-          enableVoiceNotes: false,
+        return Column(
+          children: [
+            _LocalLlamaProgressBanner(modelId: widget.agent.modelId),
+            Expanded(
+              child: LlmChatView(
+                provider: provider,
+                welcomeMessage: 'Ask ${widget.agent.name} anything.',
+                enableAttachments: false,
+                enableVoiceNotes: false,
+              ),
+            ),
+          ],
         );
       },
     ),
   );
+}
+
+class _LocalLlamaProgressBanner extends StatelessWidget {
+  const _LocalLlamaProgressBanner({required this.modelId});
+
+  final String modelId;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _localLlamaProgress,
+    builder: (context, child) {
+      final status = _localLlamaProgress.statusFor(modelId);
+      if (!status.isVisible) return const SizedBox.shrink();
+
+      final colorScheme = Theme.of(context).colorScheme;
+      final progress = status.progress;
+      final isBusy =
+          status.phase == _LocalLlamaPhase.downloading ||
+          status.phase == _LocalLlamaPhase.loading;
+
+      return Material(
+        color: status.phase == _LocalLlamaPhase.error
+            ? colorScheme.errorContainer
+            : colorScheme.surfaceContainerHighest,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (isBusy) ...[
+                    SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        value: status.phase == _LocalLlamaPhase.downloading
+                            ? progress
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ] else
+                    Icon(
+                      status.phase == _LocalLlamaPhase.error
+                          ? Icons.error_outline
+                          : Icons.check_circle_outline,
+                      size: 18,
+                      color: status.phase == _LocalLlamaPhase.error
+                          ? colorScheme.onErrorContainer
+                          : colorScheme.primary,
+                    ),
+                  if (!isBusy) const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _statusText(status),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: status.phase == _LocalLlamaPhase.error
+                            ? colorScheme.onErrorContainer
+                            : colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (status.phase == _LocalLlamaPhase.downloading) ...[
+                const SizedBox(height: 8),
+                LinearProgressIndicator(value: progress),
+              ],
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
+  String _statusText(_LocalLlamaStatus status) {
+    final progress = status.progress;
+    if (status.phase == _LocalLlamaPhase.downloading && progress != null) {
+      return '${status.message} ${(progress * 100).toStringAsFixed(0)}%';
+    }
+    return status.message;
+  }
 }

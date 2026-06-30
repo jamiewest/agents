@@ -26,6 +26,31 @@ void main() {
       expect(source.toJson().toString(), isNot(contains('apiKey')));
     });
 
+    test('ModelConfig round trips settings', () {
+      const model = ModelConfig(
+        id: 'm1',
+        sourceId: 's1',
+        modelId: 'gemma-local',
+        displayName: 'Gemma',
+        settings: {'llama.modelUrl': 'https://example.com/model.gguf'},
+      );
+
+      final restored = ModelConfig.fromJson(model.toJson());
+
+      expect(restored.id, 'm1');
+      expect(restored.displayName, 'Gemma');
+      expect(restored.settings, {
+        'llama.modelUrl': 'https://example.com/model.gguf',
+      });
+    });
+
+    test('ProviderType round trips local llama and API-key requirements', () {
+      expect(ProviderType.fromWireName('local_llama'), ProviderType.localLlama);
+      expect(ProviderType.localLlama.requiresApiKey, isFalse);
+      expect(ProviderType.openAiCompatible.requiresApiKey, isTrue);
+      expect(ProviderType.anthropic.requiresApiKey, isTrue);
+    });
+
     test('SavedAgentConfig round trips with optional numbers', () {
       const agent = SavedAgentConfig(
         id: 'a1',

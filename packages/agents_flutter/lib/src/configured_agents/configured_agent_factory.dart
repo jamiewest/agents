@@ -87,7 +87,8 @@ class ConfiguredAgentFactory {
     }
 
     final apiKey = await _manager.getSourceApiKey(source.id);
-    if (apiKey == null || apiKey.isEmpty) {
+    if (source.providerType.requiresApiKey &&
+        (apiKey == null || apiKey.isEmpty)) {
       throw ConfiguredAgentException(
         'No API key is stored for source "${source.displayName}".',
       );

@@ -75,6 +75,57 @@ void main() {
     expect(source.providerType, ProviderType.anthropic);
   });
 
+  testWidgets('local llama source and model fields persist', (tester) async {
+    final manager = _buildManager();
+    await tester.pumpWidget(_host(manager));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add source'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OpenAI-compatible'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Local llama').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Endpoint (optional)'), findsNothing);
+    expect(find.text('API key'), findsNothing);
+    await tester.enterText(find.byType(TextFormField).first, 'Local models');
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final source = (await manager.sources.listSources()).single;
+    expect(source.providerType, ProviderType.localLlama);
+    expect(await manager.getSourceApiKey(source.id), isNull);
+
+    await tester.tap(find.text('Models'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add model'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('GGUF model URL'), findsOneWidget);
+    expect(find.text('Model id'), findsNothing);
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(
+      fields.at(0),
+      'https://huggingface.co/google/gemma/resolve/main/model.gguf',
+    );
+    await tester.enterText(fields.at(1), '2048');
+    await tester.enterText(fields.at(2), '0');
+    await tester.enterText(fields.at(4), 'Gemma local');
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final model = (await manager.sources.listModels()).single;
+    expect(model.displayName, 'Gemma local');
+    expect(model.settings['llama.modelUrl'], contains('model.gguf'));
+    expect(model.settings['llama.contextSize'], '2048');
+    expect(model.settings['llama.gpuLayers'], '0');
+    expect(model.settings['llama.format'], 'gemma');
+  });
+
   testWidgets('blocked source delete offers cascade', (tester) async {
     final manager = _buildManager();
     await manager.saveSource(

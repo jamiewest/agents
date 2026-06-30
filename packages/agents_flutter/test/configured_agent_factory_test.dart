@@ -6,6 +6,7 @@ import 'package:agents/agents.dart'
     show AgentModeProvider, ChatClientAgent, TodoProvider;
 import 'package:agents_flutter/agents_flutter.dart';
 import 'package:extensions/ai.dart';
+import 'package:extensions/system.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -31,6 +32,17 @@ const _anthropicModel = ModelConfig(
   sourceId: 's-anthropic',
   modelId: 'claude-test',
 );
+const _localSource = ModelSourceConfig(
+  id: 's-local',
+  providerType: ProviderType.localLlama,
+  displayName: 'Local llama',
+);
+const _localModel = ModelConfig(
+  id: 'm-local',
+  sourceId: 's-local',
+  modelId: 'local-gemma',
+  settings: {'llama.modelUrl': 'https://example.com/model.gguf'},
+);
 
 /// Captures the first outgoing request, then returns a canned 200 so the
 /// client has something to (attempt to) parse.
@@ -50,6 +62,38 @@ Future<void> _ignoreParseErrors(Future<void> Function() action) async {
     // The canned body is not a valid provider response; we only care that the
     // request reached the wire so its headers/URL can be inspected.
   }
+}
+
+ChatClient _staticEchoResolver({
+  required ModelSourceConfig source,
+  required ModelConfig model,
+  http.Client? httpClient,
+}) => _EchoChatClient();
+
+final class _EchoChatClient extends ChatClient {
+  @override
+  Future<ChatResponse> getResponse({
+    required Iterable<ChatMessage> messages,
+    ChatOptions? options,
+    CancellationToken? cancellationToken,
+  }) async => ChatResponse(
+    messages: <ChatMessage>[ChatMessage.fromText(ChatRole.assistant, 'ok')],
+  );
+
+  @override
+  Stream<ChatResponseUpdate> getStreamingResponse({
+    required Iterable<ChatMessage> messages,
+    ChatOptions? options,
+    CancellationToken? cancellationToken,
+  }) => Stream<ChatResponseUpdate>.value(
+    ChatResponseUpdate.fromText(ChatRole.assistant, 'ok'),
+  );
+
+  @override
+  T? getService<T>({Object? key}) => null;
+
+  @override
+  void dispose() {}
 }
 
 void main() {
@@ -157,6 +201,30 @@ void main() {
         returnsNormally,
       );
     });
+
+    test('uses the custom resolver for local llama without an API key', () {
+      final client = const ConfiguredChatClientFactory(
+        customClientResolver: _staticEchoResolver,
+      ).createChatClient(source: _localSource, model: _localModel);
+
+      expect(client, isA<_EchoChatClient>());
+    });
+
+    test('throws when local llama has no custom resolver', () {
+      expect(
+        () => const ConfiguredChatClientFactory().createChatClient(
+          source: _localSource,
+          model: _localModel,
+        ),
+        throwsA(
+          isA<ConfiguredAgentException>().having(
+            (e) => e.message,
+            'message',
+            'No local-model provider registered.',
+          ),
+        ),
+      );
+    });
   });
 
   group('ConfiguredAgentFactory', () {
@@ -203,6 +271,29 @@ void main() {
         ),
         throwsA(isA<ConfiguredAgentException>()),
       );
+    });
+
+    test('creates a local llama agent without a stored API key', () async {
+      final manager = buildManager();
+      await manager.saveSource(_localSource);
+      await manager.saveModel(_localModel);
+      const agent = SavedAgentConfig(
+        id: 'a-local',
+        name: 'Local',
+        modelId: 'm-local',
+      );
+      await manager.saveAgent(agent);
+
+      final built = await ConfiguredAgentFactory(
+        manager,
+        chatClientFactory: const ConfiguredChatClientFactory(
+          customClientResolver: _staticEchoResolver,
+        ),
+      ).createAgent(agent);
+      final chatOptions = built.getServiceOf<ChatOptions>()!;
+
+      expect(built.name, 'Local');
+      expect(chatOptions.modelId, 'local-gemma');
     });
 
     test('builds a Flutter harness agent when fully configured', () async {

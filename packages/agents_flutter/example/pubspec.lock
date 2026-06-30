@@ -23,6 +23,13 @@ packages:
       relative: true
     source: path
     version: "0.0.1"
+  agents_llama:
+    dependency: "direct main"
+    description:
+      path: "../../agents_llama"
+      relative: true
+    source: path
+    version: "0.0.1"
   ansicolor:
     dependency: transitive
     description:
@@ -812,6 +819,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.0"
+  llama_flutter:
+    dependency: transitive
+    description:
+      path: "../../../../flutter_application_7/packages/llama_flutter"
+      relative: true
+    source: path
+    version: "0.1.0"
   logging:
     dependency: transitive
     description:

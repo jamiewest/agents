@@ -10,6 +10,7 @@ class ModelConfig {
     required this.sourceId,
     required this.modelId,
     this.displayName,
+    this.settings = const {},
   });
 
   /// Stable, app-unique identifier for this model entry.
@@ -24,6 +25,9 @@ class ModelConfig {
   /// Optional friendly name; falls back to [modelId] in the UI when absent.
   final String? displayName;
 
+  /// Non-secret model-specific settings.
+  final Map<String, String> settings;
+
   /// The label to show for this model.
   String get label => displayName?.isNotEmpty == true ? displayName! : modelId;
 
@@ -33,11 +37,13 @@ class ModelConfig {
     String? sourceId,
     String? modelId,
     String? displayName,
+    Map<String, String>? settings,
   }) => ModelConfig(
     id: id ?? this.id,
     sourceId: sourceId ?? this.sourceId,
     modelId: modelId ?? this.modelId,
     displayName: displayName ?? this.displayName,
+    settings: settings ?? this.settings,
   );
 
   /// Serializes this model to JSON.
@@ -46,6 +52,7 @@ class ModelConfig {
     'sourceId': sourceId,
     'modelId': modelId,
     if (displayName != null) 'displayName': displayName,
+    'settings': settings,
   };
 
   /// Reconstructs a [ModelConfig] from [json].
@@ -54,5 +61,10 @@ class ModelConfig {
     sourceId: json['sourceId']! as String,
     modelId: json['modelId']! as String,
     displayName: json['displayName'] as String?,
+    settings: <String, String>{
+      for (final entry
+          in (json['settings'] as Map<Object?, Object?>? ?? const {}).entries)
+        entry.key! as String: entry.value! as String,
+    },
   );
 }

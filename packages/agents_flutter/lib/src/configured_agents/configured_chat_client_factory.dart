@@ -33,11 +33,22 @@ class ConfiguredChatClientFactory {
   /// [isWeb] controls whether the Anthropic direct-browser-access header is
   /// attached; it defaults to [kIsWeb] in production and is overridable so the
   /// web code path can be exercised in tests, where [kIsWeb] is always false.
-  const ConfiguredChatClientFactory({this.isWeb = kIsWeb});
+  const ConfiguredChatClientFactory({
+    this.isWeb = kIsWeb,
+    this.customClientResolver,
+  });
 
   /// Whether to attach browser-access headers for Anthropic. See the
   /// constructor.
   final bool isWeb;
+
+  /// Optional host-app resolver for providers outside this package.
+  final ChatClient Function({
+    required ModelSourceConfig source,
+    required ModelConfig model,
+    http.Client? httpClient,
+  })?
+  customClientResolver;
 
   /// Builds a chat client for [model] hosted by [source], authenticating with
   /// [apiKey].
@@ -46,19 +57,21 @@ class ConfiguredChatClientFactory {
   ChatClient createChatClient({
     required ModelSourceConfig source,
     required ModelConfig model,
-    required String apiKey,
+    String? apiKey,
     http.Client? httpClient,
   }) {
     final endpoint = source.endpoint;
     final hasEndpoint = endpoint != null && endpoint.isNotEmpty;
 
-    _validateApiKey(apiKey);
+    if (source.providerType.requiresApiKey) {
+      _validateApiKey(apiKey ?? '');
+    }
 
     switch (source.providerType) {
       case ProviderType.openAiCompatible:
         return OpenAIChatClient(
           model.modelId,
-          apiKey,
+          apiKey ?? '',
           options: OpenAIClientOptions(
             endpoint: hasEndpoint ? Uri.parse(endpoint) : null,
             httpClient: httpClient,
@@ -66,12 +79,18 @@ class ConfiguredChatClientFactory {
         );
       case ProviderType.anthropic:
         final client = anthropic.AnthropicClient.withApiKey(
-          apiKey,
+          apiKey ?? '',
           baseUrl: hasEndpoint ? endpoint : null,
           defaultHeaders: isWeb ? anthropicWebHeaders : null,
           httpClient: httpClient,
         );
         return client.asChatClient(modelId: model.modelId);
+      case ProviderType.localLlama:
+        final resolver = customClientResolver;
+        if (resolver == null) {
+          throw ConfiguredAgentException('No local-model provider registered.');
+        }
+        return resolver(source: source, model: model, httpClient: httpClient);
     }
   }
 

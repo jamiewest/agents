@@ -11,6 +11,8 @@ dependencies:
     path: ../../agents
   agents_flutter:
     path: ..
+  agents_llama:
+    path: ../../agents_llama
   anthropic_sdk_dart: ^5.0.0
   cupertino_icons: ^1.0.8
   extensions:
@@ -26,6 +28,8 @@ dependencies:
 dependency_overrides:
   agents:
     path: ../../agents
+  agents_llama:
+    path: ../../agents_llama
   extensions:
     path: ../../../../extensions/packages/extensions
   extensions_flutter:

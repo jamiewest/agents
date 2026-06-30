@@ -11,12 +11,21 @@ enum ProviderType {
   openAiCompatible('openai_compatible'),
 
   /// Anthropic's Messages API.
-  anthropic('anthropic');
+  anthropic('anthropic'),
+
+  /// Local GGUF inference provided by an embedding application.
+  localLlama('local_llama');
 
   const ProviderType(this.wireName);
 
   /// The stable identifier persisted in configuration JSON.
   final String wireName;
+
+  /// Whether sources of this type require a stored API key.
+  bool get requiresApiKey => switch (this) {
+    ProviderType.openAiCompatible || ProviderType.anthropic => true,
+    ProviderType.localLlama => false,
+  };
 
   /// Parses a [wireName] back into a [ProviderType].
   ///

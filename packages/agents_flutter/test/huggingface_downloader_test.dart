@@ -202,6 +202,10 @@ final class _FakeDownloadService implements DownloadService {
   }
 
   @override
+  Future<String> filePathFor(DownloadRequest request) async =>
+      '/tmp/${request.filename}';
+
+  @override
   Stream<DownloadUpdate> get updates => const Stream.empty();
 
   @override

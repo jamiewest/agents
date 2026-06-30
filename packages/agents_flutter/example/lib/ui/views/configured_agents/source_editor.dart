@@ -81,7 +81,9 @@ class _SourceEditorState extends State<SourceEditor> {
       id: widget.initial?.id ?? newConfiguredAgentsId(),
       providerType: _provider,
       displayName: _displayName.text.trim(),
-      endpoint: endpoint.isEmpty ? null : endpoint,
+      endpoint: _provider == ProviderType.localLlama || endpoint.isEmpty
+          ? null
+          : endpoint,
       settings: widget.initial?.settings ?? const {},
     );
     final key = _apiKey.text;
@@ -117,6 +119,10 @@ class _SourceEditorState extends State<SourceEditor> {
                       value: ProviderType.anthropic,
                       child: Text(strings.anthropicProvider),
                     ),
+                    const DropdownMenuItem(
+                      value: ProviderType.localLlama,
+                      child: Text('Local llama'),
+                    ),
                   ],
                   onChanged: (value) =>
                       setState(() => _provider = value ?? _provider),
@@ -132,34 +138,38 @@ class _SourceEditorState extends State<SourceEditor> {
                 ? strings.requiredField
                 : null,
           ),
-          ConfiguredAgentsFormField(
-            label: strings.endpointLabel,
-            controller: _endpoint,
-            style: style,
-            keyboardType: TextInputType.url,
-            hintText: 'https://api.openai.com/v1',
-            validator: (value) {
-              final text = value?.trim() ?? '';
-              if (text.isEmpty) return null;
-              final uri = Uri.tryParse(text);
-              return (uri == null || !uri.isAbsolute)
-                  ? strings.invalidEndpoint
-                  : null;
-            },
-          ),
-          ConfiguredAgentsFormField(
-            label: strings.apiKeyLabel,
-            controller: _apiKey,
-            style: style,
-            obscureText: true,
-            hintText: widget.hasStoredKey ? strings.apiKeyStoredHint : null,
-            validator: (value) {
-              if (widget.hasStoredKey) return null;
-              return (value == null || value.isEmpty)
-                  ? strings.requiredField
-                  : null;
-            },
-          ),
+          if (_provider != ProviderType.localLlama) ...[
+            ConfiguredAgentsFormField(
+              label: strings.endpointLabel,
+              controller: _endpoint,
+              style: style,
+              keyboardType: TextInputType.url,
+              hintText: 'https://api.openai.com/v1',
+              validator: (value) {
+                final text = value?.trim() ?? '';
+                if (text.isEmpty) return null;
+                final uri = Uri.tryParse(text);
+                return (uri == null || !uri.isAbsolute)
+                    ? strings.invalidEndpoint
+                    : null;
+              },
+            ),
+            ConfiguredAgentsFormField(
+              label: strings.apiKeyLabel,
+              controller: _apiKey,
+              style: style,
+              obscureText: true,
+              hintText: widget.hasStoredKey ? strings.apiKeyStoredHint : null,
+              validator: (value) {
+                if (widget.hasStoredKey || !_provider.requiresApiKey) {
+                  return null;
+                }
+                return (value == null || value.isEmpty)
+                    ? strings.requiredField
+                    : null;
+              },
+            ),
+          ],
           const SizedBox(height: 12),
           EditorActions(
             style: style,

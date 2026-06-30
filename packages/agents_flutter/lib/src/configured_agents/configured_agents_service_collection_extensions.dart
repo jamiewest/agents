@@ -9,6 +9,7 @@ import '../flutter_harness_service_collection_extensions.dart';
 import 'agent_configuration_store.dart';
 import 'configured_agent_factory.dart';
 import 'configured_agents_manager.dart';
+import 'configured_chat_client_factory.dart';
 import 'model_source_store.dart';
 import 'storage/flutter_secure_secret_store.dart';
 import 'storage/key_value_store.dart';
@@ -35,6 +36,7 @@ extension ConfiguredAgentsServiceCollectionExtensions on ServiceCollection {
     int maxContextWindowTokens = defaultFlutterHarnessMaxContextWindowTokens,
     int maxOutputTokens = defaultConfiguredAgentMaxOutputTokens,
     void Function(FlutterHarnessAgentOptions options)? configureHarness,
+    ConfiguredChatClientFactory Function(ServiceProvider sp)? chatClientFactory,
     KeyValueStore Function(ServiceProvider sp)? keyValueStore,
     SecretStore Function(ServiceProvider sp)? secretStore,
   }) {
@@ -60,6 +62,8 @@ extension ConfiguredAgentsServiceCollectionExtensions on ServiceCollection {
     tryAddSingleton<ConfiguredAgentFactory>(
       (sp) => ConfiguredAgentFactory(
         sp.getRequiredService<ConfiguredAgentsManager>(),
+        chatClientFactory:
+            chatClientFactory?.call(sp) ?? const ConfiguredChatClientFactory(),
         maxContextWindowTokens: maxContextWindowTokens,
         maxOutputTokens: maxOutputTokens,
         configureHarness: configureHarness,
@@ -91,6 +95,7 @@ extension ConfiguredAgentsFlutterBuilderExtensions on FlutterBuilder {
     int maxContextWindowTokens = defaultFlutterHarnessMaxContextWindowTokens,
     int maxOutputTokens = defaultConfiguredAgentMaxOutputTokens,
     void Function(FlutterHarnessAgentOptions options)? configureHarness,
+    ConfiguredChatClientFactory Function(ServiceProvider sp)? chatClientFactory,
     KeyValueStore Function(ServiceProvider sp)? keyValueStore,
     SecretStore Function(ServiceProvider sp)? secretStore,
   }) {
@@ -98,6 +103,7 @@ extension ConfiguredAgentsFlutterBuilderExtensions on FlutterBuilder {
       maxContextWindowTokens: maxContextWindowTokens,
       maxOutputTokens: maxOutputTokens,
       configureHarness: configureHarness,
+      chatClientFactory: chatClientFactory,
       keyValueStore: keyValueStore,
       secretStore: secretStore,
     );

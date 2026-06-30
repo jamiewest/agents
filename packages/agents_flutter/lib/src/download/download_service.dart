@@ -191,6 +191,10 @@ class DownloadService implements Disposable {
     return statusFromTaskStatus(result.status);
   }
 
+  /// Returns the absolute file path where [request] will be saved.
+  Future<String> filePathFor(DownloadRequest request) =>
+      buildDownloadTask(request).filePath();
+
   /// Enqueues [request] as a background download and returns its task id.
   ///
   /// Progress and completion arrive through [updates]. Returns null if the
