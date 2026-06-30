@@ -108,6 +108,26 @@ void main() {
       });
     });
 
+    test('maps hosted web search to Anthropic built-in web search', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(_messageJson(text: 'ok')),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+      );
+
+      await client.getResponse(
+        messages: [ChatMessage.fromText(ChatRole.user, 'Search the web')],
+        options: ChatOptions(tools: [HostedWebSearchTool()]),
+      );
+
+      final body = httpClient.requests.single.jsonBody;
+      expect(body['tools'], [
+        {'type': 'web_search_20250305', 'name': 'web_search'},
+      ]);
+    });
+
     test('maps response text, tool calls, finish reason, and usage', () async {
       final httpClient = _FakeHttpClient([
         _jsonResponse(

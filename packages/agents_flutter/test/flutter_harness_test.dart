@@ -1,5 +1,6 @@
 import 'package:agents/agents.dart';
 import 'package:agents_flutter/agents_flutter.dart';
+import 'package:agents_flutter/src/flutter_harness_platform_defaults.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions_flutter/extensions_flutter.dart';
@@ -177,7 +178,9 @@ void main() {
       );
 
       expect(options.aiContextProviders, isEmpty);
-      expect(toolNames(options.chatOptions!.tools!.toList()), ['set_wake_lock']);
+      expect(toolNames(options.chatOptions!.tools!.toList()), [
+        'set_wake_lock',
+      ]);
     });
   });
 
@@ -239,6 +242,52 @@ void main() {
 
       expect(original.aiContextProviders, hasLength(1));
       expect(original.chatOptions!.tools, isNull);
+    });
+  });
+
+  group('applyFlutterHarnessPlatformDefaults', () {
+    test('uses in-memory stores and skills on web', () {
+      final options = FlutterHarnessAgentOptions();
+
+      applyFlutterHarnessPlatformDefaults(options, isWeb: true);
+
+      expect(options.fileMemoryStore, isA<InMemoryAgentFileStore>());
+      expect(options.fileAccessStore, isA<InMemoryAgentFileStore>());
+      expect(options.agentSkillsSource, isA<AgentInMemorySkillsSource>());
+    });
+
+    test('preserves explicit web stores, sources, and disabled features', () {
+      final memoryStore = InMemoryAgentFileStore();
+      final accessStore = InMemoryAgentFileStore();
+      final skillsSource = AgentInMemorySkillsSource(const []);
+      final disabled = FlutterHarnessAgentOptions()
+        ..disableFileMemory = true
+        ..disableFileAccess = true
+        ..disableAgentSkillsProvider = true;
+      final configured = FlutterHarnessAgentOptions()
+        ..fileMemoryStore = memoryStore
+        ..fileAccessStore = accessStore
+        ..agentSkillsSource = skillsSource;
+
+      applyFlutterHarnessPlatformDefaults(disabled, isWeb: true);
+      applyFlutterHarnessPlatformDefaults(configured, isWeb: true);
+
+      expect(disabled.fileMemoryStore, isNull);
+      expect(disabled.fileAccessStore, isNull);
+      expect(disabled.agentSkillsSource, isNull);
+      expect(configured.fileMemoryStore, same(memoryStore));
+      expect(configured.fileAccessStore, same(accessStore));
+      expect(configured.agentSkillsSource, same(skillsSource));
+    });
+
+    test('leaves non-web defaults unchanged', () {
+      final options = FlutterHarnessAgentOptions();
+
+      applyFlutterHarnessPlatformDefaults(options, isWeb: false);
+
+      expect(options.fileMemoryStore, isNull);
+      expect(options.fileAccessStore, isNull);
+      expect(options.agentSkillsSource, isNull);
     });
   });
 

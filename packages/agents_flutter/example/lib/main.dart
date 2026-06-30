@@ -3,30 +3,40 @@ import 'package:agents_flutter/agents_flutter.dart';
 import 'package:anthropic_sdk_dart/anthropic_sdk_dart.dart' as anthropic;
 import 'package:extensions/extensions.dart';
 import 'package:extensions_flutter/extensions_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 const _anthropicApiKey = String.fromEnvironment('ANTHROPIC_API_KEY');
 const _anthropicModel = String.fromEnvironment(
   'ANTHROPIC_MODEL',
-  defaultValue: 'claude-sonnet-4-6',
+  defaultValue: 'claude-haiku-4-5-20251001',
 );
 const _anthropicMaxTokensValue = String.fromEnvironment(
   'ANTHROPIC_MAX_TOKENS',
   defaultValue: '4096',
 );
 const _defaultAnthropicMaxTokens = 4096;
+const _anthropicWebHeaders = <String, String>{
+  'anthropic-dangerous-direct-browser-access': 'true',
+};
 
 final _builder = Host.createApplicationBuilder()
   ..services.addFlutter((flutter) {
     if (_hasAnthropicApiKey) {
-      final chatClient = anthropic.AnthropicClient.withApiKey(_anthropicApiKey)
-          .asChatClient(
-            modelId: _anthropicModel,
-            defaultMaxTokens: _anthropicMaxTokens,
-          );
+      final anthropicClient = anthropic.AnthropicClient.withApiKey(
+        _anthropicApiKey,
+        defaultHeaders: kIsWeb ? _anthropicWebHeaders : null,
+      );
+      final chatClient = anthropicClient.asChatClient(
+        modelId: _anthropicModel,
+        defaultMaxTokens: _anthropicMaxTokens,
+      );
 
-      flutter.useFlutterHarnessAgent(chatClient: chatClient);
+      flutter.useFlutterHarnessAgent(
+        maxOutputTokens: _anthropicMaxTokens,
+        chatClient: chatClient,
+      );
     }
 
     flutter.runApp(

@@ -247,6 +247,11 @@ final class AnthropicChatClient implements ChatClient {
 
     final result = <anthropic.ToolDefinition>[];
     for (final tool in tools) {
+      if (tool is HostedWebSearchTool) {
+        result.add(anthropic.ToolDefinition.builtIn(anthropic.WebSearchTool()));
+        continue;
+      }
+
       if (tool is! AIFunctionDeclaration) {
         throw UnsupportedError(
           'AnthropicChatClient only supports AIFunctionDeclaration tools. '

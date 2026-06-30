@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:agents/agents.dart';
 import 'package:clock/clock.dart';
 import 'package:extensions/ai.dart';
+import 'package:flutter/foundation.dart';
 
 import 'connectivity/connectivity_monitor.dart';
 import 'device_info/device_info.dart';
 import 'flutter_harness_agent_options.dart';
 import 'flutter_harness_capabilities.dart';
+import 'flutter_harness_platform_defaults.dart';
 import 'location/location_resolver.dart';
 import 'package_info/app_info.dart';
 
@@ -54,6 +56,7 @@ final class FlutterHarnessAgent extends DelegatingAIAgent {
   ) {
     // Clone so merging Flutter capabilities never mutates the caller's options.
     final effectiveOptions = options?.clone() ?? FlutterHarnessAgentOptions();
+    applyFlutterHarnessPlatformDefaults(effectiveOptions, isWeb: kIsWeb);
 
     final deviceInfo = DeviceInfo();
     final appInfo = AppInfo();

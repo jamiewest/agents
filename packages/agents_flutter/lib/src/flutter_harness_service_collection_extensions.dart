@@ -4,12 +4,14 @@ import 'package:extensions/ai.dart';
 import 'package:extensions/dependency_injection.dart';
 import 'package:extensions/hosting.dart';
 import 'package:extensions/logging.dart';
+import 'package:flutter/foundation.dart';
 
 import 'connectivity/connectivity_monitor.dart';
 import 'device_info/device_info.dart';
 import 'device_info/device_info_hosted_service.dart';
 import 'flutter_harness_agent_options.dart';
 import 'flutter_harness_capabilities.dart';
+import 'flutter_harness_platform_defaults.dart';
 import 'location/location_resolver.dart';
 import 'network/network_context_provider.dart';
 import 'package_info/app_info.dart';
@@ -47,6 +49,7 @@ extension FlutterHarnessServiceCollectionExtensions on ServiceCollection {
   }) {
     final options = FlutterHarnessAgentOptions();
     configure?.call(options);
+    applyFlutterHarnessPlatformDefaults(options, isWeb: kIsWeb);
 
     tryAddSingleton<LoggerFactory>((_) => NullLoggerFactory.instance);
     tryAddSingleton<Clock>((_) => const Clock());

@@ -49,6 +49,9 @@ export 'src/abstractions/provider_session_state.dart';
 // Anthropic
 export 'src/anthropic/anthropic.dart';
 
+// Gemini
+export 'src/gemini/gemini.dart';
+
 // AI — core
 export 'src/ai/agent_extensions.dart';
 export 'src/ai/agent_json_utilities.dart';
