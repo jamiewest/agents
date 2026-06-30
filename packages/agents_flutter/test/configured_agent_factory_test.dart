@@ -32,6 +32,16 @@ const _anthropicModel = ModelConfig(
   sourceId: 's-anthropic',
   modelId: 'claude-test',
 );
+const _googleSource = ModelSourceConfig(
+  id: 's-google',
+  providerType: ProviderType.google,
+  displayName: 'Google',
+);
+const _googleModel = ModelConfig(
+  id: 'm-google',
+  sourceId: 's-google',
+  modelId: 'gemini-test',
+);
 const _localSource = ModelSourceConfig(
   id: 's-local',
   providerType: ProviderType.localLlama,
@@ -123,6 +133,50 @@ void main() {
         expect(request.headers['Authorization'], contains('sk-openai'));
       },
     );
+
+    test('builds a Gemini client targeting the Google endpoint', () async {
+      final capture = _Capture();
+      final client = const ConfiguredChatClientFactory().createChatClient(
+        source: _googleSource,
+        model: _googleModel,
+        apiKey: 'goog-key',
+        httpClient: capture.client('{}'),
+      );
+
+      await _ignoreParseErrors(
+        () => client.getResponse(
+          messages: [ChatMessage.fromText(ChatRole.user, 'hi')],
+        ),
+      );
+
+      final request = capture.request!;
+      expect(request.url.host, 'generativelanguage.googleapis.com');
+      expect(request.url.path, contains('gemini-test'));
+      expect(request.headers['x-goog-api-key'], 'goog-key');
+    });
+
+    test('uses a custom endpoint override for Google when provided', () async {
+      final capture = _Capture();
+      final client = const ConfiguredChatClientFactory().createChatClient(
+        source: const ModelSourceConfig(
+          id: 's-google-proxy',
+          providerType: ProviderType.google,
+          displayName: 'Google proxy',
+          endpoint: 'https://proxy.example.com/v1beta',
+        ),
+        model: _googleModel,
+        apiKey: 'goog-key',
+        httpClient: capture.client('{}'),
+      );
+
+      await _ignoreParseErrors(
+        () => client.getResponse(
+          messages: [ChatMessage.fromText(ChatRole.user, 'hi')],
+        ),
+      );
+
+      expect(capture.request!.url.host, 'proxy.example.com');
+    });
 
     test('attaches the Anthropic browser header when isWeb is true', () async {
       final capture = _Capture();

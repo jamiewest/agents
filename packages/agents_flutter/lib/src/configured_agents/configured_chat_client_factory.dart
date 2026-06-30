@@ -85,6 +85,13 @@ class ConfiguredChatClientFactory {
           httpClient: httpClient,
         );
         return client.asChatClient(modelId: model.modelId);
+      case ProviderType.google:
+        final client = GeminiClient(
+          apiKey: apiKey ?? '',
+          baseUrl: hasEndpoint ? Uri.parse(endpoint) : null,
+          httpClient: httpClient,
+        );
+        return client.asChatClient(modelId: model.modelId);
       case ProviderType.localLlama:
         final resolver = customClientResolver;
         if (resolver == null) {

@@ -178,5 +178,50 @@ void main() {
       expect(turn.text, 'Just a normal answer.');
       expect(turn.calls, isEmpty);
     });
+
+    test('parses a bare call with no outer brackets', () {
+      final turn = template.parse(
+        '<|tool_call_start|>get_weather(location="Paris")<|tool_call_end|>',
+      );
+
+      expect(turn.text, isEmpty);
+      expect(turn.calls, hasLength(1));
+      expect(turn.calls.single.name, 'get_weather');
+      expect(turn.calls.single.arguments, {'location': 'Paris'});
+    });
+
+    test('accepts JSON-style scalar literals', () {
+      final turn = template.parse(
+        '<|tool_call_start|>[f(a=true, b=false, c=null)]<|tool_call_end|>',
+      );
+
+      expect(turn.calls.single.arguments, {'a': true, 'b': false, 'c': null});
+    });
+
+    test('round-trips an assistant call through render then parse', () {
+      final call = FunctionCallContent(
+        callId: 'call_0',
+        name: 'do_it',
+        arguments: const {
+          'text': 'hi',
+          'count': 3,
+          'flag': true,
+          'nothing': null,
+          'items': [1, 2],
+          'nested': {'k': 'v'},
+        },
+      );
+      final rendered = template.render([
+        ChatMessage(role: ChatRole.assistant, contents: [call]),
+      ], addGenerationPrompt: false);
+
+      final body = rendered.text
+          .replaceFirst('<|im_start|>assistant\n', '')
+          .replaceFirst('<|im_end|>\n', '');
+      final turn = template.parse(body);
+
+      expect(turn.calls.single.name, 'do_it');
+      expect(turn.calls.single.arguments, call.arguments);
+    });
   });
 }

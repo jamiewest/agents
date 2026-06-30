@@ -282,12 +282,22 @@ class _PyCallParser {
   int _pos = 0;
 
   /// Parses the call list and appends each call to [calls].
+  ///
+  /// The list is normally wrapped in `[ … ]`, but LFM2 also emits a single
+  /// bare call (`name(arg=…)`) with no brackets; both shapes are accepted. A
+  /// genuinely malformed block (unterminated string, trailing junk) throws
+  /// [FormatException] so the decoder can fall back to raw text.
   void parseInto(List<FunctionCallContent> calls) {
     _skipWs();
-    _expect('[');
-    _skipWs();
-    if (_peek() == ']') {
+    final bracketed = _peek() == '[';
+    if (bracketed) {
       _pos++;
+      _skipWs();
+      if (_peek() == ']') {
+        _pos++;
+        return;
+      }
+    } else if (_peek().isEmpty) {
       return;
     }
     while (true) {
@@ -299,7 +309,11 @@ class _PyCallParser {
         _skipWs();
         continue;
       }
-      _expect(']');
+      if (bracketed) {
+        _expect(']');
+      } else if (c.isNotEmpty) {
+        throw FormatException('Unexpected "$c" at $_pos', _source, _pos);
+      }
       break;
     }
   }
@@ -445,12 +459,17 @@ class _PyCallParser {
       _pos++;
     }
     final raw = _source.substring(start, _pos).trim();
+    // LFM2 mixes Python and JSON literals; accept both spellings so a boolean
+    // argument is never silently coerced to the string "true"/"false"/"null".
     switch (raw) {
       case 'True':
+      case 'true':
         return true;
       case 'False':
+      case 'false':
         return false;
       case 'None':
+      case 'null':
         return null;
     }
     return num.tryParse(raw) ?? raw;

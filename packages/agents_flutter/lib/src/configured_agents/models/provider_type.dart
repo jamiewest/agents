@@ -13,6 +13,9 @@ enum ProviderType {
   /// Anthropic's Messages API.
   anthropic('anthropic'),
 
+  /// Google's Gemini generative-language API.
+  google('google'),
+
   /// Local GGUF inference provided by an embedding application.
   localLlama('local_llama');
 
@@ -23,7 +26,9 @@ enum ProviderType {
 
   /// Whether sources of this type require a stored API key.
   bool get requiresApiKey => switch (this) {
-    ProviderType.openAiCompatible || ProviderType.anthropic => true,
+    ProviderType.openAiCompatible ||
+    ProviderType.anthropic ||
+    ProviderType.google => true,
     ProviderType.localLlama => false,
   };
 
