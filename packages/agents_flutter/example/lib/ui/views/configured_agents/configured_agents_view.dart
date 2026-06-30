@@ -57,6 +57,7 @@ class ConfiguredAgentsView extends StatefulWidget {
     this.modelTileBuilder,
     this.agentTileBuilder,
     this.confirmDelete,
+    this.pickLlamaModelFile,
     super.key,
   });
 
@@ -86,6 +87,9 @@ class ConfiguredAgentsView extends StatefulWidget {
 
   /// Optional custom delete confirmation. Defaults to an adaptive dialog.
   final ConfirmDelete? confirmDelete;
+
+  /// Optional local llama file picker override.
+  final LlamaModelFilePicker? pickLlamaModelFile;
 
   @override
   State<ConfiguredAgentsView> createState() => _ConfiguredAgentsViewState();
@@ -305,6 +309,8 @@ class _ConfiguredAgentsViewState extends State<ConfiguredAgentsView> {
         sources: _controller.sources,
         style: style,
         strings: strings,
+        pickLlamaModelFile:
+            widget.pickLlamaModelFile ?? pickDefaultLlamaModelFile,
         onCancel: close,
         onSubmit: (edited) async {
           final error = await _controller.saveModel(edited);

@@ -90,12 +90,30 @@ final class _LocalLlamaProgressRegistry extends ChangeNotifier {
 
 final _localLlamaProgress = _LocalLlamaProgressRegistry();
 
+@immutable
+class _LocalLlamaModelLocation {
+  const _LocalLlamaModelLocation({
+    required this.modelUrl,
+    this.localPath,
+    this.isSelectedFile = false,
+  });
+
+  final Uri modelUrl;
+  final String? localPath;
+  final bool isSelectedFile;
+}
+
 ai.ChatClient _createLocalLlamaClient(
   ServiceProvider services, {
   required ModelSourceConfig source,
   required ModelConfig model,
 }) {
-  final spec = _localLlamaSpec(source: source, model: model);
+  final location = _localLlamaModelLocation(model);
+  final spec = _localLlamaSpec(
+    source: source,
+    model: model,
+    modelUrl: location.modelUrl,
+  );
   final runtime = llama.createLlamaRuntime();
   llama.LlamaSession? loaded;
 
@@ -104,12 +122,24 @@ ai.ChatClient _createLocalLlamaClient(
     if (current != null) return current;
 
     try {
-      if (kIsWeb) {
+      final selectedLocalPath = location.localPath;
+      if (selectedLocalPath != null) {
         _localLlamaProgress.update(
           model.id,
           const _LocalLlamaStatus(
             phase: _LocalLlamaPhase.loading,
-            message: 'Loading local model from browser cache...',
+            message: 'Loading selected local model...',
+          ),
+        );
+        loaded = await runtime.loadModel(spec, localPath: selectedLocalPath);
+      } else if (kIsWeb) {
+        _localLlamaProgress.update(
+          model.id,
+          _LocalLlamaStatus(
+            phase: _LocalLlamaPhase.loading,
+            message: location.isSelectedFile
+                ? 'Loading selected local model...'
+                : 'Loading local model from browser cache...',
           ),
         );
         loaded = await runtime.loadModel(
@@ -164,20 +194,61 @@ ai.ChatClient _createLocalLlamaClient(
   );
 }
 
-llama.ModelSpec _localLlamaSpec({
-  required ModelSourceConfig source,
-  required ModelConfig model,
-}) {
+_LocalLlamaModelLocation _localLlamaModelLocation(ModelConfig model) {
   final settings = model.settings;
-  final format = settings['llama.format']?.trim();
-  if (format != null && format.isNotEmpty && format != 'gemma') {
-    throw ConfiguredAgentException('Unsupported local llama format "$format".');
+  final configuredSource = settings['llama.modelSource']?.trim();
+  final modelSource = configuredSource == null || configuredSource.isEmpty
+      ? settings.containsKey('llama.modelPath')
+            ? 'file'
+            : 'url'
+      : configuredSource;
+
+  if (modelSource == 'file') {
+    final selectedPath = selectedLlamaModelFilePathFor(model.id)?.trim();
+    if (selectedPath != null && selectedPath.isNotEmpty) {
+      return _LocalLlamaModelLocation(
+        modelUrl: kIsWeb ? Uri.parse(selectedPath) : Uri.file(selectedPath),
+        localPath: selectedPath,
+        isSelectedFile: true,
+      );
+    }
+
+    final modelPath = settings['llama.modelPath']?.trim();
+    if (!kIsWeb && modelPath != null && modelPath.isNotEmpty) {
+      return _LocalLlamaModelLocation(
+        modelUrl: Uri.file(modelPath),
+        localPath: modelPath,
+        isSelectedFile: true,
+      );
+    }
+
+    final fileName = settings['llama.modelFileName']?.trim();
+    final suffix = fileName == null || fileName.isEmpty ? '' : ' "$fileName"';
+    throw ConfiguredAgentException(
+      'Reselect the GGUF model file$suffix before running this local llama model.',
+    );
+  }
+
+  if (modelSource != 'url') {
+    throw ConfiguredAgentException(
+      'Unsupported local llama model source "$modelSource".',
+    );
   }
 
   final modelUrl = settings['llama.modelUrl']?.trim();
   if (modelUrl == null || modelUrl.isEmpty) {
     throw ConfiguredAgentException('Local llama model URL is required.');
   }
+  return _LocalLlamaModelLocation(modelUrl: Uri.parse(modelUrl));
+}
+
+llama.ModelSpec _localLlamaSpec({
+  required ModelSourceConfig source,
+  required ModelConfig model,
+  required Uri modelUrl,
+}) {
+  final settings = model.settings;
+  final format = _chatFormatFor(settings['llama.format']?.trim());
 
   Uri? optionalUrl(String key) {
     final value = settings[key]?.trim();
@@ -193,13 +264,30 @@ llama.ModelSpec _localLlamaSpec({
   return llama.ModelSpec(
     id: model.modelId,
     displayName: model.label,
-    modelUrl: Uri.parse(modelUrl),
+    modelUrl: modelUrl,
     mmprojUrl: optionalUrl('llama.mmprojUrl'),
     draftUrl: optionalUrl('llama.draftModelUrl'),
     contextSize: intSetting('llama.contextSize', 4096),
     gpuLayers: intSetting('llama.gpuLayers', 999),
-    format: const llama.GemmaChatFormat(),
+    format: format,
   );
+}
+
+/// Maps a `llama.format` setting to the chat format that model family speaks.
+///
+/// Defaults to Gemma when unset for backwards compatibility.
+llama.ChatFormat _chatFormatFor(String? format) {
+  switch (format == null || format.isEmpty ? 'gemma' : format) {
+    case 'gemma':
+      return const llama.GemmaChatFormat();
+    case 'lfm2':
+    case 'lfm2-vl':
+      return const llama.Lfm2ChatFormat();
+    default:
+      throw ConfiguredAgentException(
+        'Unsupported local llama format "$format".',
+      );
+  }
 }
 
 Future<String> _downloadLocalModel(

@@ -19,14 +19,27 @@ ConfiguredAgentsManager _buildManager() {
 Widget _host(
   ConfiguredAgentsManager manager, {
   void Function(SavedAgentConfig)? onAgentSelected,
+  ConfiguredAgentsTab initialTab = ConfiguredAgentsTab.sources,
+  LlamaModelFilePicker? pickLlamaModelFile,
 }) => MaterialApp(
   home: Scaffold(
     body: ConfiguredAgentsView(
       manager: manager,
       onAgentSelected: onAgentSelected,
+      initialTab: initialTab,
+      pickLlamaModelFile: pickLlamaModelFile,
     ),
   ),
 );
+
+Future<ModelSourceConfig> _saveLocalSource(ConfiguredAgentsManager manager) {
+  const source = ModelSourceConfig(
+    id: 'local-source',
+    providerType: ProviderType.localLlama,
+    displayName: 'Local models',
+  );
+  return manager.saveSource(source).then((_) => source);
+}
 
 void main() {
   testWidgets('creates a source through the editor', (tester) async {
@@ -120,10 +133,131 @@ void main() {
 
     final model = (await manager.sources.listModels()).single;
     expect(model.displayName, 'Gemma local');
+    expect(model.settings['llama.modelSource'], 'url');
     expect(model.settings['llama.modelUrl'], contains('model.gguf'));
+    expect(model.settings.containsKey('llama.modelPath'), isFalse);
+    expect(model.settings.containsKey('llama.modelFileName'), isFalse);
     expect(model.settings['llama.contextSize'], '2048');
     expect(model.settings['llama.gpuLayers'], '0');
     expect(model.settings['llama.format'], 'gemma');
+  });
+
+  testWidgets('local llama file model fields persist', (tester) async {
+    final manager = _buildManager();
+    await _saveLocalSource(manager);
+    await tester.pumpWidget(
+      _host(
+        manager,
+        initialTab: ConfiguredAgentsTab.models,
+        pickLlamaModelFile: () async => const LlamaModelFileSelection(
+          path: '/models/gemma-local.gguf',
+          name: 'gemma-local.gguf',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add model'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('URL'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('File').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('GGUF model file'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Choose file'));
+    await tester.pumpAndSettle();
+    expect(find.text('gemma-local.gguf'), findsOneWidget);
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), '2048');
+    await tester.enterText(fields.at(1), '0');
+    await tester.enterText(fields.at(3), 'Gemma file');
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final model = (await manager.sources.listModels()).single;
+    expect(model.displayName, 'Gemma file');
+    expect(model.settings['llama.modelSource'], 'file');
+    expect(model.settings['llama.modelPath'], '/models/gemma-local.gguf');
+    expect(model.settings['llama.modelFileName'], 'gemma-local.gguf');
+    expect(model.settings.containsKey('llama.modelUrl'), isFalse);
+    expect(model.settings['llama.contextSize'], '2048');
+    expect(model.settings['llama.gpuLayers'], '0');
+    expect(model.settings['llama.format'], 'gemma');
+  });
+
+  testWidgets('local llama file mode requires a selected file', (tester) async {
+    final manager = _buildManager();
+    await _saveLocalSource(manager);
+    await tester.pumpWidget(
+      _host(manager, initialTab: ConfiguredAgentsTab.models),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add model'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('URL'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('File').last);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Choose a GGUF model file.'), findsOneWidget);
+    expect(await manager.sources.listModels(), isEmpty);
+  });
+
+  testWidgets('switching file model back to URL clears file settings', (
+    tester,
+  ) async {
+    final manager = _buildManager();
+    final source = await _saveLocalSource(manager);
+    await manager.saveModel(
+      ModelConfig(
+        id: 'file-model',
+        sourceId: source.id,
+        modelId: 'file-model',
+        displayName: 'File model',
+        settings: const {
+          'llama.modelSource': 'file',
+          'llama.modelPath': '/models/old.gguf',
+          'llama.modelFileName': 'old.gguf',
+          'llama.contextSize': '4096',
+          'llama.gpuLayers': '999',
+          'llama.format': 'gemma',
+        },
+      ),
+    );
+    await tester.pumpWidget(
+      _host(manager, initialTab: ConfiguredAgentsTab.models),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.edit_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('File'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('URL').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'https://huggingface.co/google/gemma/resolve/main/new.gguf',
+    );
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final model = (await manager.sources.listModels()).single;
+    expect(model.settings['llama.modelSource'], 'url');
+    expect(model.settings['llama.modelUrl'], contains('new.gguf'));
+    expect(model.settings.containsKey('llama.modelPath'), isFalse);
+    expect(model.settings.containsKey('llama.modelFileName'), isFalse);
   });
 
   testWidgets('blocked source delete offers cascade', (tester) async {
