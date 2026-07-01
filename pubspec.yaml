@@ -9,7 +9,4 @@ workspace:
   - packages/agents_app
   - packages/agents_flutter
   - packages/agents_llama
-
-dependency_overrides:
-  extensions:
-    path: ../extensions/packages/extensions
+  - packages/llama_flutter

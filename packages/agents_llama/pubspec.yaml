@@ -11,12 +11,11 @@ environment:
 dependencies:
   agents:
     path: ../agents
-  extensions:
-    path: ../../../extensions/packages/extensions
+  extensions: ^0.3.28
   flutter:
     sdk: flutter
   llama_flutter:
-    path: ../../../flutter_application_7/packages/llama_flutter
+    path: ../llama_flutter
   web: ^1.1.1
 
 dev_dependencies:
