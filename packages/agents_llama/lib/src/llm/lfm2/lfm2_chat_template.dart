@@ -1,14 +1,11 @@
-/// LFM2 / LFM2-VL prompt rendering for on-device llama.cpp inference.
+/// LFM / LFM-VL prompt rendering for on-device llama.cpp inference.
 ///
-/// Ported from two authoritative upstream Jinja templates:
-///   * Text + image turns follow `LiquidAI/LFM2-VL-1.6B`'s
-///     `chat_template.jinja` (ChatML: `<|im_start|>role\n…<|im_end|>\n`, with
-///     image parts rendered as a media marker).
-///   * Tool declarations, tool calls and tool responses follow
-///     `LiquidAI/LFM2-1.2B`'s `chat_template.jinja` (the VL default template
-///     omits tools, but the VL tokenizer carries all six tool tokens, so the
-///     text model's convention applies). Tool definitions and responses are
-///     JSON; tool calls are Pythonic — `[name(arg="value")]`.
+/// Follows Liquid's ChatML-like template:
+/// `<|im_start|>role\n...<|im_end|>\n`, with image parts rendered as a media
+/// marker. Tool calls are always wrapped in
+/// `<|tool_call_start|>`/`<|tool_call_end|>`. LFM2 additionally wraps tool
+/// definitions and responses in dedicated tool-list/tool-response tags; LFM2.5
+/// uses plain JSON in the system/tool turns.
 ///
 /// Two conventions match [GemmaChatTemplate]:
 ///   * No `<|startoftext|>` (BOS) is emitted — the native tokenizer adds it
@@ -25,7 +22,25 @@ import 'package:extensions/ai.dart';
 
 import '../gemma/gemma_chat_template.dart' show GemmaChatTemplate;
 
-/// A rendered LFM2 prompt plus the stop sequences generation should halt on.
+/// How Liquid-family prompts wrap tool declarations and tool responses.
+enum LfmToolTagStyle {
+  /// LFM2 style: wrap definitions and responses in Liquid tool tags.
+  lfm2,
+
+  /// LFM2.5 style: use plain JSON text for definitions and responses.
+  lfm25,
+}
+
+/// How assistant tool-call bodies are rendered.
+enum LfmToolCallSyntax {
+  /// Liquid's default Pythonic form: `[name(arg="value")]`.
+  pythonic,
+
+  /// JSON form requested by adding an instruction to the system turn.
+  json,
+}
+
+/// A rendered LFM prompt plus the stop sequences generation should halt on.
 class Lfm2Prompt {
   const Lfm2Prompt({
     required this.text,
@@ -57,9 +72,19 @@ class Lfm2Turn {
   final List<FunctionCallContent> calls;
 }
 
-/// Renders LFM2 prompts from M.E.AI chat messages and tool declarations.
+/// Renders Liquid LFM prompts from M.E.AI chat messages and tool declarations.
 class Lfm2ChatTemplate {
-  const Lfm2ChatTemplate();
+  /// Creates an LFM prompt renderer.
+  const Lfm2ChatTemplate({
+    this.toolTagStyle = LfmToolTagStyle.lfm2,
+    this.toolCallSyntax = LfmToolCallSyntax.pythonic,
+  });
+
+  /// Whether tool declarations/results use LFM2 tags or LFM2.5 plain JSON.
+  final LfmToolTagStyle toolTagStyle;
+
+  /// How assistant tool-call examples are rendered back into chat history.
+  final LfmToolCallSyntax toolCallSyntax;
 
   // Control tokens.
   static const String imStart = '<|im_start|>';
@@ -110,11 +135,10 @@ class Lfm2ChatTemplate {
       if (system.isNotEmpty) system.write('\n');
       system
         ..write('List of tools: ')
-        ..write(toolListStart)
-        ..write('[')
-        ..write(toolList.map(_formatDeclaration).join(', '))
-        ..write(']')
-        ..write(toolListEnd);
+        ..write(_formatDeclarations(toolList));
+      if (toolCallSyntax == LfmToolCallSyntax.json) {
+        system.write('\nOutput function calls as JSON.');
+      }
     }
     if (system.isNotEmpty) {
       out
@@ -156,10 +180,11 @@ class Lfm2ChatTemplate {
       final value = results.length == 1
           ? results.first.result
           : results.map((r) => r.result).toList();
-      // Matches the jinja: a bare string result is emitted raw; anything else
-      // is JSON-encoded (`content | tojson`).
       final encoded = value is String ? value : _jsonEncode(value);
-      return '$toolResponseStart$encoded$toolResponseEnd';
+      return switch (toolTagStyle) {
+        LfmToolTagStyle.lfm2 => '$toolResponseStart$encoded$toolResponseEnd',
+        LfmToolTagStyle.lfm25 => encoded,
+      };
     }
 
     final buf = StringBuffer();
@@ -178,9 +203,7 @@ class Lfm2ChatTemplate {
     if (calls.isNotEmpty) {
       buf
         ..write(toolCallStart)
-        ..write('[')
-        ..write(calls.map(_formatCall).join(', '))
-        ..write(']')
+        ..write(_formatCalls(calls))
         ..write(toolCallEnd);
     }
     return buf.toString();
@@ -207,7 +230,7 @@ class Lfm2ChatTemplate {
       final close = generated.indexOf(toolCallEnd, open);
       final bodyEnd = close < 0 ? generated.length : close;
       final block = generated.substring(open + toolCallStart.length, bodyEnd);
-      _PyCallParser(block, calls.length).parseInto(calls);
+      _parseCalls(block, calls);
       cursor = close < 0 ? generated.length : close + toolCallEnd.length;
     }
     return Lfm2Turn(text: text.toString().trim(), calls: calls);
@@ -217,8 +240,17 @@ class Lfm2ChatTemplate {
 
   String _roleOf(ChatMessage m) => m.role.value;
 
-  /// Renders one tool declaration as the JSON object LFM2 expects:
-  /// `{"name": …, "description": …, "parameters": {…}}`.
+  /// Renders all tool declarations in the style this LFM variant expects.
+  String _formatDeclarations(List<AIFunctionDeclaration> tools) {
+    final json = '[${tools.map(_formatDeclaration).join(', ')}]';
+    return switch (toolTagStyle) {
+      LfmToolTagStyle.lfm2 => '$toolListStart$json$toolListEnd',
+      LfmToolTagStyle.lfm25 => json,
+    };
+  }
+
+  /// Renders one tool declaration as a JSON object:
+  /// `{"name": ..., "description": ..., "parameters": {...}}`.
   String _formatDeclaration(AIFunctionDeclaration tool) =>
       _jsonEncode(<String, Object?>{
         'name': tool.name,
@@ -226,11 +258,69 @@ class Lfm2ChatTemplate {
         if (tool.parametersSchema != null) 'parameters': tool.parametersSchema,
       });
 
+  /// Renders assistant tool calls in the configured syntax.
+  String _formatCalls(List<FunctionCallContent> calls) =>
+      switch (toolCallSyntax) {
+        LfmToolCallSyntax.pythonic =>
+          '[${calls.map(_formatPythonicCall).join(', ')}]',
+        LfmToolCallSyntax.json =>
+          calls.length == 1
+              ? _formatJsonCall(calls.single)
+              : '[${calls.map(_formatJsonCall).join(', ')}]',
+      };
+
   /// Renders one assistant tool call in Pythonic form: `name(arg="value")`.
-  String _formatCall(FunctionCallContent call) {
+  String _formatPythonicCall(FunctionCallContent call) {
     final args = call.arguments ?? const <String, Object?>{};
     final parts = args.entries.map((e) => '${e.key}=${_pyLiteral(e.value)}');
     return '${call.name}(${parts.join(', ')})';
+  }
+
+  /// Renders one assistant tool call as a JSON object.
+  String _formatJsonCall(FunctionCallContent call) =>
+      _jsonEncode(<String, Object?>{
+        'name': call.name,
+        'arguments': call.arguments ?? const <String, Object?>{},
+      });
+
+  /// Parses a tool-call block in either Liquid Pythonic or JSON form.
+  void _parseCalls(String block, List<FunctionCallContent> calls) {
+    final trimmed = block.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      final jsonCalls = _tryParseJsonCalls(trimmed, calls.length);
+      if (jsonCalls != null) {
+        calls.addAll(jsonCalls);
+        return;
+      }
+    }
+    _PyCallParser(block, calls.length).parseInto(calls);
+  }
+
+  List<FunctionCallContent>? _tryParseJsonCalls(String block, int startIndex) {
+    Object? decoded;
+    try {
+      decoded = jsonDecode(block);
+    } on FormatException {
+      return null;
+    }
+
+    final entries = decoded is List ? decoded : <Object?>[decoded];
+    final parsed = <FunctionCallContent>[];
+    for (final entry in entries) {
+      if (entry is! Map) return null;
+      final name = entry['name'];
+      if (name is! String) return null;
+      final args = entry['arguments'] ?? entry['parameters'] ?? const {};
+      if (args is! Map) return null;
+      parsed.add(
+        FunctionCallContent(
+          callId: 'call_${startIndex + parsed.length}',
+          name: name,
+          arguments: args.cast<String, Object?>(),
+        ),
+      );
+    }
+    return parsed;
   }
 
   /// JSON with Python `json.dumps` default separators (`, ` and `: `) to match

@@ -15,6 +15,8 @@ class _TestFunction extends AIFunctionDeclaration {
 
 void main() {
   const template = Lfm2ChatTemplate();
+  const lfm25Template = Lfm2ChatTemplate(toolTagStyle: LfmToolTagStyle.lfm25);
+  const jsonTemplate = Lfm2ChatTemplate(toolCallSyntax: LfmToolCallSyntax.json);
 
   group('Lfm2ChatTemplate.render', () {
     test('plain system + user turn', () {
@@ -76,6 +78,47 @@ void main() {
       );
     });
 
+    test('LFM2.5 tools render plain JSON without tool-list tags', () {
+      final prompt = lfm25Template.render(
+        [ChatMessage.fromText(ChatRole.user, 'Weather?')],
+        tools: [
+          _TestFunction(
+            name: 'get_weather',
+            description: 'Get weather',
+            parametersSchema: const {
+              'type': 'object',
+              'properties': {
+                'location': {'type': 'string'},
+              },
+              'required': ['location'],
+            },
+          ),
+        ],
+      );
+
+      expect(
+        prompt.text,
+        '<|im_start|>system\n'
+        'List of tools: ['
+        '{"name": "get_weather", "description": "Get weather", '
+        '"parameters": {"type": "object", '
+        '"properties": {"location": {"type": "string"}}, '
+        '"required": ["location"]}}'
+        ']<|im_end|>\n'
+        '<|im_start|>user\nWeather?<|im_end|>\n'
+        '<|im_start|>assistant\n',
+      );
+    });
+
+    test('JSON call syntax adds the Liquid JSON instruction', () {
+      final prompt = jsonTemplate.render(
+        [ChatMessage.fromText(ChatRole.user, 'Weather?')],
+        tools: [_TestFunction(name: 'get_weather')],
+      );
+
+      expect(prompt.text, contains('Output function calls as JSON.'));
+    });
+
     test('image content emits a media marker and collects bytes', () {
       final bytes = Uint8List.fromList([1, 2, 3]);
       final prompt = template.render([
@@ -130,6 +173,49 @@ void main() {
         '<|im_start|>tool\n'
         '<|tool_response_start|>{"temp": 20}<|tool_response_end|><|im_end|>\n',
       );
+    });
+
+    test(
+      'assistant tool call replays as a JSON call block when configured',
+      () {
+        final prompt = jsonTemplate.render([
+          ChatMessage(
+            role: ChatRole.assistant,
+            contents: [
+              FunctionCallContent(
+                callId: 'call_0',
+                name: 'get_weather',
+                arguments: const {'location': 'Paris'},
+              ),
+            ],
+          ),
+        ], addGenerationPrompt: false);
+
+        expect(
+          prompt.text,
+          '<|im_start|>assistant\n'
+          '<|tool_call_start|>'
+          '{"name": "get_weather", "arguments": {"location": "Paris"}}'
+          '<|tool_call_end|><|im_end|>\n',
+        );
+      },
+    );
+
+    test('LFM2.5 tool results render plain JSON without response tags', () {
+      final prompt = lfm25Template.render([
+        ChatMessage(
+          role: ChatRole.tool,
+          contents: [
+            FunctionResultContent(
+              callId: 'call_0',
+              name: 'get_weather',
+              result: const {'temp': 20},
+            ),
+          ],
+        ),
+      ], addGenerationPrompt: false);
+
+      expect(prompt.text, '<|im_start|>tool\n{"temp": 20}<|im_end|>\n');
     });
   });
 
@@ -188,6 +274,34 @@ void main() {
       expect(turn.calls, hasLength(1));
       expect(turn.calls.single.name, 'get_weather');
       expect(turn.calls.single.arguments, {'location': 'Paris'});
+    });
+
+    test('parses a JSON object tool call', () {
+      final turn = template.parse(
+        '<|tool_call_start|>'
+        '{"name": "get_weather", "arguments": {"location": "Paris"}}'
+        '<|tool_call_end|>',
+      );
+
+      expect(turn.text, isEmpty);
+      expect(turn.calls, hasLength(1));
+      expect(turn.calls.single.name, 'get_weather');
+      expect(turn.calls.single.arguments, {'location': 'Paris'});
+    });
+
+    test('parses a JSON array of tool calls', () {
+      final turn = template.parse(
+        '<|tool_call_start|>['
+        '{"name": "a", "arguments": {"x": 1}}, '
+        '{"name": "b", "parameters": {"y": true}}'
+        ']<|tool_call_end|>',
+      );
+
+      expect(turn.calls, hasLength(2));
+      expect(turn.calls[0].name, 'a');
+      expect(turn.calls[0].arguments, {'x': 1});
+      expect(turn.calls[1].name, 'b');
+      expect(turn.calls[1].arguments, {'y': true});
     });
 
     test('accepts JSON-style scalar literals', () {

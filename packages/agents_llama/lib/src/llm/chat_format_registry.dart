@@ -9,6 +9,7 @@ import 'chat_format.dart';
 import 'chatml/chatml_chat_format.dart';
 import 'gemma/gemma_chat_format.dart';
 import 'lfm2/lfm2_chat_format.dart';
+import 'lfm2/lfm2_chat_template.dart';
 import 'llama3/llama3_chat_format.dart';
 import 'mistral/mistral_chat_format.dart';
 import 'qwen/qwen_chat_format.dart';
@@ -18,12 +19,16 @@ const String defaultChatFormatName = 'gemma';
 
 /// All known `llama.format` names mapped to their [ChatFormat].
 ///
-/// `lfm2` and `lfm2-vl` both resolve to [Lfm2ChatFormat] (one wire format, two
-/// checkpoints).
+/// `lfm2` and `lfm2-vl` use LFM2's tagged tool-list/tool-response style.
+/// `lfm2.5`/`lfm25` aliases use LFM2.5's plain JSON tool style.
 const Map<String, ChatFormat> _formats = <String, ChatFormat>{
   'gemma': GemmaChatFormat(),
   'lfm2': Lfm2ChatFormat(),
   'lfm2-vl': Lfm2ChatFormat(),
+  'lfm2.5': Lfm2ChatFormat(toolTagStyle: LfmToolTagStyle.lfm25),
+  'lfm2.5-vl': Lfm2ChatFormat(toolTagStyle: LfmToolTagStyle.lfm25),
+  'lfm25': Lfm2ChatFormat(toolTagStyle: LfmToolTagStyle.lfm25),
+  'lfm25-vl': Lfm2ChatFormat(toolTagStyle: LfmToolTagStyle.lfm25),
   'chatml': ChatmlChatFormat(),
   'llama3': Llama3ChatFormat(),
   'mistral': MistralChatFormat(),

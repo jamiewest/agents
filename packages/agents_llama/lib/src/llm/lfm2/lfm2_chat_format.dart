@@ -7,17 +7,28 @@ import '../chat_format.dart';
 import 'lfm2_chat_template.dart';
 import 'lfm2_stream_decoder.dart';
 
-/// LFM2's [ChatFormat]: [Lfm2ChatTemplate] rendering paired with
+/// LFM's [ChatFormat]: [Lfm2ChatTemplate] rendering paired with
 /// [Lfm2StreamDecoder] output splitting.
 ///
-/// Covers the text and vision (LFM2-VL) variants — both speak the same ChatML
-/// wire format; image parts are rendered as media markers the runtime
-/// substitutes.
+/// Covers the text and vision variants for LFM2 and LFM2.5. They share the
+/// same ChatML wire format and tool-call markers, but differ in whether tool
+/// declarations/results are wrapped in Liquid's LFM2-only tool tags.
 class Lfm2ChatFormat implements ChatFormat {
-  const Lfm2ChatFormat();
+  const Lfm2ChatFormat({
+    this.toolTagStyle = LfmToolTagStyle.lfm2,
+    this.toolCallSyntax = LfmToolCallSyntax.pythonic,
+  });
 
-  static const Lfm2ChatTemplate _template = Lfm2ChatTemplate();
-  static const Lfm2StreamDecoder _decoder = Lfm2StreamDecoder();
+  /// Whether tool declarations/results use LFM2 tags or LFM2.5 plain JSON.
+  final LfmToolTagStyle toolTagStyle;
+
+  /// How assistant tool-call examples are rendered back into chat history.
+  final LfmToolCallSyntax toolCallSyntax;
+
+  Lfm2ChatTemplate get _template => Lfm2ChatTemplate(
+    toolTagStyle: toolTagStyle,
+    toolCallSyntax: toolCallSyntax,
+  );
 
   @override
   bool get supportsThinking => false;
@@ -38,5 +49,5 @@ class Lfm2ChatFormat implements ChatFormat {
 
   @override
   Stream<ChatResponseUpdate> decode(Stream<String> tokens) =>
-      _decoder.decode(tokens);
+      Lfm2StreamDecoder(_template).decode(tokens);
 }

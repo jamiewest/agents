@@ -301,6 +301,99 @@ void main() {
       expect(httpClient.requests.single.url.queryParameters['alt'], 'sse');
     });
 
+    test(
+      'streams a finalized function call once and preserves thoughtSignature',
+      () async {
+        final httpClient = _FakeHttpClient([
+          _sseResponse([
+            _sse({
+              'responseId': 'resp_1',
+              'modelVersion': 'gemini-test',
+              'candidates': [
+                {
+                  'content': {
+                    'role': 'model',
+                    'parts': [
+                      {
+                        'functionCall': {
+                          'name': 'lookup',
+                          'args': {'query': 'dart'},
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            }),
+            _sse({
+              'responseId': 'resp_1',
+              'modelVersion': 'gemini-test',
+              'candidates': [
+                {
+                  'content': {
+                    'role': 'model',
+                    'parts': [
+                      {
+                        'functionCall': {
+                          'name': 'lookup',
+                          'args': {'query': 'dart'},
+                        },
+                        'thoughtSignature': 'sig-stream',
+                      },
+                    ],
+                  },
+                  'finishReason': 'STOP',
+                },
+              ],
+              'usageMetadata': {
+                'promptTokenCount': 4,
+                'candidatesTokenCount': 2,
+                'totalTokenCount': 6,
+              },
+            }),
+          ]),
+          _jsonResponse(_responseJson(text: 'ok')),
+        ]);
+        final client = GeminiChatClient(
+          _geminiClient(httpClient),
+          modelId: 'gemini-default',
+        );
+
+        final updates = await client
+            .getStreamingResponse(
+              messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+            )
+            .toList();
+
+        final callUpdates = updates
+            .where(
+              (update) =>
+                  update.contents.whereType<FunctionCallContent>().isNotEmpty,
+            )
+            .toList();
+        expect(callUpdates, hasLength(1));
+
+        final call = callUpdates.single.contents.single as FunctionCallContent;
+        expect(call.name, 'lookup');
+        expect(call.arguments, {'query': 'dart'});
+        expect(call.additionalProperties, {
+          'gemini_thought_signature': 'sig-stream',
+        });
+        expect(updates.last.finishReason, ChatFinishReason.toolCalls);
+
+        await client.getResponse(
+          messages: [
+            ChatMessage.fromText(ChatRole.user, 'Hello'),
+            ChatMessage(role: ChatRole.assistant, contents: [call]),
+          ],
+        );
+
+        final followUpParts =
+            httpClient.requests[1].jsonBody['contents'][1]['parts'];
+        expect(followUpParts.single['thoughtSignature'], 'sig-stream');
+      },
+    );
+
     test('sends function call results back as function responses', () async {
       final httpClient = _FakeHttpClient([
         _jsonResponse(_responseJson(text: 'ok')),
@@ -340,9 +433,51 @@ void main() {
       ]);
     });
 
+    test('captures thoughtSignature from a function call response and echoes '
+        'it back on the next turn', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(
+          _responseJson(
+            finishReason: 'STOP',
+            parts: [
+              {
+                'functionCall': {'name': 'lookup', 'args': {}},
+                'thoughtSignature': 'sig-123',
+              },
+            ],
+          ),
+        ),
+        _jsonResponse(_responseJson(text: 'ok')),
+      ]);
+      final client = GeminiChatClient(
+        _geminiClient(httpClient),
+        modelId: 'gemini-default',
+      );
+
+      final response = await client.getResponse(
+        messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+      );
+
+      final call =
+          response.messages.single.contents.single as FunctionCallContent;
+      expect(call.additionalProperties, {
+        'gemini_thought_signature': 'sig-123',
+      });
+
+      await client.getResponse(
+        messages: [
+          ChatMessage.fromText(ChatRole.user, 'Hello'),
+          response.messages.single,
+        ],
+      );
+
+      final followUpParts =
+          httpClient.requests[1].jsonBody['contents'][1]['parts'];
+      expect(followUpParts.single['thoughtSignature'], 'sig-123');
+    });
+
     test(
-      'captures thoughtSignature from a function call response and echoes '
-      'it back on the next turn',
+      'replays parallel function calls with only the returned signature',
       () async {
         final httpClient = _FakeHttpClient([
           _jsonResponse(
@@ -350,8 +485,19 @@ void main() {
               finishReason: 'STOP',
               parts: [
                 {
-                  'functionCall': {'name': 'lookup', 'args': {}},
-                  'thoughtSignature': 'sig-123',
+                  'functionCall': {
+                    'id': 'call_1',
+                    'name': 'lookup',
+                    'args': {'query': 'Paris'},
+                  },
+                  'thoughtSignature': 'sig-parallel',
+                },
+                {
+                  'functionCall': {
+                    'id': 'call_2',
+                    'name': 'lookup',
+                    'args': {'query': 'London'},
+                  },
                 },
               ],
             ),
@@ -367,13 +513,6 @@ void main() {
           messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
         );
 
-        final call = response.messages.single.contents.single
-            as FunctionCallContent;
-        expect(
-          call.additionalProperties,
-          {'gemini_thought_signature': 'sig-123'},
-        );
-
         await client.getResponse(
           messages: [
             ChatMessage.fromText(ChatRole.user, 'Hello'),
@@ -383,40 +522,80 @@ void main() {
 
         final followUpParts =
             httpClient.requests[1].jsonBody['contents'][1]['parts'];
-        expect(followUpParts.single['thoughtSignature'], 'sig-123');
+        expect(followUpParts, hasLength(2));
+        expect(followUpParts[0]['thoughtSignature'], 'sig-parallel');
+        expect(followUpParts[1].containsKey('thoughtSignature'), isFalse);
       },
     );
 
-    test(
-      'falls back to the skip_thought_signature_validator placeholder when '
-      'a function call has no captured thought signature',
-      () async {
-        final httpClient = _FakeHttpClient([
-          _jsonResponse(_responseJson(text: 'ok')),
-        ]);
-        final client = GeminiChatClient(
-          _geminiClient(httpClient),
-          modelId: 'gemini-default',
-        );
+    test('preserves thoughtSignature on text response parts', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(
+          _responseJson(
+            parts: [
+              {'text': '', 'thoughtSignature': 'sig-text'},
+            ],
+          ),
+        ),
+        _jsonResponse(_responseJson(text: 'ok')),
+      ]);
+      final client = GeminiChatClient(
+        _geminiClient(httpClient),
+        modelId: 'gemini-default',
+      );
 
-        await client.getResponse(
-          messages: [
-            ChatMessage.fromText(ChatRole.user, 'Hello'),
-            ChatMessage(
-              role: ChatRole.assistant,
-              contents: [FunctionCallContent(callId: 'c1', name: 'lookup')],
-            ),
-          ],
-        );
+      final response = await client.getResponse(
+        messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+      );
 
-        final parts =
-            httpClient.requests.single.jsonBody['contents'][1]['parts'];
-        expect(
-          parts.single['thoughtSignature'],
-          'skip_thought_signature_validator',
-        );
-      },
-    );
+      final text = response.messages.single.contents.single as TextContent;
+      expect(text.text, isEmpty);
+      expect(text.additionalProperties, {
+        'gemini_thought_signature': 'sig-text',
+      });
+
+      await client.getResponse(
+        messages: [
+          ChatMessage.fromText(ChatRole.user, 'Hello'),
+          response.messages.single,
+        ],
+      );
+
+      final followUpParts =
+          httpClient.requests[1].jsonBody['contents'][1]['parts'];
+      expect(followUpParts.single, {
+        'text': '',
+        'thoughtSignature': 'sig-text',
+      });
+    });
+
+    test('falls back to the skip_thought_signature_validator placeholder when '
+        'a function call has no captured thought signature', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(_responseJson(text: 'ok')),
+      ]);
+      final client = GeminiChatClient(
+        _geminiClient(httpClient),
+        modelId: 'gemini-default',
+      );
+
+      await client.getResponse(
+        messages: [
+          ChatMessage.fromText(ChatRole.user, 'Hello'),
+          ChatMessage(
+            role: ChatRole.assistant,
+            contents: [
+              FunctionCallContent(callId: 'c1', name: 'lookup'),
+              FunctionCallContent(callId: 'c2', name: 'lookup'),
+            ],
+          ),
+        ],
+      );
+
+      final parts = httpClient.requests.single.jsonBody['contents'][1]['parts'];
+      expect(parts[0]['thoughtSignature'], 'skip_thought_signature_validator');
+      expect(parts[1].containsKey('thoughtSignature'), isFalse);
+    });
 
     test('GeminiClient.asAIAgent applies settings and factory', () {
       final geminiClient = _geminiClient(_FakeHttpClient([]));

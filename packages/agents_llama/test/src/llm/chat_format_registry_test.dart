@@ -7,6 +7,10 @@ void main() {
       expect(resolveChatFormat('gemma'), isA<GemmaChatFormat>());
       expect(resolveChatFormat('lfm2'), isA<Lfm2ChatFormat>());
       expect(resolveChatFormat('lfm2-vl'), isA<Lfm2ChatFormat>());
+      expect(resolveChatFormat('lfm2.5'), isA<Lfm2ChatFormat>());
+      expect(resolveChatFormat('lfm2.5-vl'), isA<Lfm2ChatFormat>());
+      expect(resolveChatFormat('lfm25'), isA<Lfm2ChatFormat>());
+      expect(resolveChatFormat('lfm25-vl'), isA<Lfm2ChatFormat>());
       expect(resolveChatFormat('chatml'), isA<ChatmlChatFormat>());
       expect(resolveChatFormat('llama3'), isA<Llama3ChatFormat>());
       expect(resolveChatFormat('mistral'), isA<MistralChatFormat>());
@@ -22,6 +26,33 @@ void main() {
       expect(resolveChatFormat('nope'), isNull);
     });
 
+    test('LFM aliases select the correct tool tag style', () {
+      expect(
+        (resolveChatFormat('lfm2')! as Lfm2ChatFormat).toolTagStyle,
+        LfmToolTagStyle.lfm2,
+      );
+      expect(
+        (resolveChatFormat('lfm2-vl')! as Lfm2ChatFormat).toolTagStyle,
+        LfmToolTagStyle.lfm2,
+      );
+      expect(
+        (resolveChatFormat('lfm2.5')! as Lfm2ChatFormat).toolTagStyle,
+        LfmToolTagStyle.lfm25,
+      );
+      expect(
+        (resolveChatFormat('lfm2.5-vl')! as Lfm2ChatFormat).toolTagStyle,
+        LfmToolTagStyle.lfm25,
+      );
+      expect(
+        (resolveChatFormat('lfm25')! as Lfm2ChatFormat).toolTagStyle,
+        LfmToolTagStyle.lfm25,
+      );
+      expect(
+        (resolveChatFormat('lfm25-vl')! as Lfm2ChatFormat).toolTagStyle,
+        LfmToolTagStyle.lfm25,
+      );
+    });
+
     test('supportedChatFormatNames lists every family', () {
       expect(
         supportedChatFormatNames,
@@ -29,6 +60,10 @@ void main() {
           'gemma',
           'lfm2',
           'lfm2-vl',
+          'lfm2.5',
+          'lfm2.5-vl',
+          'lfm25',
+          'lfm25-vl',
           'chatml',
           'llama3',
           'mistral',

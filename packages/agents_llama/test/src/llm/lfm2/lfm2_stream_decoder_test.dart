@@ -52,6 +52,18 @@ void main() {
       expect(callsOf(updates).single.arguments, {'id': '7'});
     });
 
+    test('parses a JSON tool call split across chunks', () async {
+      final updates = await run([
+        'Checking. <|tool_call_start|>{"name": "get", ',
+        '"arguments": {"id": "7"}}<|tool_call_end|>',
+      ]);
+
+      expect(proseOf(updates), 'Checking. ');
+      expect(callsOf(updates), hasLength(1));
+      expect(callsOf(updates).single.name, 'get');
+      expect(callsOf(updates).single.arguments, {'id': '7'});
+    });
+
     test('surfaces a truncated tool call as raw text', () async {
       final updates = await run(['<|tool_call_start|>[broken(']);
       expect(callsOf(updates), isEmpty);

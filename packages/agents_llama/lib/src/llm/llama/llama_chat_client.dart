@@ -3,6 +3,8 @@ library;
 
 import 'dart:async';
 
+import 'package:agents/agents.dart'
+    show AgentRequestMessageSourceType, ChatMessageExtensions;
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
@@ -36,8 +38,9 @@ List<ChatMessage> messagesWithInstructions(
   Iterable<ChatMessage> messages,
   String? instructions,
 ) {
-  final trimmed = instructions?.trim();
-  final list = messages.toList();
+  final prepared = messagesWithRuntimeContext(messages, instructions);
+  final trimmed = prepared.instructions?.trim();
+  final list = prepared.messages.toList();
   if (trimmed == null || trimmed.isEmpty) return list;
 
   ChatMessage system(String text) => ChatMessage(
@@ -52,6 +55,64 @@ List<ChatMessage> messagesWithInstructions(
     ];
   }
   return <ChatMessage>[system(trimmed), ...list];
+}
+
+/// Moves text-only AI-context-provider messages into the system instructions.
+///
+/// Harness context providers sometimes contribute transient status messages
+/// using a `user` role, for example the todo provider's current todo list.
+/// Rendering those messages as ordinary trailing user turns changes the
+/// perceived latest user request for small local chat models. The messages are
+/// already tagged with source attribution, so keep their information available
+/// to the model as runtime context while preserving the external/chat-history
+/// message order exactly.
+({Iterable<ChatMessage> messages, String? instructions})
+messagesWithRuntimeContext(
+  Iterable<ChatMessage> messages,
+  String? instructions,
+) {
+  final runtimeContext = <String>[];
+  final retained = <ChatMessage>[];
+
+  for (final message in messages) {
+    if (_isTextOnlyProviderMessage(message)) {
+      final text = message.text.trim();
+      if (text.isNotEmpty) {
+        final sourceId = message.getAgentRequestMessageSourceId();
+        runtimeContext.add(
+          sourceId == null || sourceId.isEmpty ? text : '[$sourceId]\n$text',
+        );
+      }
+    } else {
+      retained.add(message);
+    }
+  }
+
+  if (runtimeContext.isEmpty) {
+    return (messages: retained, instructions: instructions);
+  }
+
+  final mergedInstructions = StringBuffer();
+  final trimmedInstructions = instructions?.trim();
+  if (trimmedInstructions != null && trimmedInstructions.isNotEmpty) {
+    mergedInstructions
+      ..write(trimmedInstructions)
+      ..write('\n\n');
+  }
+  mergedInstructions
+    ..write('Runtime context:\n')
+    ..write(runtimeContext.join('\n\n'));
+
+  return (messages: retained, instructions: mergedInstructions.toString());
+}
+
+bool _isTextOnlyProviderMessage(ChatMessage message) {
+  if (message.getAgentRequestMessageSourceType() !=
+      AgentRequestMessageSourceType.aiContextProvider) {
+    return false;
+  }
+  if (message.contents.isEmpty) return false;
+  return message.contents.every((content) => content is TextContent);
 }
 
 /// Bridges the M.E.AI chat abstractions to a model running through

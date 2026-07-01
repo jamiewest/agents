@@ -61,16 +61,18 @@ final class GeminiChatClient implements ChatClient {
     try {
       final effectiveModel = _effectiveModel(options);
       final body = _buildRequest(messages, options);
+      final accumulator = _GeminiStreamingAccumulator(this, effectiveModel);
       await for (final chunk in _postJsonStream(
         effectiveModel,
         body,
         abortTrigger: abort?.future,
       )) {
         cancellationToken?.throwIfCancellationRequested();
-        for (final update in _toStreamingUpdates(chunk, effectiveModel)) {
+        for (final update in accumulator.add(chunk)) {
           yield update;
         }
       }
+      yield* accumulator.finish();
     } finally {
       abort?.dispose();
     }
@@ -147,8 +149,13 @@ final class GeminiChatClient implements ChatClient {
 
     for (final content in message.contents) {
       switch (content) {
-        case TextContent(:final text):
-          parts.add({'text': text});
+        case TextContent(:final text, :final additionalProperties):
+          final part = <String, Object?>{'text': text};
+          final thoughtSignature = additionalProperties?[_thoughtSignatureKey];
+          if (thoughtSignature is String) {
+            part['thoughtSignature'] = thoughtSignature;
+          }
+          parts.add(part);
         case DataContent():
           parts.add(_toInlineDataPart(content));
         case UriContent(:final uri, :final mediaType):
@@ -161,17 +168,19 @@ final class GeminiChatClient implements ChatClient {
           :final additionalProperties,
         ):
           hasFunctionCall = true;
-          parts.add({
+          final part = <String, Object?>{
             'functionCall': {'name': name, 'args': arguments ?? const {}},
-            // Gemini 3 models reject function calls that are missing a
-            // thought_signature. When replaying a call the model produced,
-            // echo back the signature it returned; otherwise fall back to
-            // Google's documented placeholder that skips signature
-            // validation for calls not originated by Gemini.
-            'thoughtSignature':
-                additionalProperties?[_thoughtSignatureKey] as String? ??
-                _skipThoughtSignatureValidator,
-          });
+          };
+          final thoughtSignature = additionalProperties?[_thoughtSignatureKey];
+          if (thoughtSignature is String) {
+            part['thoughtSignature'] = thoughtSignature;
+          } else if (!parts.any((part) => part['functionCall'] != null)) {
+            // Gemini validates the first function call in the current step.
+            // For calls not produced by Gemini, use Google's documented
+            // placeholder to bypass signature validation.
+            part['thoughtSignature'] = _skipThoughtSignatureValidator;
+          }
+          parts.add(part);
         case FunctionResultContent(
           :final callId,
           :final name,
@@ -352,9 +361,7 @@ final class GeminiChatClient implements ChatClient {
           : functionCallingConfig,
       // Gemini requires this flag when combining function declarations with
       // built-in server-side tools (e.g. googleSearch) in the same request.
-      'includeServerSideToolInvocations': _hasMixedTools(tools)
-          ? true
-          : null,
+      'includeServerSideToolInvocations': _hasMixedTools(tools) ? true : null,
     });
 
     return toolConfig.isEmpty ? null : toolConfig;
@@ -401,49 +408,6 @@ final class GeminiChatClient implements ChatClient {
     );
   }
 
-  List<ChatResponseUpdate> _toStreamingUpdates(
-    Map<String, Object?> response,
-    String requestedModel,
-  ) {
-    final candidate = _firstCandidate(response);
-    if (candidate == null) return const [];
-
-    final responseId = response['responseId'] as String?;
-    final modelId = response['modelVersion'] as String? ?? requestedModel;
-    final contents = _toAIContents(candidate);
-    final updates = <ChatResponseUpdate>[];
-
-    for (final content in contents) {
-      updates.add(
-        ChatResponseUpdate(
-          role: ChatRole.assistant,
-          contents: [content],
-          responseId: responseId,
-          modelId: modelId,
-          rawRepresentation: candidate,
-        ),
-      );
-    }
-
-    final finishReason = _finishReason(candidate, contents);
-    final usage = _usageDetails(response['usageMetadata']);
-    if (finishReason != null || usage != null) {
-      updates.add(
-        ChatResponseUpdate(
-          role: ChatRole.assistant,
-          responseId: responseId,
-          modelId: modelId,
-          finishReason: finishReason,
-          usage: usage,
-          rawRepresentation: response,
-          additionalProperties: _responseProperties(response, candidate),
-        ),
-      );
-    }
-
-    return updates;
-  }
-
   Map<String, Object?>? _firstCandidate(Map<String, Object?> response) {
     final candidates = response['candidates'];
     if (candidates is! List || candidates.isEmpty) return null;
@@ -462,8 +426,17 @@ final class GeminiChatClient implements ChatClient {
       if (part is! Map) continue;
       final partMap = Map<String, Object?>.from(part);
       final text = partMap['text'];
-      if (text is String && text.isNotEmpty) {
-        contents.add(TextContent(text)..rawRepresentation = partMap);
+      if (text is String) {
+        final thoughtSignature = partMap['thoughtSignature'];
+        if (text.isNotEmpty || thoughtSignature is String) {
+          contents.add(
+            TextContent(text)
+              ..rawRepresentation = partMap
+              ..additionalProperties = thoughtSignature is String
+                  ? {_thoughtSignatureKey: thoughtSignature}
+                  : null,
+          );
+        }
         continue;
       }
 
@@ -476,10 +449,10 @@ final class GeminiChatClient implements ChatClient {
           final thoughtSignature = partMap['thoughtSignature'];
           contents.add(
             FunctionCallContent(
-              callId: callMap['id'] as String? ?? name,
-              name: name,
-              arguments: args is Map ? Map<String, Object?>.from(args) : null,
-            )
+                callId: callMap['id'] as String? ?? name,
+                name: name,
+                arguments: args is Map ? Map<String, Object?>.from(args) : null,
+              )
               ..rawRepresentation = partMap
               ..additionalProperties = thoughtSignature is String
                   ? {_thoughtSignatureKey: thoughtSignature}
@@ -666,6 +639,169 @@ final class GeminiChatClient implements ChatClient {
       return [for (final item in value) _stripAdditionalProperties(item)];
     }
     return value;
+  }
+}
+
+final class _GeminiStreamingAccumulator {
+  _GeminiStreamingAccumulator(this._client, this._requestedModel);
+
+  final GeminiChatClient _client;
+  final String _requestedModel;
+  final Map<int, _PendingFunctionCall> _functionCalls = {};
+
+  List<ChatResponseUpdate> add(Map<String, Object?> response) {
+    final candidate = _client._firstCandidate(response);
+    if (candidate == null) return const [];
+
+    final responseId = response['responseId'] as String?;
+    final modelId = response['modelVersion'] as String? ?? _requestedModel;
+    final updates = <ChatResponseUpdate>[];
+    final nonFunctionContents = <AIContent>[];
+
+    final content = candidate['content'];
+    if (content is Map) {
+      final parts = content['parts'];
+      if (parts is List) {
+        for (var i = 0; i < parts.length; i++) {
+          final part = parts[i];
+          if (part is! Map) continue;
+          final partMap = Map<String, Object?>.from(part);
+          if (partMap['functionCall'] is Map) {
+            (_functionCalls[i] ??= _PendingFunctionCall()).merge(partMap);
+            continue;
+          }
+
+          final text = partMap['text'];
+          final thoughtSignature = partMap['thoughtSignature'];
+          if (text is String &&
+              (text.isNotEmpty || thoughtSignature is String)) {
+            nonFunctionContents.add(
+              TextContent(text)
+                ..rawRepresentation = partMap
+                ..additionalProperties = thoughtSignature is String
+                    ? {_thoughtSignatureKey: thoughtSignature}
+                    : null,
+            );
+          }
+        }
+      }
+    }
+
+    for (final content in nonFunctionContents) {
+      updates.add(
+        ChatResponseUpdate(
+          role: ChatRole.assistant,
+          contents: [content],
+          responseId: responseId,
+          modelId: modelId,
+          rawRepresentation: candidate,
+        ),
+      );
+    }
+
+    final hasTerminalFields =
+        candidate['finishReason'] != null || response['usageMetadata'] != null;
+    if (!hasTerminalFields) return updates;
+
+    final functionContents = _drainFunctionCalls();
+    for (final content in functionContents) {
+      updates.add(
+        ChatResponseUpdate(
+          role: ChatRole.assistant,
+          contents: [content],
+          responseId: responseId,
+          modelId: modelId,
+          rawRepresentation: content.rawRepresentation ?? candidate,
+        ),
+      );
+    }
+
+    final finishReason = _client._finishReason(
+      candidate,
+      functionContents.isNotEmpty ? functionContents : nonFunctionContents,
+    );
+    final usage = _client._usageDetails(response['usageMetadata']);
+    if (finishReason != null || usage != null) {
+      updates.add(
+        ChatResponseUpdate(
+          role: ChatRole.assistant,
+          responseId: responseId,
+          modelId: modelId,
+          finishReason: finishReason,
+          usage: usage,
+          rawRepresentation: response,
+          additionalProperties: _client._responseProperties(
+            response,
+            candidate,
+          ),
+        ),
+      );
+    }
+
+    return updates;
+  }
+
+  Stream<ChatResponseUpdate> finish() async* {
+    for (final content in _drainFunctionCalls()) {
+      yield ChatResponseUpdate(
+        role: ChatRole.assistant,
+        contents: [content],
+        modelId: _requestedModel,
+        rawRepresentation: content.rawRepresentation,
+      );
+    }
+  }
+
+  List<AIContent> _drainFunctionCalls() {
+    if (_functionCalls.isEmpty) return const [];
+    final entries = _functionCalls.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    _functionCalls.clear();
+
+    return [for (final entry in entries) ?entry.value.toContent()];
+  }
+}
+
+final class _PendingFunctionCall {
+  final Map<String, Object?> functionCall = {};
+  final Map<String, Object?> rawPart = {};
+  String? thoughtSignature;
+
+  void merge(Map<String, Object?> partMap) {
+    final incoming = partMap['functionCall'];
+    if (incoming is Map) {
+      functionCall.addAll(Map<String, Object?>.from(incoming));
+    }
+
+    final incomingSignature = partMap['thoughtSignature'];
+    if (incomingSignature is String) {
+      thoughtSignature = incomingSignature;
+    }
+
+    rawPart
+      ..addAll(partMap)
+      ..['functionCall'] = Map<String, Object?>.of(functionCall);
+    if (thoughtSignature != null) {
+      rawPart['thoughtSignature'] = thoughtSignature;
+    } else {
+      rawPart.remove('thoughtSignature');
+    }
+  }
+
+  FunctionCallContent? toContent() {
+    final name = functionCall['name'];
+    if (name is! String) return null;
+    final args = functionCall['args'];
+
+    return FunctionCallContent(
+        callId: functionCall['id'] as String? ?? name,
+        name: name,
+        arguments: args is Map ? Map<String, Object?>.from(args) : null,
+      )
+      ..rawRepresentation = Map<String, Object?>.of(rawPart)
+      ..additionalProperties = thoughtSignature != null
+          ? {_thoughtSignatureKey: thoughtSignature}
+          : null;
   }
 }
 
