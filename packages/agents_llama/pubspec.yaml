@@ -11,7 +11,7 @@ environment:
 dependencies:
   agents:
     path: ../agents
-  extensions: ^0.3.28
+  extensions: ^0.4.1
   flutter:
     sdk: flutter
   llama_flutter:

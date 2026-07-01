@@ -333,18 +333,18 @@ packages:
     dependency: transitive
     description:
       name: extensions
-      sha256: c4aa097b5732a98777c72fda242abe26090ecf1939e7ec47ec0c7750bf3b693f
+      sha256: "50eec20dabf1c22bfa4dd512c2a9536c09b46b7b6e3e1325dc909b6a30c3e72c"
       url: "https://pub.dev"
     source: hosted
-    version: "0.3.28"
+    version: "0.4.1"
   extensions_flutter:
     dependency: transitive
     description:
       name: extensions_flutter
-      sha256: "5767e222322197dbbe1b9ae3953571000382978681dc4a8de72b908633e51a94"
+      sha256: fe3c26901e2d01b38528dac06d84c0b016330d93876d601324d8292d60ae2da0
       url: "https://pub.dev"
     source: hosted
-    version: "0.4.2"
+    version: "0.4.4"
   fake_async:
     dependency: transitive
     description:
