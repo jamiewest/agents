@@ -113,6 +113,7 @@ final class GeminiChatClient implements ChatClient {
       contents.add(_toGeminiContent(message));
     }
 
+    final tools = options?.tools;
     return _withoutNulls({
       'contents': contents,
       'systemInstruction': systemParts.isEmpty
@@ -123,8 +124,8 @@ final class GeminiChatClient implements ChatClient {
               ],
             },
       'generationConfig': _generationConfig(options),
-      'tools': _toGeminiTools(options?.tools),
-      'toolConfig': _toToolConfig(options),
+      'tools': _toGeminiTools(tools),
+      'toolConfig': _toToolConfig(options, tools),
     });
   }
 
@@ -302,26 +303,52 @@ final class GeminiChatClient implements ChatClient {
     return geminiTools;
   }
 
-  Map<String, Object?>? _toToolConfig(ChatOptions? options) {
+  Map<String, Object?>? _toToolConfig(
+    ChatOptions? options,
+    List<AITool>? tools,
+  ) {
     final mode = options?.toolMode;
-    if (mode == null) return null;
-
-    final config = <String, Object?>{};
+    final functionCallingConfig = <String, Object?>{};
     if (mode == ChatToolMode.none) {
-      config['mode'] = 'NONE';
+      functionCallingConfig['mode'] = 'NONE';
     } else if (mode == ChatToolMode.auto) {
-      config['mode'] = 'AUTO';
+      functionCallingConfig['mode'] = 'AUTO';
     } else if (mode is RequiredChatToolMode) {
-      config['mode'] = 'ANY';
+      functionCallingConfig['mode'] = 'ANY';
       final name = mode.requiredFunctionName;
       if (name != null) {
-        config['allowedFunctionNames'] = [name];
+        functionCallingConfig['allowedFunctionNames'] = [name];
       }
-    } else {
+    } else if (mode != null) {
       return null;
     }
 
-    return {'functionCallingConfig': config};
+    final toolConfig = _withoutNulls({
+      'functionCallingConfig': functionCallingConfig.isEmpty
+          ? null
+          : functionCallingConfig,
+      // Gemini requires this flag when combining function declarations with
+      // built-in server-side tools (e.g. googleSearch) in the same request.
+      'includeServerSideToolInvocations': _hasMixedTools(tools)
+          ? true
+          : null,
+    });
+
+    return toolConfig.isEmpty ? null : toolConfig;
+  }
+
+  bool _hasMixedTools(List<AITool>? tools) {
+    if (tools == null || tools.isEmpty) return false;
+    var hasFunctionDeclaration = false;
+    var hasBuiltInTool = false;
+    for (final tool in tools) {
+      if (tool is HostedWebSearchTool) {
+        hasBuiltInTool = true;
+      } else if (tool is AIFunctionDeclaration) {
+        hasFunctionDeclaration = true;
+      }
+    }
+    return hasFunctionDeclaration && hasBuiltInTool;
   }
 
   ChatResponse _toChatResponse(

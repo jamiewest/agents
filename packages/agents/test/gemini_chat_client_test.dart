@@ -115,8 +115,44 @@ void main() {
           'mode': 'ANY',
           'allowedFunctionNames': ['lookup'],
         },
+        'includeServerSideToolInvocations': true,
       });
     });
+
+    test(
+      'omits includeServerSideToolInvocations when tools are not mixed',
+      () async {
+        final httpClient = _FakeHttpClient([
+          _jsonResponse(_responseJson(text: 'ok')),
+        ]);
+        final client = GeminiChatClient(
+          _geminiClient(httpClient),
+          modelId: 'gemini-default',
+        );
+
+        await client.getResponse(
+          messages: [ChatMessage.fromText(ChatRole.user, 'Use a tool')],
+          options: ChatOptions(
+            tools: [
+              _TestFunction(
+                name: 'lookup',
+                description: 'Looks up a value.',
+                parametersSchema: {
+                  'type': 'object',
+                  'properties': {
+                    'query': {'type': 'string'},
+                  },
+                  'required': ['query'],
+                },
+              ),
+            ],
+          ),
+        );
+
+        final body = httpClient.requests.single.jsonBody;
+        expect(body.containsKey('toolConfig'), isFalse);
+      },
+    );
 
     test('strips additionalProperties from responseSchema', () async {
       final httpClient = _FakeHttpClient([
