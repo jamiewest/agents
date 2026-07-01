@@ -7,6 +7,17 @@ import 'package:http/http.dart' as http;
 
 import 'gemini_client.dart';
 
+/// Key under which a Gemini function call's `thoughtSignature` is stashed in
+/// [FunctionCallContent.additionalProperties] so it can be echoed back
+/// verbatim in a later turn.
+const _thoughtSignatureKey = 'gemini_thought_signature';
+
+/// Placeholder documented by Google for `thoughtSignature` values on
+/// function calls that were not produced by Gemini (e.g. constructed
+/// manually or replayed from another provider), which skips signature
+/// validation instead of rejecting the request.
+const _skipThoughtSignatureValidator = 'skip_thought_signature_validator';
+
 /// A [ChatClient] implementation backed by the Gemini API.
 final class GeminiChatClient implements ChatClient {
   /// Creates a Gemini chat client adapter.
@@ -144,10 +155,22 @@ final class GeminiChatClient implements ChatClient {
           parts.add({
             'fileData': {'mimeType': mediaType, 'fileUri': uri.toString()},
           });
-        case FunctionCallContent(:final name, :final arguments):
+        case FunctionCallContent(
+          :final name,
+          :final arguments,
+          :final additionalProperties,
+        ):
           hasFunctionCall = true;
           parts.add({
             'functionCall': {'name': name, 'args': arguments ?? const {}},
+            // Gemini 3 models reject function calls that are missing a
+            // thought_signature. When replaying a call the model produced,
+            // echo back the signature it returned; otherwise fall back to
+            // Google's documented placeholder that skips signature
+            // validation for calls not originated by Gemini.
+            'thoughtSignature':
+                additionalProperties?[_thoughtSignatureKey] as String? ??
+                _skipThoughtSignatureValidator,
           });
         case FunctionResultContent(
           :final callId,
@@ -450,12 +473,17 @@ final class GeminiChatClient implements ChatClient {
         final name = callMap['name'];
         if (name is String) {
           final args = callMap['args'];
+          final thoughtSignature = partMap['thoughtSignature'];
           contents.add(
             FunctionCallContent(
               callId: callMap['id'] as String? ?? name,
               name: name,
               arguments: args is Map ? Map<String, Object?>.from(args) : null,
-            )..rawRepresentation = partMap,
+            )
+              ..rawRepresentation = partMap
+              ..additionalProperties = thoughtSignature is String
+                  ? {_thoughtSignatureKey: thoughtSignature}
+                  : null,
           );
         }
       }
