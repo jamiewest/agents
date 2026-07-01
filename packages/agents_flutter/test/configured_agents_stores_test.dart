@@ -60,6 +60,11 @@ void main() {
         instructions: 'be nice',
         temperature: 0.4,
         maxOutputTokens: 256,
+        access: AgentAccessConfig(
+          enableWebSearch: false,
+          enableLocation: true,
+          enableWakeLock: true,
+        ),
       );
 
       final restored = SavedAgentConfig.fromJson(agent.toJson());
@@ -67,6 +72,20 @@ void main() {
       expect(restored.temperature, 0.4);
       expect(restored.maxOutputTokens, 256);
       expect(restored.instructions, 'be nice');
+      expect(restored.access?.enableWebSearch, isFalse);
+      expect(restored.access?.enableLocation, isTrue);
+      expect(restored.access?.enableWakeLock, isTrue);
+      expect(restored.access?.enableFileMemory, isTrue);
+    });
+
+    test('SavedAgentConfig keeps legacy access unset when absent', () {
+      final restored = SavedAgentConfig.fromJson(const {
+        'id': 'a1',
+        'name': 'Helper',
+        'modelId': 'm1',
+      });
+
+      expect(restored.access, isNull);
     });
   });
 

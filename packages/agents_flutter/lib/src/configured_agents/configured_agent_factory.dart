@@ -103,6 +103,10 @@ class ConfiguredAgentFactory {
 
     final options = FlutterHarnessAgentOptions();
     _configureHarness?.call(options);
+    final access = agent.access;
+    if (access != null) {
+      _applyAgentAccess(options, access);
+    }
     final effectiveMaxOutputTokens =
         agent.maxOutputTokens ??
         options.chatOptions?.maxOutputTokens ??
@@ -139,5 +143,25 @@ class ConfiguredAgentFactory {
       ..instructions = instructions
       ..temperature = temperature
       ..maxOutputTokens = maxOutputTokens;
+  }
+
+  void _applyAgentAccess(
+    FlutterHarnessAgentOptions options,
+    AgentAccessConfig access,
+  ) {
+    options
+      ..disableFileMemory = !access.enableFileMemory
+      ..disableFileAccess = !access.enableFileAccess
+      ..disableWebSearch = !access.enableWebSearch
+      ..disableTodoProvider = !access.enableTodoList
+      ..disableAgentModeProvider = !access.enableAgentMode
+      ..disableAgentSkillsProvider = !access.enableSkills
+      ..enableTemporal = access.enableTemporal
+      ..enableConnectivity = access.enableConnectivity
+      ..enableAppInfo = access.enableAppInfo
+      ..enableDeviceInfo = access.enableDeviceInfo
+      ..enableLocation = access.enableLocation
+      ..enableNetworkInfo = access.enableNetworkInfo
+      ..enableWakeLock = access.enableWakeLock;
   }
 }

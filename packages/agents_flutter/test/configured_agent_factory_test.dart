@@ -3,7 +3,12 @@
 // found in the LICENSE file.
 
 import 'package:agents/agents.dart'
-    show AgentModeProvider, ChatClientAgent, TodoProvider;
+    show
+        AgentModeProvider,
+        ChatClientAgent,
+        FileAccessProvider,
+        FileMemoryProvider,
+        TodoProvider;
 import 'package:agents_flutter/agents_flutter.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
@@ -474,6 +479,70 @@ void main() {
         final chatOptions = built.getServiceOf<ChatOptions>()!;
 
         expect(chatOptions.maxOutputTokens, 512);
+      },
+    );
+
+    test(
+      'applies saved agent access settings to harness capabilities',
+      () async {
+        final manager = buildManager();
+        await manager.saveSource(_openAiSource, apiKey: 'sk-openai');
+        await manager.saveModel(_openAiModel);
+        const agent = SavedAgentConfig(
+          id: 'a1',
+          name: 'Helper',
+          modelId: 'm-openai',
+          access: AgentAccessConfig(
+            enableFileMemory: false,
+            enableFileAccess: false,
+            enableWebSearch: false,
+            enableTodoList: false,
+            enableAgentMode: false,
+            enableSkills: false,
+            enableTemporal: false,
+            enableConnectivity: false,
+            enableAppInfo: false,
+            enableDeviceInfo: false,
+            enableLocation: true,
+            enableNetworkInfo: true,
+            enableWakeLock: true,
+          ),
+        );
+        await manager.saveAgent(agent);
+
+        final built = await ConfiguredAgentFactory(manager).createAgent(agent);
+        final inner = built.getServiceOf<ChatClientAgent>()!;
+        final providerTypes = inner.aiContextProviders!
+            .map((provider) => provider.runtimeType)
+            .toList();
+        final providerTypeNames = providerTypes
+            .map((type) => type.toString())
+            .toList();
+        final chatOptions = built.getServiceOf<ChatOptions>()!;
+        final tools = chatOptions.tools!;
+        final toolNames = tools.map((tool) => tool.name).toList();
+
+        expect(providerTypes, isNot(contains(TodoProvider)));
+        expect(providerTypes, isNot(contains(AgentModeProvider)));
+        expect(providerTypes, isNot(contains(FileMemoryProvider)));
+        expect(providerTypes, isNot(contains(FileAccessProvider)));
+        expect(providerTypeNames, isNot(contains('AgentSkillsProvider')));
+        expect(providerTypes, isNot(contains(ConnectivityContextProvider)));
+        expect(providerTypes, contains(LocationContextProvider));
+        expect(providerTypes, contains(NetworkContextProvider));
+
+        expect(
+          tools.map((tool) => tool.runtimeType.toString()),
+          isNot(contains('HostedWebSearchTool')),
+        );
+        expect(toolNames, isNot(contains('get_current_time')));
+        expect(toolNames, isNot(contains('get_connectivity')));
+        expect(toolNames, isNot(contains('get_app_info')));
+        expect(toolNames, isNot(contains('get_device_info')));
+        expect(toolNames, contains('get_current_location'));
+        expect(toolNames, contains('geocode_address'));
+        expect(toolNames, contains('get_current_network_info'));
+        expect(toolNames, contains('set_wake_lock'));
       },
     );
   });
