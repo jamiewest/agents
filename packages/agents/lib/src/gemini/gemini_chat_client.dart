@@ -258,7 +258,7 @@ final class GeminiChatClient implements ChatClient {
         config['responseMimeType'] = 'application/json';
       case ChatResponseFormatJsonSchema(:final schema):
         config['responseMimeType'] = 'application/json';
-        config['responseSchema'] = schema;
+        config['responseSchema'] = _stripAdditionalProperties(schema);
       default:
         break;
     }
@@ -290,7 +290,7 @@ final class GeminiChatClient implements ChatClient {
         _withoutNulls({
           'name': tool.name,
           'description': tool.description,
-          'parameters': tool.parametersSchema,
+          'parameters': _stripAdditionalProperties(tool.parametersSchema),
         }),
       );
     }
@@ -592,6 +592,25 @@ final class GeminiChatClient implements ChatClient {
 
   Map<String, Object?> _withoutNulls(Map<String, Object?> value) {
     return Map.fromEntries(value.entries.where((entry) => entry.value != null));
+  }
+
+  /// Recursively strips `additionalProperties` from a JSON Schema-like
+  /// structure. Gemini's schema format is a restricted OpenAPI subset that
+  /// rejects unknown fields, so schemas carrying the standard JSON Schema
+  /// `additionalProperties` keyword (as produced for other providers) must
+  /// have it removed before being sent as `parameters` or `responseSchema`.
+  Object? _stripAdditionalProperties(Object? value) {
+    if (value is Map) {
+      return {
+        for (final entry in value.entries)
+          if (entry.key != 'additionalProperties')
+            entry.key: _stripAdditionalProperties(entry.value),
+      };
+    }
+    if (value is List) {
+      return [for (final item in value) _stripAdditionalProperties(item)];
+    }
+    return value;
   }
 }
 
