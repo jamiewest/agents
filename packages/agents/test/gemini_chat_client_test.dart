@@ -79,9 +79,10 @@ void main() {
               parametersSchema: {
                 'type': 'object',
                 'properties': {
-                  'query': {'type': 'string'},
+                  'query': {'type': 'string', 'additionalProperties': false},
                 },
                 'required': ['query'],
+                'additionalProperties': false,
               },
             ),
             HostedWebSearchTool(),
@@ -114,6 +115,42 @@ void main() {
           'mode': 'ANY',
           'allowedFunctionNames': ['lookup'],
         },
+      });
+    });
+
+    test('strips additionalProperties from responseSchema', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(_responseJson(text: 'ok')),
+      ]);
+      final client = GeminiChatClient(
+        _geminiClient(httpClient),
+        modelId: 'gemini-default',
+      );
+
+      await client.getResponse(
+        messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+        options: ChatOptions(
+          responseFormat: ChatResponseFormat.forJsonSchema(
+            schemaName: 'verdict',
+            schema: {
+              'type': 'object',
+              'properties': {
+                'answered': {'type': 'boolean'},
+              },
+              'required': ['answered'],
+              'additionalProperties': false,
+            },
+          ),
+        ),
+      );
+
+      final body = httpClient.requests.single.jsonBody;
+      expect(body['generationConfig']['responseSchema'], {
+        'type': 'object',
+        'properties': {
+          'answered': {'type': 'boolean'},
+        },
+        'required': ['answered'],
       });
     });
 
