@@ -12,6 +12,7 @@ export 'configured_agent_factory.dart';
 export 'configured_agents_manager.dart';
 export 'configured_agents_service_collection_extensions.dart';
 export 'configured_chat_client_factory.dart';
+export 'model_profile/model_profile.dart';
 export 'model_source_store.dart';
 export 'models/model_config.dart';
 export 'models/model_source_config.dart';

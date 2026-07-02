@@ -272,6 +272,7 @@ InvokingContext _createInvokingContext({String? instructions}) {
   return InvokingContext(
     _TestAgent(),
     null,
+    null,
     AIContext()..instructions = instructions,
   );
 }

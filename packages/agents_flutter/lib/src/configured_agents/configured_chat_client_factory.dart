@@ -9,6 +9,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'configured_agent_exception.dart';
+import 'model_profile/open_ai_compatible_chat_client.dart';
+import 'model_profile/open_ai_model_profile.dart';
 import 'models/model_config.dart';
 import 'models/model_source_config.dart';
 import 'models/provider_type.dart';
@@ -69,12 +71,18 @@ class ConfiguredChatClientFactory {
 
     switch (source.providerType) {
       case ProviderType.openAiCompatible:
-        return OpenAIChatClient(
-          model.modelId,
-          apiKey ?? '',
-          options: OpenAIClientOptions(
-            endpoint: hasEndpoint ? Uri.parse(endpoint) : null,
-            httpClient: httpClient,
+        return OpenAICompatibleChatClient(
+          OpenAIChatClient(
+            model.modelId,
+            apiKey ?? '',
+            options: OpenAIClientOptions(
+              endpoint: hasEndpoint ? Uri.parse(endpoint) : null,
+              httpClient: httpClient,
+            ),
+          ),
+          profile: OpenAIModelProfile.resolve(
+            modelId: model.modelId,
+            settings: model.settings,
           ),
         );
       case ProviderType.anthropic:

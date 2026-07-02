@@ -8,6 +8,7 @@ import 'shell_environment_provider_options.dart';
 import 'shell_environment_snapshot.dart';
 import 'shell_executor.dart';
 import 'shell_family.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 /// An [AIContextProvider] that probes the shell environment and injects
 /// instructions describing the OS, shell version, and available tools.

@@ -123,7 +123,15 @@ final class GeminiChatClient implements ChatClient {
       }
 
       if (message.contents.isEmpty) continue;
-      contents.add(_toGeminiContent(message));
+      final content = _toGeminiContent(message);
+      if (content != null) contents.add(content);
+    }
+
+    if (contents.isEmpty) {
+      throw ArgumentError(
+        'Gemini requires at least one non-system message; the API rejects '
+        'an empty contents array.',
+      );
     }
 
     final tools = options?.tools;
@@ -142,7 +150,9 @@ final class GeminiChatClient implements ChatClient {
     });
   }
 
-  Map<String, Object?> _toGeminiContent(ChatMessage message) {
+  /// Converts one chat message to a Gemini content object, or `null` when
+  /// nothing serializable remains (the API rejects empty `parts`).
+  Map<String, Object?>? _toGeminiContent(ChatMessage message) {
     final parts = <Map<String, Object?>>[];
     var hasFunctionCall = false;
     var hasFunctionResponse = false;
@@ -151,6 +161,16 @@ final class GeminiChatClient implements ChatClient {
       switch (content) {
         case TextContent(:final text, :final additionalProperties):
           final part = <String, Object?>{'text': text};
+          final thoughtSignature = additionalProperties?[_thoughtSignatureKey];
+          if (thoughtSignature is String) {
+            part['thoughtSignature'] = thoughtSignature;
+          }
+          parts.add(part);
+        case TextReasoningContent(:final text, :final additionalProperties):
+          // Echo thought parts back in Gemini's own shape so multi-turn
+          // thinking conversations replay cleanly.
+          if (text.isEmpty) break;
+          final part = <String, Object?>{'text': text, 'thought': true};
           final thoughtSignature = additionalProperties?[_thoughtSignatureKey];
           if (thoughtSignature is String) {
             part['thoughtSignature'] = thoughtSignature;
@@ -206,6 +226,8 @@ final class GeminiChatClient implements ChatClient {
         'Gemini messages cannot mix function calls and function results.',
       );
     }
+
+    if (parts.isEmpty) return null;
 
     return {
       'role': hasFunctionCall || message.role == ChatRole.assistant
@@ -391,6 +413,13 @@ final class GeminiChatClient implements ChatClient {
         : _toAIContents(candidate);
     final usage = _usageDetails(response['usageMetadata']);
 
+    // A prompt rejected by safety filters returns zero candidates with the
+    // reason in promptFeedback; surface it instead of a silent empty
+    // message with no finish reason.
+    final finishReason = candidate == null && _blockReason(response) != null
+        ? ChatFinishReason.contentFilter
+        : _finishReason(candidate, contents);
+
     return ChatResponse(
       messages: [
         ChatMessage(
@@ -401,11 +430,19 @@ final class GeminiChatClient implements ChatClient {
       ],
       responseId: response['responseId'] as String?,
       modelId: response['modelVersion'] as String? ?? requestedModel,
-      finishReason: _finishReason(candidate, contents),
+      finishReason: finishReason,
       usage: usage,
       rawRepresentation: response,
       additionalProperties: _responseProperties(response, candidate),
     );
+  }
+
+  /// The `promptFeedback.blockReason` value, when the prompt was blocked.
+  static String? _blockReason(Map<String, Object?> response) {
+    final feedback = response['promptFeedback'];
+    if (feedback is! Map) return null;
+    final reason = feedback['blockReason'];
+    return reason is String && reason.isNotEmpty ? reason : null;
   }
 
   Map<String, Object?>? _firstCandidate(Map<String, Object?> response) {
@@ -429,13 +466,7 @@ final class GeminiChatClient implements ChatClient {
       if (text is String) {
         final thoughtSignature = partMap['thoughtSignature'];
         if (text.isNotEmpty || thoughtSignature is String) {
-          contents.add(
-            TextContent(text)
-              ..rawRepresentation = partMap
-              ..additionalProperties = thoughtSignature is String
-                  ? {_thoughtSignatureKey: thoughtSignature}
-                  : null,
-          );
+          contents.add(_textPartContent(partMap, text, thoughtSignature));
         }
         continue;
       }
@@ -463,6 +494,29 @@ final class GeminiChatClient implements ChatClient {
     }
 
     return contents;
+  }
+
+  /// Builds the content for a text part, honoring the `thought` flag so
+  /// thought-summary parts surface as [TextReasoningContent] instead of
+  /// polluting the prose.
+  static AIContent _textPartContent(
+    Map<String, Object?> partMap,
+    String text,
+    Object? thoughtSignature,
+  ) {
+    final properties = thoughtSignature is String
+        ? {_thoughtSignatureKey: thoughtSignature}
+        : null;
+    if (partMap['thought'] == true) {
+      return TextReasoningContent(
+        text,
+        rawRepresentation: partMap,
+        additionalProperties: properties,
+      );
+    }
+    return TextContent(text)
+      ..rawRepresentation = partMap
+      ..additionalProperties = properties;
   }
 
   ChatFinishReason? _finishReason(
@@ -572,7 +626,19 @@ final class GeminiChatClient implements ChatClient {
     }
 
     await for (final event in _sseEvents(response.stream)) {
-      yield jsonDecode(event) as Map<String, Object?>;
+      Object? decoded;
+      try {
+        decoded = jsonDecode(event);
+      } on FormatException catch (error) {
+        final snippet = event.length > 200
+            ? '${event.substring(0, 200)}…'
+            : event;
+        throw FormatException(
+          'Gemini streamed a malformed SSE JSON event '
+          '(${error.message}): $snippet',
+        );
+      }
+      yield decoded as Map<String, Object?>;
     }
   }
 
@@ -647,11 +713,35 @@ final class _GeminiStreamingAccumulator {
 
   final GeminiChatClient _client;
   final String _requestedModel;
-  final Map<int, _PendingFunctionCall> _functionCalls = {};
+
+  /// Pending calls in arrival order; [_openByIndex] tracks which pending a
+  /// part index may still be appending fragments to.
+  final List<_PendingFunctionCall> _functionCalls = [];
+  final Map<int, _PendingFunctionCall> _openByIndex = {};
 
   List<ChatResponseUpdate> add(Map<String, Object?> response) {
     final candidate = _client._firstCandidate(response);
-    if (candidate == null) return const [];
+    if (candidate == null) {
+      // A blocked prompt streams a single candidate-less chunk carrying
+      // promptFeedback; surface it as a content-filter finish.
+      if (GeminiChatClient._blockReason(response) != null) {
+        return [
+          ChatResponseUpdate(
+            role: ChatRole.assistant,
+            responseId: response['responseId'] as String?,
+            modelId: response['modelVersion'] as String? ?? _requestedModel,
+            finishReason: ChatFinishReason.contentFilter,
+            usage: _client._usageDetails(response['usageMetadata']),
+            rawRepresentation: response,
+            additionalProperties: _client._responseProperties(
+              response,
+              null,
+            ),
+          ),
+        ];
+      }
+      return const [];
+    }
 
     final responseId = response['responseId'] as String?;
     final modelId = response['modelVersion'] as String? ?? _requestedModel;
@@ -666,8 +756,21 @@ final class _GeminiStreamingAccumulator {
           final part = parts[i];
           if (part is! Map) continue;
           final partMap = Map<String, Object?>.from(part);
-          if (partMap['functionCall'] is Map) {
-            (_functionCalls[i] ??= _PendingFunctionCall()).merge(partMap);
+          final functionCall = partMap['functionCall'];
+          if (functionCall is Map) {
+            // Chunks are keyed by part index, but Gemini may (a) re-send
+            // the same call finalized with its thoughtSignature, which
+            // must merge, or (b) send a different parallel call at the
+            // same index in the next chunk, which must NOT merge into the
+            // previous one and corrupt both.
+            final incoming = Map<String, Object?>.from(functionCall);
+            var pending = _openByIndex[i];
+            if (pending == null || !pending.acceptsMerge(incoming)) {
+              pending = _PendingFunctionCall();
+              _functionCalls.add(pending);
+              _openByIndex[i] = pending;
+            }
+            pending.merge(partMap);
             continue;
           }
 
@@ -676,11 +779,11 @@ final class _GeminiStreamingAccumulator {
           if (text is String &&
               (text.isNotEmpty || thoughtSignature is String)) {
             nonFunctionContents.add(
-              TextContent(text)
-                ..rawRepresentation = partMap
-                ..additionalProperties = thoughtSignature is String
-                    ? {_thoughtSignatureKey: thoughtSignature}
-                    : null,
+              GeminiChatClient._textPartContent(
+                partMap,
+                text,
+                thoughtSignature,
+              ),
             );
           }
         }
@@ -754,11 +857,11 @@ final class _GeminiStreamingAccumulator {
 
   List<AIContent> _drainFunctionCalls() {
     if (_functionCalls.isEmpty) return const [];
-    final entries = _functionCalls.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
+    final pending = List<_PendingFunctionCall>.of(_functionCalls);
     _functionCalls.clear();
+    _openByIndex.clear();
 
-    return [for (final entry in entries) ?entry.value.toContent()];
+    return [for (final call in pending) ?call.toContent()];
   }
 }
 
@@ -766,6 +869,24 @@ final class _PendingFunctionCall {
   final Map<String, Object?> functionCall = {};
   final Map<String, Object?> rawPart = {};
   String? thoughtSignature;
+
+  /// Whether [incoming] is a continuation/finalization of this pending
+  /// call rather than a distinct parallel call.
+  ///
+  /// A nameless fragment always continues; a named part continues only
+  /// when it matches this call's name and its args are absent, identical
+  /// (a finalized re-send), or this call has none yet.
+  bool acceptsMerge(Map<String, Object?> incoming) {
+    final incomingName = incoming['name'];
+    if (incomingName is! String) return true;
+    final name = functionCall['name'];
+    if (name is String && name != incomingName) return false;
+
+    final incomingArgs = incoming['args'];
+    final args = functionCall['args'];
+    if (incomingArgs == null || args == null) return true;
+    return jsonEncode(incomingArgs) == jsonEncode(args);
+  }
 
   void merge(Map<String, Object?> partMap) {
     final incoming = partMap['functionCall'];

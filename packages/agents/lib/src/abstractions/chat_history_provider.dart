@@ -3,8 +3,6 @@ import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
 import 'agent_request_message_source_type.dart';
-import 'agent_session.dart';
-import 'ai_agent.dart';
 import 'chat_message_extensions.dart';
 import 'invoked_context.dart';
 

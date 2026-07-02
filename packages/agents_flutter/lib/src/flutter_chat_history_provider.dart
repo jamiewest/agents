@@ -1,5 +1,5 @@
 import 'package:agents/agents.dart';
-import 'package:agents/src/abstractions/invoked_context.dart';
+import 'package:extensions/ai.dart';
 import 'package:extensions_flutter/extensions_flutter.dart';
 
 class FlutterChatHistoryProvider implements ChatHistoryProvider {

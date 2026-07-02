@@ -12,6 +12,7 @@ import 'package:agents/src/ai/chat_client/per_service_call_chat_history_persisti
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 import 'package:test/test.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 void main() {
   group('ChatClientAgentRunOptions', () {

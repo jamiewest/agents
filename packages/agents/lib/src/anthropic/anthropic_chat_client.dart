@@ -69,7 +69,9 @@ final class AnthropicChatClient implements ChatClient {
 
       String? responseId;
       String? effectiveModelId;
+      anthropic.Usage? startUsage;
       final toolUses = <int, _StreamingToolUse>{};
+      final thinkingSignatures = <int, StringBuffer>{};
 
       await for (final event in stream) {
         cancellationToken?.throwIfCancellationRequested();
@@ -78,12 +80,26 @@ final class AnthropicChatClient implements ChatClient {
           case anthropic.MessageStartEvent(:final message):
             responseId = message.id;
             effectiveModelId = message.model;
+            startUsage = message.usage;
           case anthropic.ContentBlockStartEvent(
             :final index,
             :final contentBlock,
           ):
             if (contentBlock is anthropic.ToolUseBlock) {
               toolUses[index] = _StreamingToolUse(contentBlock);
+            } else if (contentBlock is anthropic.ThinkingBlock) {
+              thinkingSignatures[index] = StringBuffer(
+                contentBlock.signature,
+              );
+              if (contentBlock.thinking.isNotEmpty) {
+                yield ChatResponseUpdate(
+                  role: ChatRole.assistant,
+                  contents: [TextReasoningContent(contentBlock.thinking)],
+                  responseId: responseId,
+                  modelId: effectiveModelId,
+                  rawRepresentation: event,
+                );
+              }
             }
           case anthropic.ContentBlockDeltaEvent(:final delta):
             if (delta is anthropic.TextDelta && delta.text.isNotEmpty) {
@@ -96,6 +112,17 @@ final class AnthropicChatClient implements ChatClient {
               );
             } else if (delta is anthropic.InputJsonDelta) {
               toolUses[event.index]?.write(delta.partialJson);
+            } else if (delta is anthropic.ThinkingDelta &&
+                delta.thinking.isNotEmpty) {
+              yield ChatResponseUpdate(
+                role: ChatRole.assistant,
+                contents: [TextReasoningContent(delta.thinking)],
+                responseId: responseId,
+                modelId: effectiveModelId,
+                rawRepresentation: event,
+              );
+            } else if (delta is anthropic.SignatureDelta) {
+              thinkingSignatures[event.index]?.write(delta.signature);
             }
           case anthropic.ContentBlockStopEvent(:final index):
             final toolUse = toolUses.remove(index);
@@ -109,13 +136,33 @@ final class AnthropicChatClient implements ChatClient {
                 rawRepresentation: event,
               );
             }
+            // Emit the accumulated signature as a zero-length reasoning
+            // content; serialization joins it with the preceding thinking
+            // text so the block can be echoed back verbatim.
+            final signature = thinkingSignatures.remove(index);
+            if (signature != null && signature.isNotEmpty) {
+              yield ChatResponseUpdate(
+                role: ChatRole.assistant,
+                contents: [
+                  TextReasoningContent(
+                    '',
+                    additionalProperties: {
+                      'signature': signature.toString(),
+                    },
+                  ),
+                ],
+                responseId: responseId,
+                modelId: effectiveModelId,
+                rawRepresentation: event,
+              );
+            }
           case anthropic.MessageDeltaEvent(:final delta, :final usage):
             yield ChatResponseUpdate(
               role: ChatRole.assistant,
               responseId: responseId,
               modelId: effectiveModelId,
               finishReason: _mapStopReason(delta.stopReason),
-              usage: _toDeltaUsageDetails(usage),
+              usage: _toDeltaUsageDetails(usage, startUsage),
               rawRepresentation: event,
               additionalProperties: _stopProperties(
                 delta.stopDetails,
@@ -176,7 +223,8 @@ final class AnthropicChatClient implements ChatClient {
       }
 
       if (message.contents.isEmpty) continue;
-      inputMessages.add(_toAnthropicMessage(message));
+      final inputMessage = _toAnthropicMessage(message);
+      if (inputMessage != null) inputMessages.add(inputMessage);
     }
 
     return anthropic.MessageCreateRequest(
@@ -196,18 +244,30 @@ final class AnthropicChatClient implements ChatClient {
     );
   }
 
-  anthropic.InputMessage _toAnthropicMessage(ChatMessage message) {
-    final blocks = <anthropic.InputContentBlock>[];
-    var hasFunctionCall = false;
-    var hasFunctionResult = false;
+  /// Converts one chat message to an Anthropic input message.
+  ///
+  /// Blocks are emitted in the order the API requires: thinking blocks
+  /// open assistant messages and `tool_result` blocks open user messages.
+  /// Empty text blocks are dropped; returns `null` when nothing remains
+  /// (both cause API 400s).
+  anthropic.InputMessage? _toAnthropicMessage(ChatMessage message) {
+    final bodyBlocks = <anthropic.InputContentBlock>[];
+    final toolUseBlocks = <anthropic.InputContentBlock>[];
+    final toolResultBlocks = <anthropic.InputContentBlock>[];
 
     for (final content in message.contents) {
       switch (content) {
         case TextContent(:final text):
-          blocks.add(anthropic.InputContentBlock.text(text));
+          if (text.trim().isNotEmpty) {
+            bodyBlocks.add(anthropic.InputContentBlock.text(text));
+          }
+        case TextReasoningContent():
+          // Handled below: contiguous runs collapse into thinking blocks.
+          break;
+        case DataContent() when content.hasTopLevelMediaType('image'):
+          bodyBlocks.add(_toImageBlock(content));
         case FunctionCallContent(:final callId, :final name, :final arguments):
-          hasFunctionCall = true;
-          blocks.add(
+          toolUseBlocks.add(
             anthropic.InputContentBlock.toolUse(
               id: callId,
               name: name,
@@ -219,8 +279,7 @@ final class AnthropicChatClient implements ChatClient {
           :final result,
           :final exception,
         ):
-          hasFunctionResult = true;
-          blocks.add(
+          toolResultBlocks.add(
             anthropic.InputContentBlock.toolResultText(
               toolUseId: callId,
               text: _resultText(result, exception),
@@ -230,27 +289,113 @@ final class AnthropicChatClient implements ChatClient {
         default:
           throw UnsupportedError(
             'AnthropicChatClient only supports TextContent, '
+            'TextReasoningContent, image DataContent, '
             'FunctionCallContent, and FunctionResultContent inputs. '
             'Unsupported content: ${content.runtimeType}.',
           );
       }
     }
 
-    if (hasFunctionCall && hasFunctionResult) {
+    if (toolUseBlocks.isNotEmpty && toolResultBlocks.isNotEmpty) {
       throw UnsupportedError(
         'Anthropic messages cannot mix function calls and function results.',
       );
     }
 
-    if (hasFunctionResult || message.role == ChatRole.tool) {
-      return anthropic.InputMessage.userBlocks(blocks);
+    if (toolResultBlocks.isNotEmpty || message.role == ChatRole.tool) {
+      final blocks = [...toolResultBlocks, ...bodyBlocks];
+      return blocks.isEmpty
+          ? null
+          : anthropic.InputMessage.userBlocks(blocks);
     }
 
-    if (hasFunctionCall || message.role == ChatRole.assistant) {
-      return anthropic.InputMessage.assistantBlocks(blocks);
+    if (toolUseBlocks.isNotEmpty || message.role == ChatRole.assistant) {
+      final blocks = [
+        ..._thinkingBlocks(message.contents),
+        ...bodyBlocks,
+        ...toolUseBlocks,
+      ];
+      return blocks.isEmpty
+          ? null
+          : anthropic.InputMessage.assistantBlocks(blocks);
     }
 
-    return anthropic.InputMessage.userBlocks(blocks);
+    return bodyBlocks.isEmpty
+        ? null
+        : anthropic.InputMessage.userBlocks(bodyBlocks);
+  }
+
+  /// Collapses contiguous runs of [TextReasoningContent] into `thinking`
+  /// input blocks so extended-thinking turns can be echoed back.
+  ///
+  /// A run without a signature is dropped: the API rejects unsigned
+  /// thinking blocks, and losing the (display-only) reasoning is the
+  /// correct degradation. Streaming produces the signature as a trailing
+  /// zero-length reasoning content; non-streaming attaches it to the
+  /// block's own `additionalProperties`.
+  List<anthropic.InputContentBlock> _thinkingBlocks(
+    List<AIContent> contents,
+  ) {
+    final blocks = <anthropic.InputContentBlock>[];
+    final text = StringBuffer();
+    String? signature;
+
+    void flush() {
+      if (signature != null && text.isNotEmpty) {
+        blocks.add(
+          anthropic.InputContentBlock.fromJson(<String, dynamic>{
+            'type': 'thinking',
+            'thinking': text.toString(),
+            'signature': signature,
+          }),
+        );
+      }
+      text.clear();
+      signature = null;
+    }
+
+    for (final content in contents) {
+      if (content is TextReasoningContent) {
+        text.write(content.text);
+        final blockSignature = content.additionalProperties?['signature'];
+        if (blockSignature is String && blockSignature.isNotEmpty) {
+          signature = blockSignature;
+        }
+      } else {
+        flush();
+      }
+    }
+    flush();
+    return blocks;
+  }
+
+  /// Converts image [DataContent] to a base64 or URL image block.
+  anthropic.InputContentBlock _toImageBlock(DataContent content) {
+    final data = content.data;
+    if (data != null) {
+      final mediaType = anthropic.ImageMediaType.values.firstWhere(
+        (type) => type.value == content.mediaType,
+        orElse: () => throw UnsupportedError(
+          'Anthropic supports JPEG, PNG, GIF, and WebP images. '
+          'Unsupported media type: ${content.mediaType}.',
+        ),
+      );
+      return anthropic.InputContentBlock.image(
+        anthropic.ImageSource.base64(
+          data: base64Encode(data),
+          mediaType: mediaType,
+        ),
+      );
+    }
+    final uri = content.uri;
+    if (uri != null && !uri.startsWith('data:')) {
+      return anthropic.InputContentBlock.image(
+        anthropic.ImageSource.url(uri),
+      );
+    }
+    throw UnsupportedError(
+      'Anthropic image content requires bytes or a URL.',
+    );
   }
 
   void _ensureTextOnly(ChatMessage message) {
@@ -410,14 +555,22 @@ final class AnthropicChatClient implements ChatClient {
     );
   }
 
-  UsageDetails _toDeltaUsageDetails(anthropic.MessageDeltaUsage usage) {
+  /// Builds usage from a `message_delta` event, falling back to the
+  /// `message_start` usage for input-side counts the delta omits.
+  UsageDetails _toDeltaUsageDetails(
+    anthropic.MessageDeltaUsage usage,
+    anthropic.Usage? startUsage,
+  ) {
+    final inputTokens = usage.inputTokens ?? startUsage?.inputTokens;
+    final cacheRead =
+        usage.cacheReadInputTokens ?? startUsage?.cacheReadInputTokens;
     return UsageDetails(
-      inputTokenCount: usage.inputTokens,
+      inputTokenCount: inputTokens,
       outputTokenCount: usage.outputTokens,
-      totalTokenCount: usage.inputTokens == null
+      totalTokenCount: inputTokens == null
           ? null
-          : usage.inputTokens! + usage.outputTokens,
-      cachedInputTokenCount: usage.cacheReadInputTokens,
+          : inputTokens + usage.outputTokens,
+      cachedInputTokenCount: cacheRead,
       reasoningTokenCount: usage.outputTokensDetails?.thinkingTokens,
       additionalProperties: {'anthropic_usage': usage.toJson()},
     );

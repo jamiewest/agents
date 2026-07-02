@@ -12,6 +12,7 @@ import 'background_agent_state.dart';
 import 'background_agents_provider_options.dart';
 import 'background_task_info.dart';
 import 'background_task_status.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 /// An [AIContextProvider] that enables an agent to delegate work to
 /// background agents asynchronously.

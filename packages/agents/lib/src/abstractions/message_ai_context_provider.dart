@@ -7,6 +7,7 @@ import 'ai_agent.dart';
 import 'ai_context.dart';
 import 'ai_context_provider.dart';
 import 'chat_message_extensions.dart';
+import 'invoking_context.dart';
 
 /// Abstract base class for components that enhance AI context during agent
 /// invocations by supplying additional chat messages.
@@ -27,7 +28,7 @@ abstract class MessageAIContextProvider extends AIContextProvider {
     InvokingContext context, {
     CancellationToken? cancellationToken,
   }) async {
-    final inputMessages = context.aiContext.messages ?? const <ChatMessage>[];
+    final inputMessages = context.aiContext?.messages ?? const <ChatMessage>[];
     final messageContext = MessageInvokingContext(
       context.agent,
       context.session,

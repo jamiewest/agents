@@ -11,10 +11,10 @@ import 'package:agents/src/abstractions/agent_session.dart';
 import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
-import 'package:agents/src/abstractions/ai_context_provider.dart';
 import 'package:agents/src/ai/harness/background_agents/background_agent_runtime_state.dart';
 import 'package:agents/src/ai/harness/background_agents/background_agents_provider.dart';
 import 'package:agents/src/ai/harness/background_agents/background_agents_provider_options.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 void main() {
   group('BackgroundAgentsProvider constructor', () {
@@ -543,6 +543,7 @@ InvokingContext createInvokingContext({AgentSession? session}) {
   return InvokingContext(
     TestAgent('Parent', 'Parent agent'),
     session ?? TestSession(),
+    null,
     AIContext(),
   );
 }

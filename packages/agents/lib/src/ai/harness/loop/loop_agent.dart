@@ -74,8 +74,7 @@ class LoopAgent extends DelegatingAIAgent {
        ),
        _freshContextPerIteration = options?.freshContextPerIteration ?? false,
        _onBehalfOfAuthorName = options?.onBehalfOfAuthorName,
-       _excludeOnBehalfOfMessages =
-           options?.excludeOnBehalfOfMessages ?? false,
+       _excludeOnBehalfOfMessages = options?.excludeOnBehalfOfMessages ?? false,
        _nonStreamingReturnsLastResponseOnly =
            options?.nonStreamingReturnsLastResponseOnly ?? false,
        _sessionCreatedCallback = options?.sessionCreatedCallback,
@@ -334,9 +333,9 @@ class LoopAgent extends DelegatingAIAgent {
   ) {
     final messageId = message.messageId;
     return AgentResponseUpdate(
-      role: message.role,
-      contents: List<AIContent>.of(message.contents),
-    )
+        role: message.role,
+        contents: List<AIContent>.of(message.contents),
+      )
       ..authorName = message.authorName
       ..messageId = (messageId != null && messageId.isNotEmpty)
           ? messageId
@@ -484,8 +483,7 @@ class _LoopNextStep {
   final List<ChatMessage> messages;
   final List<ChatMessage> surfacedMessages;
 
-  factory _LoopNextStep.stop() =>
-      const _LoopNextStep._(false, [], []);
+  factory _LoopNextStep.stop() => const _LoopNextStep._(false, [], []);
 
   factory _LoopNextStep.proceed(
     List<ChatMessage> messages,

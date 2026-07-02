@@ -7,7 +7,6 @@ import 'package:agents/src/abstractions/agent_response.dart';
 import 'package:agents/src/abstractions/agent_response_update.dart';
 import 'package:agents/src/abstractions/agent_run_options.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
-import 'package:agents/src/abstractions/ai_context_provider.dart';
 import 'package:agents/src/ai/compaction/chat_reducer_compaction_strategy.dart';
 import 'package:agents/src/ai/compaction/chat_strategy_extensions.dart';
 import 'package:agents/src/ai/compaction/compaction_group_kind.dart';
@@ -23,6 +22,7 @@ import 'package:agents/src/ai/compaction/truncation_compaction_strategy.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 import 'package:test/test.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 void main() {
   group('CompactionMessageIndex', () {
@@ -295,6 +295,7 @@ void main() {
           InvokingContext(
             agent,
             session,
+            null,
             AIContext()..messages = _plainConversation(),
           ),
         );

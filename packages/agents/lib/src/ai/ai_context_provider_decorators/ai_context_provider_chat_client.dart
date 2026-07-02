@@ -6,6 +6,7 @@ import '../../abstractions/agent_run_context.dart';
 import '../../abstractions/ai_agent.dart';
 import '../../abstractions/ai_context.dart';
 import '../../abstractions/ai_context_provider.dart';
+import '../../abstractions/invoking_context.dart';
 import '../chat_client/chat_response_update_extensions.dart';
 
 /// A delegating chat client that enriches input messages, tools, and
@@ -128,6 +129,7 @@ class AIContextProviderChatClient extends DelegatingChatClient {
       final invokingContext = InvokingContext(
         runContext.agent,
         runContext.session,
+        aiContext.messages,
         aiContext,
       );
       aiContext = await provider.invoking(

@@ -16,6 +16,7 @@ import 'package:agents/src/ai/ai_context_provider_decorators/message_ai_context_
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 import 'package:test/test.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 void main() {
   group('MessageAIContextProviderAgent', () {

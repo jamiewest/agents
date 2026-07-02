@@ -15,6 +15,7 @@ import 'decorators/deduplicating_agent_skills_source.dart';
 import 'file/agent_file_skill_script_runner.dart';
 import 'file/agent_file_skills_source.dart';
 import 'file/agent_file_skills_source_options.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 /// An [AIContextProvider] that exposes agent skills from one or more
 /// [AgentSkillsSource] instances.

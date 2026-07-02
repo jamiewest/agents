@@ -42,6 +42,8 @@ export 'src/abstractions/chat_message_extensions.dart';
 export 'src/abstractions/delegating_ai_agent.dart';
 export 'src/abstractions/in_memory_chat_history_provider.dart';
 export 'src/abstractions/in_memory_chat_history_provider_options.dart';
+export 'src/abstractions/invoked_context.dart';
+export 'src/abstractions/invoking_context.dart';
 export 'src/abstractions/message_ai_context_provider.dart';
 export 'src/abstractions/provider_session_state.dart';
 

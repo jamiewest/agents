@@ -597,6 +597,213 @@ void main() {
       expect(parts[1].containsKey('thoughtSignature'), isFalse);
     });
 
+    test('maps thought parts to TextReasoningContent', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(
+          _responseJson(
+            parts: [
+              {'text': 'Considering options.', 'thought': true},
+              {'text': 'The answer is 4.'},
+            ],
+          ),
+        ),
+      ]);
+      final client = GeminiChatClient(
+        _geminiClient(httpClient),
+        modelId: 'gemini-default',
+      );
+
+      final response = await client.getResponse(
+        messages: [ChatMessage.fromText(ChatRole.user, '2+2?')],
+      );
+
+      final contents = response.messages.single.contents;
+      expect(
+        (contents[0] as TextReasoningContent).text,
+        'Considering options.',
+      );
+      expect((contents[1] as TextContent).text, 'The answer is 4.');
+    });
+
+    test('serializes TextReasoningContent back as thought parts', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(_responseJson(text: 'ok')),
+      ]);
+      final client = GeminiChatClient(
+        _geminiClient(httpClient),
+        modelId: 'gemini-default',
+      );
+
+      await client.getResponse(
+        messages: [
+          ChatMessage.fromText(ChatRole.user, '2+2?'),
+          ChatMessage(
+            role: ChatRole.assistant,
+            contents: [
+              TextReasoningContent('Considering options.'),
+              TextContent('The answer is 4.'),
+            ],
+          ),
+          ChatMessage.fromText(ChatRole.user, 'Why?'),
+        ],
+      );
+
+      final contents =
+          httpClient.requests.single.jsonBody['contents'] as List;
+      final model = (contents[1] as Map)['parts'] as List;
+      expect(model.first, {
+        'text': 'Considering options.',
+        'thought': true,
+      });
+      expect((model[1] as Map)['text'], 'The answer is 4.');
+    });
+
+    test(
+      'keeps parallel calls in successive chunks at the same index apart',
+      () async {
+        final httpClient = _FakeHttpClient([
+          _sseResponse([
+            _sse({
+              'responseId': 'resp_1',
+              'modelVersion': 'gemini-test',
+              'candidates': [
+                {
+                  'content': {
+                    'role': 'model',
+                    'parts': [
+                      {
+                        'functionCall': {
+                          'name': 'lookup',
+                          'args': {'query': 'dart'},
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            }),
+            _sse({
+              'responseId': 'resp_1',
+              'modelVersion': 'gemini-test',
+              'candidates': [
+                {
+                  'content': {
+                    'role': 'model',
+                    'parts': [
+                      {
+                        'functionCall': {
+                          'name': 'lookup',
+                          'args': {'query': 'flutter'},
+                        },
+                      },
+                    ],
+                  },
+                  'finishReason': 'STOP',
+                },
+              ],
+              'usageMetadata': {
+                'promptTokenCount': 4,
+                'candidatesTokenCount': 2,
+                'totalTokenCount': 6,
+              },
+            }),
+          ]),
+        ]);
+        final client = GeminiChatClient(
+          _geminiClient(httpClient),
+          modelId: 'gemini-default',
+        );
+
+        final updates = await client
+            .getStreamingResponse(
+              messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+            )
+            .toList();
+
+        final calls = updates
+            .expand((update) => update.contents)
+            .whereType<FunctionCallContent>()
+            .toList();
+        expect(calls, hasLength(2));
+        expect(calls[0].arguments, {'query': 'dart'});
+        expect(calls[1].arguments, {'query': 'flutter'});
+      },
+    );
+
+    test('surfaces a blocked prompt as a content filter', () async {
+      final blocked = {
+        'responseId': 'resp_1',
+        'modelVersion': 'gemini-test',
+        'promptFeedback': {'blockReason': 'SAFETY'},
+      };
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(blocked),
+        _sseResponse([_sse(blocked)]),
+      ]);
+      final client = GeminiChatClient(
+        _geminiClient(httpClient),
+        modelId: 'gemini-default',
+      );
+
+      final response = await client.getResponse(
+        messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+      );
+      expect(response.finishReason, ChatFinishReason.contentFilter);
+      expect(response.additionalProperties?['gemini_prompt_feedback'], {
+        'blockReason': 'SAFETY',
+      });
+
+      final updates = await client
+          .getStreamingResponse(
+            messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+          )
+          .toList();
+      expect(updates.single.finishReason, ChatFinishReason.contentFilter);
+    });
+
+    test('rejects an all-system message list', () async {
+      final client = GeminiChatClient(
+        _geminiClient(_FakeHttpClient([])),
+        modelId: 'gemini-default',
+      );
+
+      await expectLater(
+        client.getResponse(
+          messages: [ChatMessage.fromText(ChatRole.system, 'Only system.')],
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('wraps malformed SSE JSON with context', () async {
+      final httpClient = _FakeHttpClient([
+        http.Response(
+          'data: {broken json\n\n',
+          200,
+          headers: {'content-type': 'text/event-stream'},
+        ),
+      ]);
+      final client = GeminiChatClient(
+        _geminiClient(httpClient),
+        modelId: 'gemini-default',
+      );
+
+      await expectLater(
+        client
+            .getStreamingResponse(
+              messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+            )
+            .toList(),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('{broken json'),
+          ),
+        ),
+      );
+    });
+
     test('GeminiClient.asAIAgent applies settings and factory', () {
       final geminiClient = _geminiClient(_FakeHttpClient([]));
       var factoryCalled = false;

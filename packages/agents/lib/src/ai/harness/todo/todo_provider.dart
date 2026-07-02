@@ -14,6 +14,7 @@ import 'todo_item.dart';
 import 'todo_item_input.dart';
 import 'todo_provider_options.dart';
 import 'todo_state.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 /// An [AIContextProvider] that provides todo management tools and
 /// instructions to an agent for tracking work items during long-running

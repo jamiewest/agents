@@ -75,19 +75,22 @@ void main() {
       expect(secondRun.single.authorName, 'loop');
     });
 
-    test('first evaluator that reinvokes wins; later ones are skipped', () async {
-      final inner = _ScriptedAgent(responses: [_text('r1'), _text('r2')]);
-      final winner = _QueueEvaluator([LoopEvaluation.proceed('keep going')]);
-      final ignored = _QueueEvaluator(const []); // always stops
-      final agent = LoopAgent.withEvaluators(inner, [winner, ignored]);
+    test(
+      'first evaluator that reinvokes wins; later ones are skipped',
+      () async {
+        final inner = _ScriptedAgent(responses: [_text('r1'), _text('r2')]);
+        final winner = _QueueEvaluator([LoopEvaluation.proceed('keep going')]);
+        final ignored = _QueueEvaluator(const []); // always stops
+        final agent = LoopAgent.withEvaluators(inner, [winner, ignored]);
 
-      await agent.runCore([_userText('go')]);
+        await agent.runCore([_userText('go')]);
 
-      // Iteration 1: winner reinvokes, so ignored is never consulted.
-      // Iteration 2: winner stops, then ignored is consulted (and stops).
-      expect(winner.calls, 2);
-      expect(ignored.calls, 1);
-    });
+        // Iteration 1: winner reinvokes, so ignored is never consulted.
+        // Iteration 2: winner stops, then ignored is consulted (and stops).
+        expect(winner.calls, 2);
+        expect(ignored.calls, 1);
+      },
+    );
 
     test('enforces the max-iterations cap', () async {
       final inner = _ScriptedAgent(responses: [_text('a'), _text('b')]);
@@ -125,9 +128,9 @@ void main() {
       expect(inner.runCount, 1);
       expect(evaluator.calls, 0);
       expect(
-        response.messages.expand((m) => m.contents).whereType<
-          ToolApprovalRequestContent
-        >(),
+        response.messages
+            .expand((m) => m.contents)
+            .whereType<ToolApprovalRequestContent>(),
         hasLength(1),
       );
     });
@@ -165,7 +168,9 @@ void main() {
       final custom = ChatMessage.fromText(ChatRole.user, 'custom next');
       final agent = LoopAgent(
         inner,
-        _QueueEvaluator([LoopEvaluation.proceedWithMessages([custom])]),
+        _QueueEvaluator([
+          LoopEvaluation.proceedWithMessages([custom]),
+        ]),
       );
 
       await agent.runCore([_userText('go')]);
@@ -192,41 +197,47 @@ void main() {
       expect(secondRun.last.text, contains('refine'));
     });
 
-    test('invokes the session-created callback for loop-owned sessions',
-        () async {
-      var callbackCount = 0;
-      final inner = _ScriptedAgent(responses: [_text('only')]);
-      final agent = LoopAgent(
-        inner,
-        _StopEvaluator(),
-        options: LoopAgentOptions()
-          ..sessionCreatedCallback = (session, token) async {
-            callbackCount++;
-          },
-      );
+    test(
+      'invokes the session-created callback for loop-owned sessions',
+      () async {
+        var callbackCount = 0;
+        final inner = _ScriptedAgent(responses: [_text('only')]);
+        final agent = LoopAgent(
+          inner,
+          _StopEvaluator(),
+          options: LoopAgentOptions()
+            ..sessionCreatedCallback = (session, token) async {
+              callbackCount++;
+            },
+        );
 
-      await agent.runCore([_userText('go')]);
+        await agent.runCore([_userText('go')]);
 
-      expect(callbackCount, 1);
-    });
+        expect(callbackCount, 1);
+      },
+    );
 
-    test('streaming yields per-iteration updates and injected feedback',
-        () async {
-      final inner = _ScriptedAgent(
-        streams: [
-          [AgentResponseUpdate(role: ChatRole.assistant, content: 'r1')],
-          [AgentResponseUpdate(role: ChatRole.assistant, content: 'r2')],
-        ],
-      );
-      final agent = LoopAgent(
-        inner,
-        _QueueEvaluator([LoopEvaluation.proceed('do more')]),
-      );
+    test(
+      'streaming yields per-iteration updates and injected feedback',
+      () async {
+        final inner = _ScriptedAgent(
+          streams: [
+            [AgentResponseUpdate(role: ChatRole.assistant, content: 'r1')],
+            [AgentResponseUpdate(role: ChatRole.assistant, content: 'r2')],
+          ],
+        );
+        final agent = LoopAgent(
+          inner,
+          _QueueEvaluator([LoopEvaluation.proceed('do more')]),
+        );
 
-      final updates = await agent.runCoreStreaming([_userText('go')]).toList();
+        final updates = await agent.runCoreStreaming([
+          _userText('go'),
+        ]).toList();
 
-      expect(updates.map((u) => u.text).join(), 'r1do morer2');
-    });
+        expect(updates.map((u) => u.text).join(), 'r1do morer2');
+      },
+    );
   });
 
   group('CompletionMarkerLoopEvaluator', () {
@@ -342,21 +353,23 @@ void main() {
       expect(result.shouldReinvoke, isFalse);
     });
 
-    test('continues with the remaining todos formatted into feedback',
-        () async {
-      final provider = TodoProvider();
-      final session = _TestSession();
-      await _seedTodo(provider, session, id: 1, title: 'task one');
-      final agent = _ServiceAgent({TodoProvider: provider});
-      final evaluator = TodoCompletionLoopEvaluator();
+    test(
+      'continues with the remaining todos formatted into feedback',
+      () async {
+        final provider = TodoProvider();
+        final session = _TestSession();
+        await _seedTodo(provider, session, id: 1, title: 'task one');
+        final agent = _ServiceAgent({TodoProvider: provider});
+        final evaluator = TodoCompletionLoopEvaluator();
 
-      final result = await evaluator.evaluate(
-        LoopContext(agent, session, [_userText('go')], _text('partial')),
-      );
+        final result = await evaluator.evaluate(
+          LoopContext(agent, session, [_userText('go')], _text('partial')),
+        );
 
-      expect(result.shouldReinvoke, isTrue);
-      expect(result.feedback, contains('task one'));
-    });
+        expect(result.shouldReinvoke, isTrue);
+        expect(result.feedback, contains('task one'));
+      },
+    );
 
     test('stops when the current mode is not a configured mode', () async {
       final provider = TodoProvider();
@@ -449,10 +462,7 @@ class _QueueEvaluator extends LoopEvaluator {
 }
 
 class _ScriptedAgent extends AIAgent {
-  _ScriptedAgent({
-    this.responses = const [],
-    this.streams = const [],
-  });
+  _ScriptedAgent({this.responses = const [], this.streams = const []});
 
   final List<AgentResponse> responses;
   final List<List<AgentResponseUpdate>> streams;
@@ -535,8 +545,7 @@ class _TestSession extends AgentSession {
   _TestSession() : super(AgentSessionStateBag(null));
 }
 
-class _FunctionToolCall extends ToolCallContent
-    implements FunctionCallContent {
+class _FunctionToolCall extends ToolCallContent implements FunctionCallContent {
   _FunctionToolCall({required super.callId, required this.name});
 
   @override

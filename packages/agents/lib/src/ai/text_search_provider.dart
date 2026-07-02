@@ -4,7 +4,7 @@ import 'package:extensions/logging.dart';
 import 'package:extensions/system.dart';
 
 import '../abstractions/ai_context.dart';
-import '../abstractions/ai_context_provider.dart';
+import '../abstractions/invoking_context.dart';
 import '../abstractions/message_ai_context_provider.dart';
 import '../abstractions/provider_session_state.dart';
 import 'agent_json_utilities.dart';
@@ -129,7 +129,7 @@ class TextSearchProvider extends MessageAIContextProvider {
       MessageInvokingContext(
         context.agent,
         context.session,
-        context.aiContext.messages ?? const <ChatMessage>[],
+        context.aiContext?.messages ?? const <ChatMessage>[],
       ),
       cancellationToken: cancellationToken,
     );

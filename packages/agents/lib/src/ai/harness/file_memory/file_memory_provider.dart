@@ -16,6 +16,7 @@ import '../file_store/store_paths.dart';
 import 'file_list_entry.dart';
 import 'file_memory_provider_options.dart';
 import 'file_memory_state.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 /// An [AIContextProvider] that provides file-based memory tools to an agent
 /// for storing, retrieving, modifying, listing, deleting, and searching files.

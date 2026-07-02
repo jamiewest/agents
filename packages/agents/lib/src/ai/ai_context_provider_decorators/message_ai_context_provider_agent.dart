@@ -8,7 +8,6 @@ import '../../abstractions/agent_response_update.dart';
 import '../../abstractions/agent_run_options.dart';
 import '../../abstractions/agent_session.dart';
 import '../../abstractions/ai_agent.dart';
-import '../../abstractions/ai_context_provider.dart';
 import '../../abstractions/delegating_ai_agent.dart';
 import '../../abstractions/message_ai_context_provider.dart';
 

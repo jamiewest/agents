@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:agents/agents.dart';
 import 'package:anthropic_sdk_dart/anthropic_sdk_dart.dart' as anthropic;
@@ -299,6 +300,299 @@ void main() {
       expect(updates[2].usage!.inputTokenCount, 12);
       expect(updates[2].usage!.outputTokenCount, 7);
       expect(httpClient.requests.single.jsonBody['stream'], isTrue);
+    });
+
+    test('streams thinking deltas and a trailing signature', () async {
+      final httpClient = _FakeHttpClient([
+        _sseResponse([
+          _sse('message_start', {
+            'type': 'message_start',
+            'message': _messageJson(text: ''),
+          }),
+          _sse('content_block_start', {
+            'type': 'content_block_start',
+            'index': 0,
+            'content_block': {
+              'type': 'thinking',
+              'thinking': '',
+              'signature': '',
+            },
+          }),
+          _sse('content_block_delta', {
+            'type': 'content_block_delta',
+            'index': 0,
+            'delta': {'type': 'thinking_delta', 'thinking': 'Pondering'},
+          }),
+          _sse('content_block_delta', {
+            'type': 'content_block_delta',
+            'index': 0,
+            'delta': {'type': 'thinking_delta', 'thinking': ' deeply.'},
+          }),
+          _sse('content_block_delta', {
+            'type': 'content_block_delta',
+            'index': 0,
+            'delta': {'type': 'signature_delta', 'signature': 'sig_abc'},
+          }),
+          _sse('content_block_stop', {
+            'type': 'content_block_stop',
+            'index': 0,
+          }),
+          _sse('content_block_delta', {
+            'type': 'content_block_delta',
+            'index': 1,
+            'delta': {'type': 'text_delta', 'text': 'Answer.'},
+          }),
+          _sse('message_delta', {
+            'type': 'message_delta',
+            'delta': {'stop_reason': 'end_turn'},
+            'usage': {'output_tokens': 3, 'input_tokens': 6},
+          }),
+          _sse('message_stop', {'type': 'message_stop'}),
+        ]),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+      );
+
+      final updates = await client
+          .getStreamingResponse(
+            messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+          )
+          .toList();
+
+      final reasoning = updates
+          .expand((u) => u.contents)
+          .whereType<TextReasoningContent>()
+          .toList();
+      expect(reasoning.map((r) => r.text).join(), 'Pondering deeply.');
+      expect(
+        reasoning.last.additionalProperties?['signature'],
+        'sig_abc',
+      );
+      expect(
+        updates
+            .expand((u) => u.contents)
+            .whereType<TextContent>()
+            .map((c) => c.text)
+            .join(),
+        'Answer.',
+      );
+    });
+
+    test('serializes thinking history back as thinking blocks', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(_messageJson(text: 'ok')),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+      );
+
+      await client.getResponse(
+        messages: [
+          ChatMessage.fromText(ChatRole.user, 'Hello'),
+          ChatMessage(
+            role: ChatRole.assistant,
+            contents: [
+              TextReasoningContent('Pondering'),
+              TextReasoningContent(
+                ' deeply.',
+                additionalProperties: {'signature': 'sig_abc'},
+              ),
+              TextContent('Answer.'),
+            ],
+          ),
+          ChatMessage.fromText(ChatRole.user, 'And?'),
+        ],
+      );
+
+      final messages =
+          httpClient.requests.single.jsonBody['messages'] as List;
+      final assistant = (messages[1] as Map)['content'] as List;
+      expect(assistant.first, {
+        'type': 'thinking',
+        'thinking': 'Pondering deeply.',
+        'signature': 'sig_abc',
+      });
+      expect((assistant[1] as Map)['type'], 'text');
+    });
+
+    test('drops unsigned reasoning instead of throwing', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(_messageJson(text: 'ok')),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+      );
+
+      await client.getResponse(
+        messages: [
+          ChatMessage.fromText(ChatRole.user, 'Hello'),
+          ChatMessage(
+            role: ChatRole.assistant,
+            contents: [
+              TextReasoningContent('No signature here.'),
+              TextContent('Answer.'),
+            ],
+          ),
+          ChatMessage.fromText(ChatRole.user, 'And?'),
+        ],
+      );
+
+      final messages =
+          httpClient.requests.single.jsonBody['messages'] as List;
+      final assistant = (messages[1] as Map)['content'] as List;
+      expect(assistant, hasLength(1));
+      expect((assistant.single as Map)['type'], 'text');
+    });
+
+    test('orders tool results before text in user messages', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(_messageJson(text: 'ok')),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+      );
+
+      await client.getResponse(
+        messages: [
+          ChatMessage.fromText(ChatRole.user, 'Hello'),
+          ChatMessage(
+            role: ChatRole.assistant,
+            contents: [
+              FunctionCallContent(
+                callId: 'toolu_1',
+                name: 'lookup',
+                arguments: const {'query': 'dart'},
+              ),
+            ],
+          ),
+          ChatMessage(
+            role: ChatRole.tool,
+            contents: [
+              TextContent('Some commentary.'),
+              FunctionResultContent(callId: 'toolu_1', result: 'found'),
+            ],
+          ),
+        ],
+      );
+
+      final messages =
+          httpClient.requests.single.jsonBody['messages'] as List;
+      final toolTurn = (messages[2] as Map)['content'] as List;
+      expect((toolTurn.first as Map)['type'], 'tool_result');
+      expect((toolTurn[1] as Map)['type'], 'text');
+    });
+
+    test('filters empty text blocks and skips empty messages', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(_messageJson(text: 'ok')),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+      );
+
+      await client.getResponse(
+        messages: [
+          ChatMessage.fromText(ChatRole.user, 'Hello'),
+          ChatMessage(
+            role: ChatRole.assistant,
+            contents: [TextContent('   ')],
+          ),
+          ChatMessage(
+            role: ChatRole.user,
+            contents: [TextContent(''), TextContent('Still there?')],
+          ),
+        ],
+      );
+
+      final messages =
+          httpClient.requests.single.jsonBody['messages'] as List;
+      expect(messages, hasLength(2));
+      final second = (messages[1] as Map)['content'] as List;
+      expect(second, hasLength(1));
+      expect((second.single as Map)['text'], 'Still there?');
+    });
+
+    test('sends image DataContent as a base64 image block', () async {
+      final httpClient = _FakeHttpClient([
+        _jsonResponse(_messageJson(text: 'ok')),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+      );
+      final bytes = Uint8List.fromList([1, 2, 3, 4]);
+
+      await client.getResponse(
+        messages: [
+          ChatMessage(
+            role: ChatRole.user,
+            contents: [
+              TextContent('What is this?'),
+              DataContent(bytes, mediaType: 'image/png'),
+            ],
+          ),
+        ],
+      );
+
+      final messages =
+          httpClient.requests.single.jsonBody['messages'] as List;
+      final content = (messages.single as Map)['content'] as List;
+      final image = content[1] as Map;
+      expect(image['type'], 'image');
+      expect((image['source'] as Map)['type'], 'base64');
+      expect((image['source'] as Map)['media_type'], 'image/png');
+      expect((image['source'] as Map)['data'], base64Encode(bytes));
+    });
+
+    test('merges message_start usage into the delta usage', () async {
+      final httpClient = _FakeHttpClient([
+        _sseResponse([
+          _sse('message_start', {
+            'type': 'message_start',
+            'message': _messageJson(
+              text: '',
+              usage: {
+                'input_tokens': 42,
+                'output_tokens': 0,
+                'cache_read_input_tokens': 7,
+              },
+            ),
+          }),
+          _sse('content_block_delta', {
+            'type': 'content_block_delta',
+            'index': 0,
+            'delta': {'type': 'text_delta', 'text': 'Hi'},
+          }),
+          _sse('message_delta', {
+            'type': 'message_delta',
+            'delta': {'stop_reason': 'end_turn'},
+            'usage': {'output_tokens': 2},
+          }),
+          _sse('message_stop', {'type': 'message_stop'}),
+        ]),
+      ]);
+      final client = AnthropicChatClient(
+        _anthropicClient(httpClient),
+        modelId: 'claude-default',
+      );
+
+      final updates = await client
+          .getStreamingResponse(
+            messages: [ChatMessage.fromText(ChatRole.user, 'Hello')],
+          )
+          .toList();
+
+      final usage = updates.last.usage!;
+      expect(usage.inputTokenCount, 42);
+      expect(usage.outputTokenCount, 2);
+      expect(usage.totalTokenCount, 44);
+      expect(usage.cachedInputTokenCount, 7);
     });
 
     test('AnthropicClient.asAIAgent applies settings and factory', () {

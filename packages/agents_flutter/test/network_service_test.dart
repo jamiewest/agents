@@ -151,7 +151,7 @@ void main() {
 }
 
 InvokingContext _createInvokingContext() {
-  return InvokingContext(_TestAgent(), null, AIContext());
+  return InvokingContext(_TestAgent(), null, null, AIContext());
 }
 
 final class _FakeNetworkInfoSource implements NetworkInfoSource {

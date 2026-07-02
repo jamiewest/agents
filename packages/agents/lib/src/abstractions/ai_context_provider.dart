@@ -1,10 +1,9 @@
 import 'package:agents/src/abstractions/invoked_context.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
 import 'agent_request_message_source_type.dart';
-import 'agent_session.dart';
-import 'ai_agent.dart';
 import 'ai_context.dart';
 import 'chat_message_extensions.dart';
 
@@ -82,10 +81,11 @@ abstract class AIContextProvider {
     InvokingContext context, {
     CancellationToken? cancellationToken,
   }) async {
-    final inputContext = context.aiContext;
+    final inputContext = context.aiContext ?? AIContext();
     final filteredContext = InvokingContext(
       context.agent,
       context.session,
+      context.requestMessages,
       AIContext()
         ..messages = provideInputMessageFilter(
           inputContext.messages ?? const [],
@@ -191,15 +191,4 @@ abstract class AIContextProvider {
 
   /// Returns a service of type [T], or `null`.
   T? getServiceOf<T extends Object>() => getService(T) as T?;
-}
-
-/// Context passed to [AIContextProvider.invoking].
-class InvokingContext {
-  InvokingContext(this.agent, this.session, this.aiContext);
-
-  /// The agent being invoked.
-  final AIAgent agent;
-
-  /// The session associated with the agent invocation.
-  final AgentSession? session;
 }

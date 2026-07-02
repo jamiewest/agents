@@ -123,7 +123,10 @@ class AIJudgeLoopEvaluator extends LoopEvaluator {
     );
 
     final judgeMessages = <ChatMessage>[
-      ChatMessage(role: ChatRole.system, contents: [TextContent(_instructions)]),
+      ChatMessage(
+        role: ChatRole.system,
+        contents: [TextContent(_instructions)],
+      ),
       ChatMessage(role: ChatRole.user, contents: userContents),
     ];
 

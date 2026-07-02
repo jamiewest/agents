@@ -7,6 +7,7 @@ import '../file_store/agent_file_store.dart';
 import '../file_store/file_search_result.dart';
 import '../file_store/store_paths.dart';
 import 'file_access_provider_options.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 /// An [AIContextProvider] that provides file access tools to an agent for
 /// saving, reading, deleting, listing, and searching files.

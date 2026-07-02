@@ -1,4 +1,3 @@
-import 'package:agents/src/abstractions/invoked_context.dart' as acp;
 import 'package:agents/src/abstractions/invoking_context.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
@@ -421,7 +420,7 @@ final class ChatClientAgent extends AIAgent {
 
     final providers = aiContextProviders;
     if (providers != null && providers.isNotEmpty) {
-      final ctx = acp.InvokedContext(
+      final ctx = InvokedContext(
         this,
         session,
         requestMessages,
@@ -453,7 +452,7 @@ final class ChatClientAgent extends AIAgent {
 
     final providers = aiContextProviders;
     if (providers != null && providers.isNotEmpty) {
-      final ctx = acp.InvokedContext(
+      final ctx = InvokedContext(
         this,
         session,
         requestMessages,
@@ -758,7 +757,12 @@ final class ChatClientAgent extends AIAgent {
           ..tools = chatOpts?.tools;
 
         for (final provider in providers) {
-          final ctx = acp.InvokingContext(this, typedSession, aiContext);
+          final ctx = InvokingContext(
+            this,
+            typedSession,
+            aiContext.messages,
+            aiContext,
+          );
           aiContext = await provider.invoking(
             ctx,
             cancellationToken: cancellationToken,

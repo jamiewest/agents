@@ -7,6 +7,7 @@ import '../../abstractions/ai_agent.dart';
 import '../../abstractions/ai_context.dart';
 import '../../abstractions/ai_context_provider.dart';
 import '../../abstractions/chat_message_extensions.dart';
+import '../../abstractions/invoking_context.dart';
 import '../../abstractions/provider_session_state.dart';
 import '../agent_json_utilities.dart';
 import '../chat_client/chat_client_agent_session.dart';
@@ -70,12 +71,13 @@ class CompactionProvider extends AIContextProvider {
     final loggerFactory = getLoggerFactory(context.agent);
     final logger = loggerFactory.createLogger('CompactionProvider');
     final session = context.session;
-    final allMessages = context.aiContext.messages;
+    final inputContext = context.aiContext ?? AIContext();
+    final allMessages = inputContext.messages;
 
     if (session == null || allMessages == null) {
       logger.logCompactionProviderSkipped('no session or no messages');
       activity?.setTag(CompactionTelemetry.tags.compacted, false);
-      return context.aiContext;
+      return inputContext;
     }
 
     final chatClientSession =
@@ -85,7 +87,7 @@ class CompactionProvider extends AIContextProvider {
         chatClientSession.conversationId!.trim().isNotEmpty) {
       logger.logCompactionProviderSkipped('session managed by remote service');
       activity?.setTag(CompactionTelemetry.tags.compacted, false);
-      return context.aiContext;
+      return inputContext;
     }
 
     final messageList = allMessages.toList();
@@ -144,8 +146,8 @@ class CompactionProvider extends AIContextProvider {
 
     return AIContext()
       ..messages = messageIndex.getIncludedMessages()
-      ..tools = context.aiContext.tools
-      ..instructions = context.aiContext.instructions;
+      ..tools = inputContext.tools
+      ..instructions = inputContext.instructions;
   }
 
   LoggerFactory getLoggerFactory(AIAgent agent) {

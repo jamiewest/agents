@@ -11,13 +11,13 @@ import 'package:agents/src/abstractions/agent_session.dart';
 import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
-import 'package:agents/src/abstractions/ai_context_provider.dart';
 import 'package:agents/src/ai/harness/todo/todo_complete_input.dart';
 import 'package:agents/src/ai/harness/todo/todo_item.dart';
 import 'package:agents/src/ai/harness/todo/todo_item_input.dart';
 import 'package:agents/src/ai/harness/todo/todo_provider.dart';
 import 'package:agents/src/ai/harness/todo/todo_provider_options.dart';
 import 'package:agents/src/ai/harness/todo/todo_state.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 void main() {
   group('TodoProvider context', () {
@@ -584,6 +584,7 @@ InvokingContext createInvokingContext({AgentSession? session}) {
   return InvokingContext(
     TestAgent('Parent', 'Parent agent'),
     session ?? TestSession(),
+    null,
     AIContext(),
   );
 }

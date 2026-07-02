@@ -7,7 +7,6 @@ import 'package:agents/src/abstractions/agent_session.dart';
 import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
-import 'package:agents/src/abstractions/ai_context_provider.dart';
 import 'package:agents/src/abstractions/agent_request_message_source_type.dart';
 import 'package:agents/src/abstractions/chat_message_extensions.dart';
 import 'package:agents/src/abstractions/invoked_context.dart';
@@ -18,6 +17,7 @@ import 'package:agents/src/ai/memory/chat_history_memory_provider_scope.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 import 'package:test/test.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 void main() {
   const collectionName = 'testcollection';
@@ -182,6 +182,7 @@ void main() {
         InvokingContext(
           _TestAgent(),
           _TestSession(),
+          null,
           AIContext()..messages = [request],
         ),
       );
@@ -259,6 +260,7 @@ void main() {
           InvokingContext(
             _TestAgent(),
             _TestSession(),
+            null,
             AIContext()..messages = [externalMessage, historyMessage],
           ),
         );
@@ -295,6 +297,7 @@ void main() {
           InvokingContext(
             _TestAgent(),
             _TestSession(),
+            null,
             AIContext()..messages = [externalMessage, historyMessage],
           ),
         );
@@ -323,6 +326,7 @@ void main() {
         InvokingContext(
           _TestAgent(),
           _TestSession(),
+          null,
           AIContext()..messages = [ChatMessage.fromText(ChatRole.user, 'Q?')],
         ),
       );

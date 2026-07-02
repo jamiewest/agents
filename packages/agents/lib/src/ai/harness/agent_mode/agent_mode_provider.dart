@@ -8,6 +8,7 @@ import '../../../abstractions/provider_session_state.dart';
 import '../../agent_json_utilities.dart';
 import 'agent_mode_provider_options.dart';
 import 'agent_mode_state.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 /// An [AIContextProvider] that tracks the agent's operating mode (e.g.,
 /// "plan" or "execute") in the session state and provides tools for querying

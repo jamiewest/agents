@@ -9,7 +9,6 @@ import 'package:agents/src/abstractions/agent_session.dart';
 import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
-import 'package:agents/src/abstractions/ai_context_provider.dart';
 import 'package:agents/src/ai/skills/agent_in_memory_skills_source.dart';
 import 'package:agents/src/ai/skills/agent_skill_frontmatter.dart';
 import 'package:agents/src/ai/skills/agent_skills_provider.dart';
@@ -27,6 +26,7 @@ import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
 import 'package:extensions/system.dart';
 import 'package:test/test.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 void main() {
   group('AgentSkillFrontmatter', () {
@@ -106,7 +106,7 @@ void main() {
       final provider = AgentSkillsProvider(skills: [skill]);
 
       final context = await provider.provideAIContext(
-        InvokingContext(_TestAgent(), _TestSession(), AIContext()),
+        InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
       );
       final tools = context.tools!.cast<AIFunction>().toList();
 
@@ -158,10 +158,10 @@ void main() {
       );
 
       await provider.provideAIContext(
-        InvokingContext(_TestAgent(), _TestSession(), AIContext()),
+        InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
       );
       await provider.provideAIContext(
-        InvokingContext(_TestAgent(), _TestSession(), AIContext()),
+        InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
       );
 
       expect(source.count, 1);
@@ -178,7 +178,7 @@ void main() {
           .build();
 
       final context = await provider.provideAIContext(
-        InvokingContext(_TestAgent(), _TestSession(), AIContext()),
+        InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
       );
 
       expect(context.instructions, contains('<name>alpha</name>'));

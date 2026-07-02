@@ -6,7 +6,6 @@ import 'package:agents/src/abstractions/agent_session.dart';
 import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
-import 'package:agents/src/abstractions/ai_context_provider.dart';
 import 'package:agents/src/abstractions/invoked_context.dart';
 import 'package:agents/src/ai/agent_extensions.dart';
 import 'package:agents/src/ai/logging_agent.dart';
@@ -19,6 +18,7 @@ import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
 import 'package:extensions/system.dart';
 import 'package:test/test.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 
 void main() {
   group('AIAgent extensions', () {
@@ -99,6 +99,7 @@ void main() {
         InvokingContext(
           _TestAgent(),
           null,
+          null,
           AIContext()
             ..messages = [ChatMessage.fromText(ChatRole.user, 'what is this?')],
         ),
@@ -118,7 +119,7 @@ void main() {
       );
 
       final context = await provider.provideAIContext(
-        InvokingContext(_TestAgent(), null, AIContext()),
+        InvokingContext(_TestAgent(), null, null, AIContext()),
       );
 
       expect(context.messages, isNull);
@@ -161,6 +162,7 @@ void main() {
           InvokingContext(
             _TestAgent(),
             session,
+            null,
             AIContext()
               ..messages = [ChatMessage.fromText(ChatRole.user, 'current')],
           ),
@@ -188,6 +190,7 @@ void main() {
       final context = await provider.provideAIContext(
         InvokingContext(
           _TestAgent(),
+          null,
           null,
           AIContext()..messages = [ChatMessage.fromText(ChatRole.user, 'q')],
         ),
