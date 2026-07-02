@@ -117,6 +117,24 @@ class PairingClient {
     );
   }
 
+  /// Whether a paired host is currently reachable with [credential].
+  ///
+  /// A cheap authenticated probe of the agents index; used for health
+  /// checks before running a remote agent.
+  Future<bool> ping(String baseUrl, String credential) async {
+    try {
+      final response = await _http
+          .get(
+            Uri.parse('$baseUrl/agents'),
+            headers: {'authorization': 'Bearer $credential'},
+          )
+          .timeout(const Duration(seconds: 4));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Lists the agents a paired host offers.
   Future<List<HostedAgentSummary>> listAgents(
     String baseUrl,
