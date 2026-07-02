@@ -101,19 +101,96 @@ class ConfiguredAgentsManager {
     for (final agent in dependents) {
       await agents.removeAgent(agent.id);
     }
+    await _removeDelegationReferences({
+      for (final agent in dependents) agent.id,
+    });
     await sources.removeModel(id);
   }
 
   // --- Agents --------------------------------------------------------------
 
   /// Saves [agent].
-  Future<void> saveAgent(SavedAgentConfig agent) => agents.saveAgent(agent);
+  ///
+  /// Throws [ConfiguredAgentException] when a delegation is self-referential,
+  /// duplicated, or references a saved agent that does not exist.
+  Future<void> saveAgent(SavedAgentConfig agent) async {
+    if (agent.delegations.isNotEmpty) {
+      final known = {
+        for (final existing in await agents.listAgents()) existing.id,
+      };
+      final seen = <String>{};
+      for (final delegation in agent.delegations) {
+        if (delegation.agentId == agent.id) {
+          throw ConfiguredAgentException(
+            'Agent "${agent.name}" cannot delegate to itself.',
+          );
+        }
+        if (!seen.add(delegation.agentId)) {
+          throw ConfiguredAgentException(
+            'Agent "${agent.name}" lists the same delegate more than once.',
+          );
+        }
+        if (!known.contains(delegation.agentId)) {
+          throw ConfiguredAgentException(
+            'Agent "${agent.name}" delegates to an agent that does not '
+            'exist.',
+          );
+        }
+      }
+    }
+    await agents.saveAgent(agent);
+  }
 
   /// Deletes the agent [id].
-  Future<void> deleteAgent(String id) => agents.removeAgent(id);
+  ///
+  /// Throws [ConfiguredAgentException] when other agents delegate to the
+  /// agent unless [cascade] is true, in which case those delegation
+  /// references are removed first.
+  Future<void> deleteAgent(String id, {bool cascade = false}) async {
+    final referrers = await _agentsDelegatingTo({id});
+    if (referrers.isNotEmpty && !cascade) {
+      throw ConfiguredAgentException(
+        'Agent is a delegate of ${referrers.length} other agent(s). '
+        'Remove those delegations first or delete with cascade.',
+      );
+    }
+    await _removeDelegationReferences({id});
+    await agents.removeAgent(id);
+  }
 
   Future<List<SavedAgentConfig>> _agentsForModel(String modelId) async {
     final all = await agents.listAgents();
     return all.where((agent) => agent.modelId == modelId).toList();
+  }
+
+  Future<List<SavedAgentConfig>> _agentsDelegatingTo(
+    Set<String> agentIds,
+  ) async {
+    final all = await agents.listAgents();
+    return all
+        .where(
+          (agent) => agent.delegations.any(
+            (delegation) => agentIds.contains(delegation.agentId),
+          ),
+        )
+        .toList();
+  }
+
+  /// Rewrites any remaining agents so they no longer delegate to the removed
+  /// [agentIds].
+  Future<void> _removeDelegationReferences(Set<String> agentIds) async {
+    if (agentIds.isEmpty) {
+      return;
+    }
+    final referrers = await _agentsDelegatingTo(agentIds);
+    for (final referrer in referrers) {
+      await agents.saveAgent(
+        referrer.copyWith(
+          delegations: referrer.delegations
+              .where((delegation) => !agentIds.contains(delegation.agentId))
+              .toList(),
+        ),
+      );
+    }
   }
 }

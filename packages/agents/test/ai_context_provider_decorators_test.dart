@@ -7,6 +7,7 @@ import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
 import 'package:agents/src/abstractions/ai_context_provider.dart';
+import 'package:agents/src/abstractions/invoked_context.dart';
 import 'package:agents/src/abstractions/message_ai_context_provider.dart';
 import 'package:agents/src/ai/ai_agent_builder.dart';
 import 'package:agents/src/ai/ai_context_provider_decorators/ai_context_provider_chat_client.dart';

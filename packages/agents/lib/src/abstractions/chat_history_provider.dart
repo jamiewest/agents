@@ -1,3 +1,4 @@
+import 'package:agents/src/abstractions/invoking_context.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
@@ -5,6 +6,7 @@ import 'agent_request_message_source_type.dart';
 import 'agent_session.dart';
 import 'ai_agent.dart';
 import 'chat_message_extensions.dart';
+import 'invoked_context.dart';
 
 /// Provides an abstract base class for fetching and storing chat history
 /// messages for use during agent execution.
@@ -92,7 +94,7 @@ abstract class ChatHistoryProvider {
       ),
     );
 
-    return [...stamped, ...context.requestMessages];
+    return [...stamped, ...?context.requestMessages];
   }
 
   /// When overridden, returns chat history messages for the current invocation
@@ -138,44 +140,4 @@ abstract class ChatHistoryProvider {
   Object? getService(Type serviceType, {Object? serviceKey}) {
     return serviceType == ChatHistoryProvider ? this : null;
   }
-}
-
-/// Context passed to [ChatHistoryProvider.invoked].
-class InvokedContext {
-  InvokedContext(
-    this.agent,
-    this.session,
-    this.requestMessages, {
-    this.responseMessages,
-    this.invokeException,
-  });
-
-  /// The agent that was invoked.
-  final AIAgent agent;
-
-  /// The session associated with the agent invocation.
-  final AgentSession? session;
-
-  /// The accumulated request messages used by the agent.
-  final Iterable<ChatMessage> requestMessages;
-
-  /// The response messages generated during this invocation.
-  final Iterable<ChatMessage>? responseMessages;
-
-  /// The exception thrown during the invocation, if any.
-  final Exception? invokeException;
-}
-
-/// Context passed to [ChatHistoryProvider.invoking].
-class InvokingContext {
-  InvokingContext(this.agent, this.session, this.requestMessages);
-
-  /// The agent being invoked.
-  final AIAgent agent;
-
-  /// The session associated with the agent invocation.
-  final AgentSession? session;
-
-  /// The messages to be used by the agent for this invocation.
-  Iterable<ChatMessage> requestMessages;
 }

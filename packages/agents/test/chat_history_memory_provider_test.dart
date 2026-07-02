@@ -10,6 +10,7 @@ import 'package:agents/src/abstractions/ai_context.dart';
 import 'package:agents/src/abstractions/ai_context_provider.dart';
 import 'package:agents/src/abstractions/agent_request_message_source_type.dart';
 import 'package:agents/src/abstractions/chat_message_extensions.dart';
+import 'package:agents/src/abstractions/invoked_context.dart';
 import 'package:agents/src/abstractions/message_ai_context_provider.dart';
 import 'package:agents/src/ai/memory/chat_history_memory_provider.dart';
 import 'package:agents/src/ai/memory/chat_history_memory_provider_options.dart';

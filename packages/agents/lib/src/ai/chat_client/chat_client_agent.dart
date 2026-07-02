@@ -1,3 +1,5 @@
+import 'package:agents/src/abstractions/invoked_context.dart' as acp;
+import 'package:agents/src/abstractions/invoking_context.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
 import 'package:extensions/system.dart';
@@ -13,6 +15,7 @@ import '../../abstractions/ai_context.dart';
 import '../../abstractions/ai_context_provider.dart' as acp;
 import '../../abstractions/chat_history_provider.dart';
 import '../../abstractions/in_memory_chat_history_provider.dart';
+import '../../abstractions/invoked_context.dart';
 import 'chat_client_agent_continuation_token.dart';
 import 'chat_client_agent_log_messages.dart';
 import 'chat_client_agent_options.dart';

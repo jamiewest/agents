@@ -5,6 +5,8 @@
 import 'package:agents/agents.dart'
     show
         AgentModeProvider,
+        AIAgent,
+        BackgroundAgentsProvider,
         ChatClientAgent,
         FileAccessProvider,
         FileMemoryProvider,
@@ -545,5 +547,198 @@ void main() {
         expect(toolNames, contains('set_wake_lock'));
       },
     );
+
+    group('delegation', () {
+      Future<ConfiguredAgentsManager> buildOpenAiManager() async {
+        final manager = buildManager();
+        await manager.saveSource(_openAiSource, apiKey: 'sk-openai');
+        await manager.saveModel(_openAiModel);
+        return manager;
+      }
+
+      List<Type> providerTypesOf(AIAgent built) => built
+          .getServiceOf<ChatClientAgent>()!
+          .aiContextProviders!
+          .map((provider) => provider.runtimeType)
+          .toList();
+
+      test('attaches background agents only when delegations exist', () async {
+        final manager = await buildOpenAiManager();
+        const accounting = SavedAgentConfig(
+          id: 'a2',
+          name: 'Accounting',
+          modelId: 'm-openai',
+        );
+        const primary = SavedAgentConfig(
+          id: 'a1',
+          name: 'Helper',
+          modelId: 'm-openai',
+          delegations: [
+            AgentDelegationConfig(
+              agentId: 'a2',
+              instructions: 'Use for cost schedules.',
+            ),
+          ],
+        );
+        await manager.saveAgent(accounting);
+        await manager.saveAgent(primary);
+        final factory = ConfiguredAgentFactory(manager);
+
+        final withDelegates = await factory.createAgent(primary);
+        final withoutDelegates = await factory.createAgent(accounting);
+
+        expect(
+          providerTypesOf(withDelegates),
+          contains(BackgroundAgentsProvider),
+        );
+        expect(
+          providerTypesOf(withoutDelegates),
+          isNot(contains(BackgroundAgentsProvider)),
+        );
+      });
+
+      test(
+        'delegate list text includes names, descriptions, and guidance',
+        () async {
+          final manager = await buildOpenAiManager();
+          const accounting = SavedAgentConfig(
+            id: 'a2',
+            name: 'Accounting',
+            modelId: 'm-openai',
+            description: 'Cost and finance work.',
+          );
+          await manager.saveAgent(accounting);
+          final delegate = await ConfiguredAgentFactory(
+            manager,
+          ).createAgent(accounting);
+
+          final text = ConfiguredAgentFactory.buildDelegateAgentListText(
+            {'Accounting': delegate},
+            {'accounting': 'Use for cost schedules.'},
+          );
+
+          expect(text, contains('- Accounting: Cost and finance work.'));
+          expect(text, contains('Guidance: Use for cost schedules.'));
+        },
+      );
+
+      test('throws when a delegate no longer exists', () async {
+        final manager = await buildOpenAiManager();
+        const primary = SavedAgentConfig(
+          id: 'a1',
+          name: 'Helper',
+          modelId: 'm-openai',
+          delegations: [AgentDelegationConfig(agentId: 'missing')],
+        );
+
+        await expectLater(
+          ConfiguredAgentFactory(manager).createAgent(primary),
+          throwsA(isA<ConfiguredAgentException>()),
+        );
+      });
+
+      test('throws on self-delegation', () async {
+        final manager = await buildOpenAiManager();
+        const primary = SavedAgentConfig(
+          id: 'a1',
+          name: 'Helper',
+          modelId: 'm-openai',
+          delegations: [AgentDelegationConfig(agentId: 'a1')],
+        );
+
+        await expectLater(
+          ConfiguredAgentFactory(manager).createAgent(primary),
+          throwsA(isA<ConfiguredAgentException>()),
+        );
+      });
+
+      test('throws when delegate names collide case-insensitively', () async {
+        final manager = await buildOpenAiManager();
+        await manager.saveAgent(
+          const SavedAgentConfig(
+            id: 'a2',
+            name: 'Accounting',
+            modelId: 'm-openai',
+          ),
+        );
+        await manager.saveAgent(
+          const SavedAgentConfig(
+            id: 'a3',
+            name: 'accounting',
+            modelId: 'm-openai',
+          ),
+        );
+        const primary = SavedAgentConfig(
+          id: 'a1',
+          name: 'Helper',
+          modelId: 'm-openai',
+          delegations: [
+            AgentDelegationConfig(agentId: 'a2'),
+            AgentDelegationConfig(agentId: 'a3'),
+          ],
+        );
+
+        await expectLater(
+          ConfiguredAgentFactory(manager).createAgent(primary),
+          throwsA(isA<ConfiguredAgentException>()),
+        );
+      });
+
+      test('builds delegates with their own model configuration', () async {
+        // The delegate's Anthropic source has no stored API key, so building
+        // the primary must fail while resolving the delegate.
+        final manager = await buildOpenAiManager();
+        await manager.saveSource(_anthropicSource);
+        await manager.saveModel(_anthropicModel);
+        await manager.saveAgent(
+          const SavedAgentConfig(
+            id: 'a2',
+            name: 'Accounting',
+            modelId: 'm-anthropic',
+          ),
+        );
+        const primary = SavedAgentConfig(
+          id: 'a1',
+          name: 'Helper',
+          modelId: 'm-openai',
+          delegations: [AgentDelegationConfig(agentId: 'a2')],
+        );
+
+        await expectLater(
+          ConfiguredAgentFactory(manager).createAgent(primary),
+          throwsA(isA<ConfiguredAgentException>()),
+        );
+      });
+
+      test('cyclic delegation builds without nested delegates', () async {
+        final manager = await buildOpenAiManager();
+        await manager.saveAgent(
+          const SavedAgentConfig(id: 'a1', name: 'Helper', modelId: 'm-openai'),
+        );
+        await manager.saveAgent(
+          const SavedAgentConfig(
+            id: 'a2',
+            name: 'Accounting',
+            modelId: 'm-openai',
+            delegations: [AgentDelegationConfig(agentId: 'a1')],
+          ),
+        );
+        await manager.saveAgent(
+          const SavedAgentConfig(
+            id: 'a1',
+            name: 'Helper',
+            modelId: 'm-openai',
+            delegations: [AgentDelegationConfig(agentId: 'a2')],
+          ),
+        );
+
+        // Without the nested-delegation guard this would recurse forever.
+        final built = await ConfiguredAgentFactory(
+          manager,
+        ).createAgentById('a1');
+
+        expect(providerTypesOf(built), contains(BackgroundAgentsProvider));
+      });
+    });
   });
 }

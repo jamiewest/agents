@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:agents/src/abstractions/invoked_context.dart';
 import 'package:clock/clock.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';

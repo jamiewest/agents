@@ -19,6 +19,8 @@ final class NativeLlamaRuntime implements LlamaRuntime {
   Future<LlamaSession> loadModel(
     ModelSpec spec, {
     String? localPath,
+    String? localMmprojPath,
+    String? localDraftPath,
     LlamaLoadProgress? onProgress,
   }) async {
     if (localPath == null || localPath.isEmpty) {
@@ -33,6 +35,10 @@ final class NativeLlamaRuntime implements LlamaRuntime {
       localPath,
       contextSize: spec.contextSize,
       gpuLayers: spec.gpuLayers,
+      mmprojPath: localMmprojPath,
+      draftModelPath: localDraftPath,
+      draftGpuLayers: spec.draftGpuLayers,
+      maxDraftTokens: spec.maxDraftTokens,
     );
     return _NativeLlamaSession(session);
   }
@@ -53,6 +59,7 @@ final class _NativeLlamaSession implements LlamaSession {
     int? seed,
     List<String> stopSequences = const <String>[],
     List<Uint8List>? images,
+    List<LlamaChatTurn>? turns,
   }) => _inner.generate(
     prompt,
     maxTokens: maxTokens,

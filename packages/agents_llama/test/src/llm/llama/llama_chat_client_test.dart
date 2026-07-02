@@ -14,6 +14,7 @@ final class _RecordingSession implements LlamaSession {
   String? prompt;
   Iterable<Uint8List>? images;
   Iterable<String>? stopSequences;
+  List<LlamaChatTurn>? turns;
 
   @override
   Stream<String> generate(
@@ -25,10 +26,12 @@ final class _RecordingSession implements LlamaSession {
     int? seed,
     List<String> stopSequences = const <String>[],
     List<Uint8List>? images,
+    List<LlamaChatTurn>? turns,
   }) {
     this.prompt = prompt;
     this.stopSequences = stopSequences;
     this.images = images;
+    this.turns = turns;
     return Stream<String>.value('Hello!');
   }
 
@@ -126,7 +129,66 @@ void main() {
           prompt.lastIndexOf('<|im_start|>user\nHi<|im_end|>'),
           greaterThan(prompt.lastIndexOf('### Current todo list')),
         );
+        expect(session.turns, isNull);
       },
     );
+
+    test('passes structured turns to the session for image requests', () async {
+      final session = _RecordingSession();
+      final client = LlamaChatClient(
+        sessionProvider: () async => session,
+        format: const Lfm2ChatFormat(),
+        contextSize: 4096,
+      );
+      final imageBytes = Uint8List.fromList([1, 2, 3]);
+
+      await client.getResponse(
+        messages: [
+          ChatMessage.fromText(ChatRole.assistant, 'How can I help?'),
+          ChatMessage(
+            role: ChatRole.user,
+            contents: [
+              TextContent('What is in this picture?'),
+              DataContent(imageBytes, mediaType: 'image/png'),
+            ],
+          ),
+        ],
+        options: ChatOptions(instructions: 'You are a helpful assistant.'),
+        cancellationToken: CancellationToken.none,
+      );
+
+      expect(session.images, hasLength(1));
+      final turns = session.turns;
+      expect(turns, isNotNull);
+      expect(turns!.map((turn) => turn.role), ['system', 'assistant', 'user']);
+      expect(turns.first.text, 'You are a helpful assistant.');
+      expect(turns[1].images, isEmpty);
+      expect(turns.last.text, 'What is in this picture?');
+      expect(turns.last.images.single, same(imageBytes));
+    });
+  });
+
+  group('chatTurnsFromMessages', () {
+    test('maps tool-role messages to user turns and skips non-image data', () {
+      final turns = chatTurnsFromMessages([
+        ChatMessage(
+          role: ChatRole.tool,
+          contents: [TextContent('{"result": 42}')],
+        ),
+        ChatMessage(
+          role: ChatRole.user,
+          contents: [
+            DataContent(
+              Uint8List.fromList([9, 9]),
+              mediaType: 'application/pdf',
+            ),
+          ],
+        ),
+      ]);
+
+      expect(turns.first.role, 'user');
+      expect(turns.first.text, '{"result": 42}');
+      expect(turns.last.images, isEmpty);
+    });
   });
 }

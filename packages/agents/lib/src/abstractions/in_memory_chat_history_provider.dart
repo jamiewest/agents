@@ -1,9 +1,11 @@
+import 'package:agents/src/abstractions/invoking_context.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
 import 'agent_session.dart';
 import 'chat_history_provider.dart';
 import 'in_memory_chat_history_provider_options.dart';
+import 'invoked_context.dart';
 import 'provider_session_state.dart';
 
 /// In-memory implementation of [ChatHistoryProvider] with optional message

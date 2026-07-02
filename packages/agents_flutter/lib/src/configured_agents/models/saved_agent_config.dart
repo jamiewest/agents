@@ -18,6 +18,7 @@ class SavedAgentConfig {
     this.temperature,
     this.maxOutputTokens,
     this.access,
+    this.delegations = const [],
   });
 
   /// Stable, app-unique identifier for this agent.
@@ -48,6 +49,13 @@ class SavedAgentConfig {
   /// behavior until edited.
   final AgentAccessConfig? access;
 
+  /// Other saved agents this agent may delegate work to as background
+  /// agents, with optional per-delegate routing guidance.
+  ///
+  /// Saved agents from older app versions omit this field and load with an
+  /// empty list.
+  final List<AgentDelegationConfig> delegations;
+
   /// Returns a copy with the given fields replaced.
   SavedAgentConfig copyWith({
     String? id,
@@ -58,6 +66,7 @@ class SavedAgentConfig {
     double? temperature,
     int? maxOutputTokens,
     AgentAccessConfig? access,
+    List<AgentDelegationConfig>? delegations,
   }) => SavedAgentConfig(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -67,6 +76,7 @@ class SavedAgentConfig {
     temperature: temperature ?? this.temperature,
     maxOutputTokens: maxOutputTokens ?? this.maxOutputTokens,
     access: access ?? this.access,
+    delegations: delegations ?? this.delegations,
   );
 
   /// Serializes this agent to JSON.
@@ -79,6 +89,10 @@ class SavedAgentConfig {
     if (temperature != null) 'temperature': temperature,
     if (maxOutputTokens != null) 'maxOutputTokens': maxOutputTokens,
     if (access != null) 'access': access!.toJson(),
+    if (delegations.isNotEmpty)
+      'delegations': [
+        for (final delegation in delegations) delegation.toJson(),
+      ],
   };
 
   /// Reconstructs a [SavedAgentConfig] from [json].
@@ -97,6 +111,49 @@ class SavedAgentConfig {
           ),
           _ => null,
         },
+        delegations: switch (json['delegations']) {
+          final List<dynamic> delegations => [
+            for (final delegation in delegations.whereType<Map>())
+              AgentDelegationConfig.fromJson(
+                Map<String, Object?>.from(delegation),
+              ),
+          ],
+          _ => const [],
+        },
+      );
+}
+
+/// A single delegation entry: another saved agent this agent may hand work
+/// to as a background agent.
+class AgentDelegationConfig {
+  /// Creates an [AgentDelegationConfig].
+  const AgentDelegationConfig({required this.agentId, this.instructions = ''});
+
+  /// The [SavedAgentConfig.id] of the delegate agent.
+  final String agentId;
+
+  /// Optional guidance for when and how to use this delegate, shown to the
+  /// delegating agent alongside the delegate's name and description.
+  final String instructions;
+
+  /// Returns a copy with the given fields replaced.
+  AgentDelegationConfig copyWith({String? agentId, String? instructions}) =>
+      AgentDelegationConfig(
+        agentId: agentId ?? this.agentId,
+        instructions: instructions ?? this.instructions,
+      );
+
+  /// Serializes this delegation to JSON.
+  Map<String, Object?> toJson() => <String, Object?>{
+    'agentId': agentId,
+    if (instructions.isNotEmpty) 'instructions': instructions,
+  };
+
+  /// Reconstructs an [AgentDelegationConfig] from [json].
+  factory AgentDelegationConfig.fromJson(Map<String, Object?> json) =>
+      AgentDelegationConfig(
+        agentId: json['agentId']! as String,
+        instructions: (json['instructions'] as String?) ?? '',
       );
 }
 

@@ -6,6 +6,7 @@
 
 import 'package:agents/agents.dart';
 import 'package:extensions/ai.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../chat_client_flutter_extensions.dart';
@@ -67,10 +68,21 @@ class ConfiguredAgentFactory {
 
   /// Resolves [agent] into an [AIAgent].
   ///
+  /// When [agent] has delegations, the delegate agents are built with their
+  /// own model, instructions, and access settings and attached as background
+  /// agents. Delegates themselves are built without delegation support, so
+  /// nested (and cyclic) configured delegation is inert.
+  ///
   /// Supply [httpClient] to inject a fake transport in tests.
   Future<AIAgent> createAgent(
     SavedAgentConfig agent, {
     http.Client? httpClient,
+  }) => _createAgent(agent, httpClient: httpClient, includeDelegations: true);
+
+  Future<AIAgent> _createAgent(
+    SavedAgentConfig agent, {
+    required http.Client? httpClient,
+    required bool includeDelegations,
   }) async {
     final model = await _manager.sources.getModel(agent.modelId);
     if (model == null) {
@@ -107,6 +119,9 @@ class ConfiguredAgentFactory {
     if (access != null) {
       _applyAgentAccess(options, access);
     }
+    if (includeDelegations && agent.delegations.isNotEmpty) {
+      await _applyDelegations(options, agent, httpClient);
+    }
     final effectiveMaxOutputTokens =
         agent.maxOutputTokens ??
         options.chatOptions?.maxOutputTokens ??
@@ -128,6 +143,91 @@ class ConfiguredAgentFactory {
       effectiveMaxOutputTokens,
       options: options,
     );
+  }
+
+  /// Resolves [agent]'s delegations into background agents on [options].
+  ///
+  /// Overrides any callback-supplied background agents, consistent with how
+  /// the factory overrides other saved-agent-owned option fields.
+  Future<void> _applyDelegations(
+    FlutterHarnessAgentOptions options,
+    SavedAgentConfig agent,
+    http.Client? httpClient,
+  ) async {
+    final delegates = <AIAgent>[];
+    final guidanceByAgentName = <String, String>{};
+    final seenNames = <String>{};
+    for (final delegation in agent.delegations) {
+      if (delegation.agentId == agent.id) {
+        throw ConfiguredAgentException(
+          'Agent "${agent.name}" cannot delegate to itself.',
+        );
+      }
+      final delegateConfig = await _manager.agents.getAgent(delegation.agentId);
+      if (delegateConfig == null) {
+        throw ConfiguredAgentException(
+          'Agent "${agent.name}" delegates to an agent that no longer '
+          'exists.',
+        );
+      }
+      if (delegateConfig.name.trim().isEmpty) {
+        throw ConfiguredAgentException(
+          'Agent "${agent.name}" has a delegate with an empty name.',
+        );
+      }
+      if (!seenNames.add(delegateConfig.name.toLowerCase())) {
+        throw ConfiguredAgentException(
+          'Agent "${agent.name}" has multiple delegates named '
+          '"${delegateConfig.name}". Delegate names must be unique.',
+        );
+      }
+      delegates.add(
+        await _createAgent(
+          delegateConfig,
+          httpClient: httpClient,
+          includeDelegations: false,
+        ),
+      );
+      if (delegation.instructions.trim().isNotEmpty) {
+        guidanceByAgentName[delegateConfig.name] = delegation.instructions
+            .trim();
+      }
+    }
+    options
+      ..backgroundAgents = delegates
+      ..backgroundAgentsProviderOptions = (BackgroundAgentsProviderOptions()
+        ..agentListBuilder = (agents) =>
+            buildDelegateAgentListText(agents, guidanceByAgentName));
+  }
+
+  /// Builds the background-agent list text shown to a delegating agent,
+  /// appending per-delegate guidance from [guidanceByAgentName] (matched
+  /// case-insensitively by agent name).
+  @visibleForTesting
+  static String buildDelegateAgentListText(
+    Map<String, AIAgent> agents,
+    Map<String, String> guidanceByAgentName,
+  ) {
+    final guidance = {
+      for (final entry in guidanceByAgentName.entries)
+        entry.key.toLowerCase(): entry.value,
+    };
+    final sb = StringBuffer()..writeln('Available background agents:');
+    for (final entry in agents.entries) {
+      sb.write('- ');
+      sb.write(entry.key);
+      final description = entry.value.description;
+      if (description != null && description.trim().isNotEmpty) {
+        sb.write(': ');
+        sb.write(description);
+      }
+      sb.writeln();
+      final agentGuidance = guidance[entry.key.toLowerCase()];
+      if (agentGuidance != null) {
+        sb.writeln('  Guidance: $agentGuidance');
+      }
+    }
+    return sb.toString();
   }
 
   ChatOptions _buildChatOptions(

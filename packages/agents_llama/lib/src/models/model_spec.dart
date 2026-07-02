@@ -46,6 +46,8 @@ class ModelSpec {
     this.draftUrl,
     required this.contextSize,
     this.gpuLayers = 999,
+    this.draftGpuLayers = 999,
+    this.maxDraftTokens = 8,
     required this.format,
     this.sampling = const SamplingDefaults(),
     this.engineId = 'llama',
@@ -76,6 +78,13 @@ class ModelSpec {
   /// GPU offload hint (llama.cpp layer count; 999 = everything on Metal).
   /// Engines that don't split layers ignore it.
   final int gpuLayers;
+
+  /// GPU offload hint for the speculative-decoding drafter; only meaningful
+  /// when [draftUrl] (or a locally selected draft artifact) is configured.
+  final int draftGpuLayers;
+
+  /// Upper bound on tokens the drafter proposes per speculation step.
+  final int maxDraftTokens;
 
   /// The model family's prompt wire format.
   final ChatFormat format;

@@ -1,8 +1,10 @@
+import 'package:agents/src/abstractions/invoking_context.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
 import '../abstractions/agent_session.dart';
 import '../abstractions/chat_history_provider.dart';
+import '../abstractions/invoked_context.dart';
 import '../abstractions/provider_session_state.dart';
 
 /// A [ChatHistoryProvider] that persists chat messages in the agent session

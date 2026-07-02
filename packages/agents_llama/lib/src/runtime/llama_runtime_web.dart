@@ -27,8 +27,20 @@ final class WebLlamaRuntime implements LlamaRuntime {
   Future<LlamaSession> loadModel(
     ModelSpec spec, {
     String? localPath,
+    String? localMmprojPath,
+    String? localDraftPath,
     LlamaLoadProgress? onProgress,
   }) async {
+    final selectedDraftPath = localDraftPath?.trim();
+    if (spec.draftUrl != null ||
+        (selectedDraftPath != null && selectedDraftPath.isNotEmpty)) {
+      throw UnsupportedError(
+        'Speculative-decoding draft (MTP) models are not supported by the '
+        'web local llama runtime: wllama cannot stage a second GGUF for '
+        'spec_draft_model. Remove the draft artifact or run the native app.',
+      );
+    }
+
     final constructor = web.window.getProperty<JSFunction?>('Wllama'.toJS);
     if (constructor == null) {
       throw StateError(
@@ -47,10 +59,16 @@ final class WebLlamaRuntime implements LlamaRuntime {
     );
 
     final selectedLocalPath = localPath?.trim();
+    final selectedMmprojPath = localMmprojPath?.trim();
     if (selectedLocalPath != null && selectedLocalPath.isNotEmpty) {
-      final blob = await _fetchBlob(selectedLocalPath);
+      final blobs = <web.Blob>[await _fetchBlob(selectedLocalPath)];
+      if (selectedMmprojPath != null && selectedMmprojPath.isNotEmpty) {
+        // wllama identifies the projector blob by its GGUF metadata
+        // (general.architecture == "clip"), so order does not matter.
+        blobs.add(await _fetchBlob(selectedMmprojPath));
+      }
       await instance.callMethodVarArgs<JSPromise<JSAny?>>('loadModel'.toJS, [
-        <web.Blob>[blob].toJS,
+        blobs.toJS,
         <String, Object?>{
           'n_ctx': spec.contextSize,
           'n_gpu_layers': spec.gpuLayers,
@@ -62,7 +80,10 @@ final class WebLlamaRuntime implements LlamaRuntime {
       await instance.callMethodVarArgs<JSPromise<JSAny?>>(
         'loadModelFromUrl'.toJS,
         [
-          spec.modelUrl.toString().toJS,
+          <String, Object?>{
+            'url': spec.modelUrl.toString(),
+            if (spec.mmprojUrl != null) 'mmprojUrl': spec.mmprojUrl.toString(),
+          }.jsify(),
           <String, Object?>{
             'n_ctx': spec.contextSize,
             'n_gpu_layers': spec.gpuLayers,
@@ -152,11 +173,22 @@ final class _WebLlamaSession implements LlamaSession {
     int? seed,
     List<String> stopSequences = const <String>[],
     List<Uint8List>? images,
+    List<LlamaChatTurn>? turns,
   }) {
-    if (images != null && images.isNotEmpty) {
-      throw UnsupportedError(
-        'Image input is not supported by the web local llama runtime.',
-      );
+    final isImageTurn = images != null && images.isNotEmpty;
+    if (isImageTurn) {
+      if (!_supportsImageInput()) {
+        throw StateError(
+          'The loaded local llama model has no vision projector. Configure a '
+          'projector (mmproj) GGUF for this model to send images.',
+        );
+      }
+      if (turns == null) {
+        throw UnsupportedError(
+          'Image input on the web local llama runtime requires structured '
+          'chat turns.',
+        );
+      }
     }
 
     final controller = StreamController<String>();
@@ -166,7 +198,10 @@ final class _WebLlamaSession implements LlamaSession {
 
     final options =
         <String, Object?>{
-              'prompt': prompt,
+              if (isImageTurn)
+                'messages': _chatMessages(turns!)
+              else
+                'prompt': prompt,
               'stream': true,
               'max_tokens': maxTokens,
               'temp': temperature,
@@ -177,15 +212,16 @@ final class _WebLlamaSession implements LlamaSession {
             }.jsify()
             as JSObject;
     options['onData'] = ((JSObject chunk) {
-      final text = _chunkText(chunk);
+      final text = isImageTurn ? _chatChunkText(chunk) : _chunkText(chunk);
       if (text.isNotEmpty && !controller.isClosed) {
         controller.add(text);
       }
     }).toJS;
 
+    final method = isImageTurn ? 'createChatCompletion' : 'createCompletion';
     unawaited(
       _wllama
-          .callMethod<JSPromise<JSAny?>>('createCompletion'.toJS, options)
+          .callMethod<JSPromise<JSAny?>>(method.toJS, options)
           .toDart
           .then((_) {
             if (!controller.isClosed) controller.close();
@@ -201,6 +237,32 @@ final class _WebLlamaSession implements LlamaSession {
 
     return StopSequenceFilter(stopSequences).bind(controller.stream);
   }
+
+  bool _supportsImageInput() =>
+      _wllama
+          .callMethod<JSBoolean?>('supportInputModality'.toJS, 'image'.toJS)
+          ?.toDart ??
+      false;
+
+  /// Converts [turns] to wllama's OAI-style chat messages. Turns with images
+  /// carry `{type: 'image', data: <bytes>}` parts (wllama accepts any typed
+  /// array where its types say `ArrayBuffer`); text-only turns use plain
+  /// string content.
+  static List<Map<String, Object?>> _chatMessages(List<LlamaChatTurn> turns) =>
+      <Map<String, Object?>>[
+        for (final turn in turns)
+          <String, Object?>{
+            'role': turn.role,
+            'content': turn.images.isEmpty
+                ? turn.text
+                : <Map<String, Object?>>[
+                    for (final image in turn.images)
+                      <String, Object?>{'type': 'image', 'data': image},
+                    if (turn.text.isNotEmpty)
+                      <String, Object?>{'type': 'text', 'text': turn.text},
+                  ],
+          },
+      ];
 
   @override
   Future<void> cancel() async {
@@ -225,10 +287,21 @@ final class _WebLlamaSession implements LlamaSession {
   }
 
   static String _chunkText(JSObject chunk) {
-    final choices = chunk.getProperty<JSObject?>('choices'.toJS);
-    if (choices == null) return '';
-    final first = choices.getProperty<JSObject?>('0'.toJS);
+    final first = _firstChoice(chunk);
     if (first == null) return '';
     return first.getProperty<JSString?>('text'.toJS)?.toDart ?? '';
+  }
+
+  static String _chatChunkText(JSObject chunk) {
+    final first = _firstChoice(chunk);
+    if (first == null) return '';
+    final delta = first.getProperty<JSObject?>('delta'.toJS);
+    if (delta == null) return '';
+    return delta.getProperty<JSString?>('content'.toJS)?.toDart ?? '';
+  }
+
+  static JSObject? _firstChoice(JSObject chunk) {
+    final choices = chunk.getProperty<JSObject?>('choices'.toJS);
+    return choices?.getProperty<JSObject?>('0'.toJS);
   }
 }

@@ -6,6 +6,7 @@ import 'package:agents/src/abstractions/agent_session.dart';
 import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/chat_history_provider.dart';
+import 'package:agents/src/abstractions/invoking_context.dart';
 import 'package:agents/src/workflows/ai_agent_id_equality_comparer.dart';
 import 'package:agents/src/workflows/executor_instance_binding.dart';
 import 'package:agents/src/workflows/external_request.dart';

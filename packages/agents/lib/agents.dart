@@ -36,8 +36,7 @@ export 'src/abstractions/ai_agent_metadata.dart';
 export 'src/abstractions/ai_agent_structured_output.dart';
 export 'src/abstractions/ai_context.dart';
 export 'src/abstractions/ai_context_provider.dart';
-export 'src/abstractions/chat_history_provider.dart'
-    hide InvokedContext, InvokingContext;
+export 'src/abstractions/chat_history_provider.dart';
 export 'src/abstractions/ai_content_extensions.dart';
 export 'src/abstractions/chat_message_extensions.dart';
 export 'src/abstractions/delegating_ai_agent.dart';

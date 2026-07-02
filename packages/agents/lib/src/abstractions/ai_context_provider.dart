@@ -1,3 +1,4 @@
+import 'package:agents/src/abstractions/invoked_context.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
@@ -192,32 +193,6 @@ abstract class AIContextProvider {
   T? getServiceOf<T extends Object>() => getService(T) as T?;
 }
 
-/// Context passed to [AIContextProvider.invoked].
-class InvokedContext {
-  InvokedContext(
-    this.agent,
-    this.session,
-    this.requestMessages, {
-    this.responseMessages,
-    this.invokeException,
-  });
-
-  /// The agent that was invoked.
-  final AIAgent agent;
-
-  /// The session associated with the agent invocation.
-  final AgentSession? session;
-
-  /// The accumulated request messages used by the agent for this invocation.
-  final Iterable<ChatMessage> requestMessages;
-
-  /// The response messages generated during this invocation.
-  final Iterable<ChatMessage>? responseMessages;
-
-  /// The exception thrown during the invocation, if any.
-  final Exception? invokeException;
-}
-
 /// Context passed to [AIContextProvider.invoking].
 class InvokingContext {
   InvokingContext(this.agent, this.session, this.aiContext);
@@ -227,7 +202,4 @@ class InvokingContext {
 
   /// The session associated with the agent invocation.
   final AgentSession? session;
-
-  /// The [AIContext] being built for the current invocation.
-  final AIContext aiContext;
 }

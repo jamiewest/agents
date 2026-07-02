@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:agents/agents.dart'
     show AgentRequestMessageSourceType, ChatMessageExtensions;
@@ -106,6 +107,31 @@ messagesWithRuntimeContext(
   return (messages: retained, instructions: mergedInstructions.toString());
 }
 
+/// Builds the engine-neutral structured view of [messages] passed to
+/// [LlamaSession.generate] alongside the rendered prompt for image turns.
+///
+/// Roles map to the wire names wllama's chat-completion API accepts
+/// (`system`/`user`/`assistant`); tool-role results fold into user-role text
+/// turns. Images are extracted with the same rule the [ChatFormat] templates
+/// use: image-typed [DataContent] with non-null bytes.
+List<LlamaChatTurn> chatTurnsFromMessages(Iterable<ChatMessage> messages) =>
+    <LlamaChatTurn>[
+      for (final message in messages)
+        LlamaChatTurn(
+          role: message.role == ChatRole.system
+              ? 'system'
+              : message.role == ChatRole.assistant
+              ? 'assistant'
+              : 'user',
+          text: message.text.trim(),
+          images: <Uint8List>[
+            for (final data in message.contents.whereType<DataContent>())
+              if (data.data != null && data.hasTopLevelMediaType('image'))
+                data.data!,
+          ],
+        ),
+    ];
+
 bool _isTextOnlyProviderMessage(ChatMessage message) {
   if (message.getAgentRequestMessageSourceType() !=
       AgentRequestMessageSourceType.aiContextProvider) {
@@ -169,8 +195,9 @@ class LlamaChatClient extends ChatClient {
         .whereType<AIFunctionDeclaration>();
     final thinking =
         (isThinkingEnabled?.call() ?? false) && format.supportsThinking;
+    final prepared = messagesWithInstructions(messages, options?.instructions);
     final prompt = format.render(
-      messagesWithInstructions(messages, options?.instructions),
+      prepared,
       tools: tools,
       enableThinking: thinking,
     );
@@ -205,6 +232,7 @@ class LlamaChatClient extends ChatClient {
       seed: seed,
       stopSequences: prompt.stopSequences,
       images: prompt.images.isEmpty ? null : prompt.images,
+      turns: prompt.images.isEmpty ? null : chatTurnsFromMessages(prepared),
     );
     if (cancellationToken != null) {
       tokens = tokens.takeWhile(

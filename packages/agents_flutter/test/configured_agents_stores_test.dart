@@ -87,6 +87,40 @@ void main() {
 
       expect(restored.access, isNull);
     });
+
+    test('SavedAgentConfig round trips delegations', () {
+      const agent = SavedAgentConfig(
+        id: 'a1',
+        name: 'Helper',
+        modelId: 'm1',
+        delegations: [
+          AgentDelegationConfig(
+            agentId: 'a2',
+            instructions: 'Use for cost schedules.',
+          ),
+          AgentDelegationConfig(agentId: 'a3'),
+        ],
+      );
+
+      final restored = SavedAgentConfig.fromJson(agent.toJson());
+
+      expect(restored.delegations, hasLength(2));
+      expect(restored.delegations[0].agentId, 'a2');
+      expect(restored.delegations[0].instructions, 'Use for cost schedules.');
+      expect(restored.delegations[1].agentId, 'a3');
+      expect(restored.delegations[1].instructions, isEmpty);
+    });
+
+    test('SavedAgentConfig loads legacy JSON with no delegations', () {
+      final restored = SavedAgentConfig.fromJson(const {
+        'id': 'a1',
+        'name': 'Helper',
+        'modelId': 'm1',
+      });
+
+      expect(restored.delegations, isEmpty);
+      expect(restored.toJson(), isNot(contains('delegations')));
+    });
   });
 
   group('ModelSourceStore', () {
@@ -221,6 +255,149 @@ void main() {
 
       await manager.setSourceApiKey('s1', '');
       expect(await manager.hasSourceApiKey('s1'), isFalse);
+    });
+
+    group('delegation integrity', () {
+      Future<void> seedModel() async {
+        await manager.saveSource(
+          const ModelSourceConfig(
+            id: 's1',
+            providerType: ProviderType.anthropic,
+            displayName: 'Anthropic',
+          ),
+        );
+        await manager.saveModel(
+          const ModelConfig(id: 'm1', sourceId: 's1', modelId: 'claude'),
+        );
+      }
+
+      test('saveAgent rejects a delegate that does not exist', () async {
+        await seedModel();
+
+        await expectLater(
+          manager.saveAgent(
+            const SavedAgentConfig(
+              id: 'a1',
+              name: 'Helper',
+              modelId: 'm1',
+              delegations: [AgentDelegationConfig(agentId: 'missing')],
+            ),
+          ),
+          throwsA(isA<ConfiguredAgentException>()),
+        );
+      });
+
+      test('saveAgent rejects self-delegation', () async {
+        await seedModel();
+
+        await expectLater(
+          manager.saveAgent(
+            const SavedAgentConfig(
+              id: 'a1',
+              name: 'Helper',
+              modelId: 'm1',
+              delegations: [AgentDelegationConfig(agentId: 'a1')],
+            ),
+          ),
+          throwsA(isA<ConfiguredAgentException>()),
+        );
+      });
+
+      test('saveAgent rejects duplicate delegate ids', () async {
+        await seedModel();
+        await manager.saveAgent(
+          const SavedAgentConfig(id: 'a2', name: 'Accounting', modelId: 'm1'),
+        );
+
+        await expectLater(
+          manager.saveAgent(
+            const SavedAgentConfig(
+              id: 'a1',
+              name: 'Helper',
+              modelId: 'm1',
+              delegations: [
+                AgentDelegationConfig(agentId: 'a2'),
+                AgentDelegationConfig(agentId: 'a2'),
+              ],
+            ),
+          ),
+          throwsA(isA<ConfiguredAgentException>()),
+        );
+      });
+
+      test('deleteAgent blocks when the agent is a delegate', () async {
+        await seedModel();
+        await manager.saveAgent(
+          const SavedAgentConfig(id: 'a2', name: 'Accounting', modelId: 'm1'),
+        );
+        await manager.saveAgent(
+          const SavedAgentConfig(
+            id: 'a1',
+            name: 'Helper',
+            modelId: 'm1',
+            delegations: [AgentDelegationConfig(agentId: 'a2')],
+          ),
+        );
+
+        await expectLater(
+          manager.deleteAgent('a2'),
+          throwsA(isA<ConfiguredAgentException>()),
+        );
+        expect(await manager.agents.getAgent('a2'), isNotNull);
+      });
+
+      test('deleteAgent cascade strips references then deletes', () async {
+        await seedModel();
+        await manager.saveAgent(
+          const SavedAgentConfig(id: 'a2', name: 'Accounting', modelId: 'm1'),
+        );
+        await manager.saveAgent(
+          const SavedAgentConfig(id: 'a3', name: 'Research', modelId: 'm1'),
+        );
+        await manager.saveAgent(
+          const SavedAgentConfig(
+            id: 'a1',
+            name: 'Helper',
+            modelId: 'm1',
+            delegations: [
+              AgentDelegationConfig(agentId: 'a2'),
+              AgentDelegationConfig(agentId: 'a3', instructions: 'Research.'),
+            ],
+          ),
+        );
+
+        await manager.deleteAgent('a2', cascade: true);
+
+        expect(await manager.agents.getAgent('a2'), isNull);
+        final helper = await manager.agents.getAgent('a1');
+        expect(helper?.delegations, hasLength(1));
+        expect(helper?.delegations.single.agentId, 'a3');
+      });
+
+      test('deleteModel cascade strips delegation references', () async {
+        await seedModel();
+        await manager.saveModel(
+          const ModelConfig(id: 'm2', sourceId: 's1', modelId: 'haiku'),
+        );
+        await manager.saveAgent(
+          const SavedAgentConfig(id: 'a2', name: 'Accounting', modelId: 'm2'),
+        );
+        await manager.saveAgent(
+          const SavedAgentConfig(
+            id: 'a1',
+            name: 'Helper',
+            modelId: 'm1',
+            delegations: [AgentDelegationConfig(agentId: 'a2')],
+          ),
+        );
+
+        await manager.deleteModel('m2', cascade: true);
+
+        expect(await manager.agents.getAgent('a2'), isNull);
+        final helper = await manager.agents.getAgent('a1');
+        expect(helper, isNotNull);
+        expect(helper?.delegations, isEmpty);
+      });
     });
   });
 }
