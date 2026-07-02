@@ -2,6 +2,9 @@ library;
 
 export 'package:clock/clock.dart' show Clock;
 
+export 'src/a2a/pairing_client.dart';
+export 'src/a2a/pairing_crypto.dart';
+export 'src/a2a/pairing_payload.dart';
 export 'src/chat_client_flutter_extensions.dart';
 export 'src/chat_history/chat_message_codec.dart';
 export 'src/chat_history/flutter_chat_history_provider.dart';

@@ -106,6 +106,12 @@ class ConfiguredChatClientFactory {
           throw ConfiguredAgentException('No local-model provider registered.');
         }
         return resolver(source: source, model: model, httpClient: httpClient);
+      case ProviderType.network:
+        // Network sources resolve to a remote A2A agent, not a chat client;
+        // ConfiguredAgentFactory branches before reaching this factory.
+        throw ConfiguredAgentException(
+          'Network sources are remote agents and have no chat client.',
+        );
     }
   }
 

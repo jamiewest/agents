@@ -17,7 +17,14 @@ enum ProviderType {
   google('google'),
 
   /// Local GGUF inference provided by an embedding application.
-  localLlama('local_llama');
+  localLlama('local_llama'),
+
+  /// A remote agent on another machine, reached over the A2A protocol.
+  ///
+  /// The source's endpoint is the paired host's base URL; each "model" is
+  /// one hosted agent's path on that host. Authentication uses a pairing
+  /// bearer stored in the secret store rather than a user-entered API key.
+  network('network');
 
   const ProviderType(this.wireName);
 
@@ -29,7 +36,7 @@ enum ProviderType {
     ProviderType.openAiCompatible ||
     ProviderType.anthropic ||
     ProviderType.google => true,
-    ProviderType.localLlama => false,
+    ProviderType.localLlama || ProviderType.network => false,
   };
 
   /// Parses a [wireName] back into a [ProviderType].

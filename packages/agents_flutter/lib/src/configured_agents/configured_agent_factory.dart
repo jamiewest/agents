@@ -4,6 +4,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:a2a/a2a.dart' show A2AClient;
 import 'package:agents/agents.dart';
 import 'package:extensions/ai.dart';
 import 'package:flutter/foundation.dart';
@@ -16,6 +17,9 @@ import 'agent_scope.dart';
 import 'configured_agent_exception.dart';
 import 'configured_agents_manager.dart';
 import 'configured_chat_client_factory.dart';
+import 'models/model_config.dart';
+import 'models/model_source_config.dart';
+import 'models/provider_type.dart';
 import 'models/saved_agent_config.dart';
 
 /// The default per-response output-token cap for configured agents.
@@ -143,6 +147,10 @@ class ConfiguredAgentFactory {
       );
     }
 
+    if (source.providerType == ProviderType.network) {
+      return _createNetworkAgent(agent, model, source, bearer: apiKey);
+    }
+
     final chatClient = _chatClientFactory.createChatClient(
       source: source,
       model: model,
@@ -189,6 +197,43 @@ class ConfiguredAgentFactory {
       _maxContextWindowTokens,
       effectiveMaxOutputTokens,
       options: options,
+    );
+  }
+
+  /// Builds a remote A2A agent for a network source.
+  ///
+  /// The saved model's `modelId` is the agent's path on the paired host
+  /// (for example `/agents/researcher`); the source endpoint is the host's
+  /// base URL; the pairing bearer is stored where API keys live. Remote
+  /// agents run inside the host's own harness, so local harness options,
+  /// access toggles, and delegations do not apply.
+  AIAgent _createNetworkAgent(
+    SavedAgentConfig agent,
+    ModelConfig model,
+    ModelSourceConfig source, {
+    required String? bearer,
+  }) {
+    final endpoint = source.endpoint;
+    if (endpoint == null || endpoint.isEmpty) {
+      throw ConfiguredAgentException(
+        'Network source "${source.displayName}" has no endpoint. '
+        'Re-pair with the host.',
+      );
+    }
+    if (bearer == null || bearer.isEmpty) {
+      throw ConfiguredAgentException(
+        'No pairing credential is stored for "${source.displayName}". '
+        'Re-pair with the host.',
+      );
+    }
+    final baseUrl = endpoint.replaceAll(RegExp(r'/$'), '') + model.modelId;
+    return A2AClient(
+      baseUrl,
+      customHeaders: {'authorization': 'Bearer $bearer'},
+    ).asAIAgent(
+      id: agent.id,
+      name: agent.name,
+      description: agent.description.isEmpty ? null : agent.description,
     );
   }
 
