@@ -54,7 +54,10 @@ void main() {
         expect(messages.single.messageId, 'resp-1');
         expect(messages.single.contextId, 'ctx-1');
         expect((messages.single.parts!.single as A2ATextPart).text, 'hi there');
-        expect(bus.finishedCalled, isTrue);
+        // finished() is deliberately not signalled: the a2a package's
+        // event queue drops buffered events once it arrives, and its
+        // generator terminates on its own.
+        expect(bus.finishedCalled, isFalse);
         expect(
           (agent.receivedMessages.single.contents.single as TextContent).text,
           'hello',
@@ -178,7 +181,8 @@ void main() {
           .toList();
       expect(statuses.single.status!.state, A2ATaskState.canceled);
       expect(statuses.single.end, isTrue);
-      expect(bus.finishedCalled, isTrue);
+      // finished() is deliberately not signalled; see above.
+      expect(bus.finishedCalled, isFalse);
     });
   });
 }

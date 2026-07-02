@@ -51,7 +51,7 @@ class A2AAgentHandler implements A2AAgentExecutor {
   @override
   Future<void> cancelTask(String taskId, A2AExecutionEventBus eventBus) async {
     _TaskEvents(eventBus, taskId, '').cancel();
-    eventBus.finished();
+    // No eventBus.finished(): see _handleNewMessage.
   }
 
   Future<void> _handleNewMessage(
@@ -90,7 +90,10 @@ class A2AAgentHandler implements A2AAgentExecutor {
       events.submit();
       events.startWork(_progressMessage(contextId, response));
     }
-    eventBus.finished();
+    // Deliberately no eventBus.finished(): the a2a package's execution
+    // event queue drops still-buffered events once finished arrives, and
+    // its generator already terminates when the buffer drains (a message
+    // event also stops it).
   }
 
   Future<void> _handleTaskUpdate(
@@ -122,7 +125,7 @@ class A2AAgentHandler implements A2AAgentExecutor {
       // Still working: emit progress status.
       events.startWork(_progressMessage(contextId, response));
     }
-    eventBus.finished();
+    // No eventBus.finished(): see _handleNewMessage.
   }
 
   AgentRunOptions _buildOptions(

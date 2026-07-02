@@ -733,10 +733,7 @@ final class _GeminiStreamingAccumulator {
             finishReason: ChatFinishReason.contentFilter,
             usage: _client._usageDetails(response['usageMetadata']),
             rawRepresentation: response,
-            additionalProperties: _client._responseProperties(
-              response,
-              null,
-            ),
+            additionalProperties: _client._responseProperties(response, null),
           ),
         ];
       }

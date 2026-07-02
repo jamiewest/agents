@@ -88,9 +88,7 @@ final class AnthropicChatClient implements ChatClient {
             if (contentBlock is anthropic.ToolUseBlock) {
               toolUses[index] = _StreamingToolUse(contentBlock);
             } else if (contentBlock is anthropic.ThinkingBlock) {
-              thinkingSignatures[index] = StringBuffer(
-                contentBlock.signature,
-              );
+              thinkingSignatures[index] = StringBuffer(contentBlock.signature);
               if (contentBlock.thinking.isNotEmpty) {
                 yield ChatResponseUpdate(
                   role: ChatRole.assistant,
@@ -146,9 +144,7 @@ final class AnthropicChatClient implements ChatClient {
                 contents: [
                   TextReasoningContent(
                     '',
-                    additionalProperties: {
-                      'signature': signature.toString(),
-                    },
+                    additionalProperties: {'signature': signature.toString()},
                   ),
                 ],
                 responseId: responseId,
@@ -304,9 +300,7 @@ final class AnthropicChatClient implements ChatClient {
 
     if (toolResultBlocks.isNotEmpty || message.role == ChatRole.tool) {
       final blocks = [...toolResultBlocks, ...bodyBlocks];
-      return blocks.isEmpty
-          ? null
-          : anthropic.InputMessage.userBlocks(blocks);
+      return blocks.isEmpty ? null : anthropic.InputMessage.userBlocks(blocks);
     }
 
     if (toolUseBlocks.isNotEmpty || message.role == ChatRole.assistant) {
@@ -333,9 +327,7 @@ final class AnthropicChatClient implements ChatClient {
   /// correct degradation. Streaming produces the signature as a trailing
   /// zero-length reasoning content; non-streaming attaches it to the
   /// block's own `additionalProperties`.
-  List<anthropic.InputContentBlock> _thinkingBlocks(
-    List<AIContent> contents,
-  ) {
+  List<anthropic.InputContentBlock> _thinkingBlocks(List<AIContent> contents) {
     final blocks = <anthropic.InputContentBlock>[];
     final text = StringBuffer();
     String? signature;
@@ -389,13 +381,9 @@ final class AnthropicChatClient implements ChatClient {
     }
     final uri = content.uri;
     if (uri != null && !uri.startsWith('data:')) {
-      return anthropic.InputContentBlock.image(
-        anthropic.ImageSource.url(uri),
-      );
+      return anthropic.InputContentBlock.image(anthropic.ImageSource.url(uri));
     }
-    throw UnsupportedError(
-      'Anthropic image content requires bytes or a URL.',
-    );
+    throw UnsupportedError('Anthropic image content requires bytes or a URL.');
   }
 
   void _ensureTextOnly(ChatMessage message) {

@@ -648,13 +648,9 @@ void main() {
         ],
       );
 
-      final contents =
-          httpClient.requests.single.jsonBody['contents'] as List;
+      final contents = httpClient.requests.single.jsonBody['contents'] as List;
       final model = (contents[1] as Map)['parts'] as List;
-      expect(model.first, {
-        'text': 'Considering options.',
-        'thought': true,
-      });
+      expect(model.first, {'text': 'Considering options.', 'thought': true});
       expect((model[1] as Map)['text'], 'The answer is 4.');
     });
 

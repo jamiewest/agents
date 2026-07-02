@@ -366,10 +366,7 @@ void main() {
           .whereType<TextReasoningContent>()
           .toList();
       expect(reasoning.map((r) => r.text).join(), 'Pondering deeply.');
-      expect(
-        reasoning.last.additionalProperties?['signature'],
-        'sig_abc',
-      );
+      expect(reasoning.last.additionalProperties?['signature'], 'sig_abc');
       expect(
         updates
             .expand((u) => u.contents)
@@ -407,8 +404,7 @@ void main() {
         ],
       );
 
-      final messages =
-          httpClient.requests.single.jsonBody['messages'] as List;
+      final messages = httpClient.requests.single.jsonBody['messages'] as List;
       final assistant = (messages[1] as Map)['content'] as List;
       expect(assistant.first, {
         'type': 'thinking',
@@ -441,8 +437,7 @@ void main() {
         ],
       );
 
-      final messages =
-          httpClient.requests.single.jsonBody['messages'] as List;
+      final messages = httpClient.requests.single.jsonBody['messages'] as List;
       final assistant = (messages[1] as Map)['content'] as List;
       expect(assistant, hasLength(1));
       expect((assistant.single as Map)['type'], 'text');
@@ -480,8 +475,7 @@ void main() {
         ],
       );
 
-      final messages =
-          httpClient.requests.single.jsonBody['messages'] as List;
+      final messages = httpClient.requests.single.jsonBody['messages'] as List;
       final toolTurn = (messages[2] as Map)['content'] as List;
       expect((toolTurn.first as Map)['type'], 'tool_result');
       expect((toolTurn[1] as Map)['type'], 'text');
@@ -499,10 +493,7 @@ void main() {
       await client.getResponse(
         messages: [
           ChatMessage.fromText(ChatRole.user, 'Hello'),
-          ChatMessage(
-            role: ChatRole.assistant,
-            contents: [TextContent('   ')],
-          ),
+          ChatMessage(role: ChatRole.assistant, contents: [TextContent('   ')]),
           ChatMessage(
             role: ChatRole.user,
             contents: [TextContent(''), TextContent('Still there?')],
@@ -510,8 +501,7 @@ void main() {
         ],
       );
 
-      final messages =
-          httpClient.requests.single.jsonBody['messages'] as List;
+      final messages = httpClient.requests.single.jsonBody['messages'] as List;
       expect(messages, hasLength(2));
       final second = (messages[1] as Map)['content'] as List;
       expect(second, hasLength(1));
@@ -540,8 +530,7 @@ void main() {
         ],
       );
 
-      final messages =
-          httpClient.requests.single.jsonBody['messages'] as List;
+      final messages = httpClient.requests.single.jsonBody['messages'] as List;
       final content = (messages.single as Map)['content'] as List;
       final image = content[1] as Map;
       expect(image['type'], 'image');
