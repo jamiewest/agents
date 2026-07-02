@@ -16,6 +16,7 @@ import 'package:agents/src/ai/memory/chat_history_memory_provider_options.dart';
 import 'package:agents/src/ai/memory/chat_history_memory_provider_scope.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
+import 'package:extensions/vector_data.dart';
 import 'package:test/test.dart';
 import 'package:agents/src/abstractions/invoking_context.dart';
 
@@ -58,9 +59,11 @@ void main() {
       expect(provider.stateKeys, ['custom-key']);
       expect(store.collectionName, collectionName);
       expect(
-        store.definition!.properties
+        store.definition!.vectorProperties
             .singleWhere(
-              (p) => p.name == ChatHistoryMemoryProvider.contentEmbeddingField,
+              (p) =>
+                  p.propertyName ==
+                  ChatHistoryMemoryProvider.contentEmbeddingField,
             )
             .dimensions,
         7,
@@ -381,24 +384,47 @@ void main() {
 State _state(AgentSession? session) =>
     State(ChatHistoryMemoryProviderScope(userId: 'UID'));
 
-class _FakeVectorStore implements VectorStore {
+class _FakeVectorStore extends VectorStore {
   final _FakeVectorStoreCollection collection = _FakeVectorStoreCollection();
   String? collectionName;
   VectorStoreCollectionDefinition? definition;
 
   @override
-  VectorStoreCollection<Object, Map<String, Object?>> getDynamicCollection(
-    String collectionName,
+  VectorStoreCollection<TKey, TRecord> getCollection<TKey, TRecord>(
+    String name, {
+    VectorStoreCollectionDefinition? definition,
+  }) => throw UnimplementedError();
+
+  @override
+  VectorStoreCollection<String, Map<String, Object?>> getDynamicCollection(
+    String name,
     VectorStoreCollectionDefinition definition,
   ) {
-    this.collectionName = collectionName;
+    collectionName = name;
     this.definition = definition;
     return collection;
   }
+
+  @override
+  Stream<String> listCollectionNamesAsync({
+    CancellationToken? cancellationToken,
+  }) => Stream.fromIterable([?collectionName]);
+
+  @override
+  Future<bool> collectionExistsAsync(
+    String name, {
+    CancellationToken? cancellationToken,
+  }) async => name == collectionName;
+
+  @override
+  Future<void> ensureCollectionDeletedAsync(
+    String name, {
+    CancellationToken? cancellationToken,
+  }) async {}
 }
 
 class _FakeVectorStoreCollection
-    implements VectorStoreCollection<Object, Map<String, Object?>> {
+    extends VectorStoreCollection<String, Map<String, Object?>> {
   final List<Map<String, Object?>> upserted = [];
   final List<Map<String, Object?>> searchResults = [];
   bool throwOnUpsert = false;
@@ -406,44 +432,136 @@ class _FakeVectorStoreCollection
   int ensureCount = 0;
   String? searchQuery;
   int? searchTop;
-  bool Function(Map<String, Object?> record)? capturedFilter;
+  VectorStoreFilter? capturedFilter;
 
   @override
-  Future<void> ensureCollectionExists({
+  String get name => 'fake';
+
+  @override
+  Future<bool> collectionExistsAsync({
+    CancellationToken? cancellationToken,
+  }) async => ensureCount > 0;
+
+  @override
+  Future<void> ensureCollectionExistsAsync({
     CancellationToken? cancellationToken,
   }) async {
     ensureCount++;
   }
 
   @override
-  Future<void> upsert(
-    Iterable<Map<String, Object?>> records, {
+  Future<void> ensureCollectionDeletedAsync({
+    CancellationToken? cancellationToken,
+  }) async {}
+
+  @override
+  Future<Map<String, Object?>?> getAsync(
+    String key, {
+    RecordRetrievalOptions? options,
+    CancellationToken? cancellationToken,
+  }) async {
+    for (final record in upserted) {
+      if (record['Key'] == key) {
+        return record;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Stream<Map<String, Object?>> getBatchAsync(
+    Iterable<String> keys, {
+    RecordRetrievalOptions? options,
+    CancellationToken? cancellationToken,
+  }) => Stream.fromIterable(
+    upserted.where((record) => keys.contains(record['Key'])),
+  );
+
+  @override
+  Stream<Map<String, Object?>> getFilteredAsync({
+    VectorStoreFilter? filter,
+    int? top,
+    FilteredRecordRetrievalOptions<Map<String, Object?>>? options,
+    CancellationToken? cancellationToken,
+  }) {
+    final matches = upserted.where((record) => _matches(filter, record));
+    return Stream.fromIterable(top == null ? matches : matches.take(top));
+  }
+
+  @override
+  Future<String> upsertAsync(
+    Map<String, Object?> record, {
     CancellationToken? cancellationToken,
   }) async {
     if (throwOnUpsert) {
       throw StateError('Upsert failed');
     }
-    upserted.addAll(records.map(Map<String, Object?>.of));
+    upserted.add(Map<String, Object?>.of(record));
+    return record['Key']! as String;
   }
 
   @override
-  Stream<VectorSearchResult<Map<String, Object?>>> search(
-    String queryText,
-    int top, {
+  Stream<String> upsertBatchAsync(
+    Iterable<Map<String, Object?>> records, {
+    CancellationToken? cancellationToken,
+  }) async* {
+    for (final record in records) {
+      yield await upsertAsync(record, cancellationToken: cancellationToken);
+    }
+  }
+
+  @override
+  Future<void> deleteAsync(
+    String key, {
+    CancellationToken? cancellationToken,
+  }) async {
+    upserted.removeWhere((record) => record['Key'] == key);
+  }
+
+  @override
+  Future<void> deleteBatchAsync(
+    Iterable<String> keys, {
+    CancellationToken? cancellationToken,
+  }) async {
+    upserted.removeWhere((record) => keys.contains(record['Key']));
+  }
+
+  @override
+  Stream<VectorSearchResult<Map<String, Object?>>> searchAsync<TInput>(
+    TInput value, {
+    int top = 3,
     VectorSearchOptions<Map<String, Object?>>? options,
     CancellationToken? cancellationToken,
   }) async* {
-    searchQuery = queryText;
+    searchQuery = value.toString();
     searchTop = top;
     capturedFilter = options?.filter;
 
     final filtered = searchResults
-        .where((record) => options?.filter?.call(record) ?? true)
+        .where((record) => _matches(options?.filter, record))
         .take(top);
     for (final record in filtered) {
-      yield VectorSearchResult(record, 1.0);
+      yield VectorSearchResult(record, score: 1.0);
     }
   }
+
+  bool _matches(VectorStoreFilter? filter, Map<String, Object?> record) =>
+      switch (filter) {
+        null => true,
+        EqualToVectorStoreFilter(:final fieldName, :final value) =>
+          record[fieldName] == value,
+        AnyTagEqualToVectorStoreFilter(:final fieldName, :final value) =>
+          switch (record[fieldName]) {
+            final Iterable<Object?> tags => tags.contains(value),
+            _ => false,
+          },
+        AndVectorStoreFilter(:final filters) => filters.every(
+          (child) => _matches(child, record),
+        ),
+        OrVectorStoreFilter(:final filters) => filters.any(
+          (child) => _matches(child, record),
+        ),
+      };
 
   @override
   void dispose() {

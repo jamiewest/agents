@@ -6,6 +6,7 @@ import 'package:clock/clock.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
 import 'package:extensions/system.dart';
+import 'package:extensions/vector_data.dart';
 import 'package:pool/pool.dart';
 
 import '../../abstractions/agent_session.dart';
@@ -16,72 +17,6 @@ import '../../abstractions/provider_session_state.dart';
 import '../agent_json_utilities.dart';
 import 'chat_history_memory_provider_options.dart';
 import 'chat_history_memory_provider_scope.dart';
-
-/// A vector store that can create dynamic collections for chat-history memory.
-abstract class VectorStore {
-  VectorStoreCollection<Object, Map<String, Object?>> getDynamicCollection(
-    String collectionName,
-    VectorStoreCollectionDefinition definition,
-  );
-}
-
-/// A vector store collection used by [ChatHistoryMemoryProvider].
-abstract class VectorStoreCollection<TKey, TRecord> implements Disposable {
-  Future<void> ensureCollectionExists({CancellationToken? cancellationToken});
-
-  Future<void> upsert(
-    Iterable<TRecord> records, {
-    CancellationToken? cancellationToken,
-  });
-
-  Stream<VectorSearchResult<TRecord>> search(
-    String queryText,
-    int top, {
-    VectorSearchOptions<TRecord>? options,
-    CancellationToken? cancellationToken,
-  });
-}
-
-/// Describes the schema of a [VectorStoreCollection] to be created
-/// dynamically at runtime.
-class VectorStoreCollectionDefinition {
-  VectorStoreCollectionDefinition({List<VectorStoreProperty>? properties})
-    : properties = properties ?? [];
-
-  final List<VectorStoreProperty> properties;
-}
-
-/// Describes a single property (field) within a [VectorStoreCollectionDefinition].
-class VectorStoreProperty {
-  VectorStoreProperty(
-    this.name,
-    this.type, {
-    this.isIndexed = false,
-    this.isFullTextIndexed = false,
-    this.dimensions,
-  });
-
-  final String name;
-  final Type type;
-  final bool isIndexed;
-  final bool isFullTextIndexed;
-  final int? dimensions;
-}
-
-/// Options that control a vector store search query.
-class VectorSearchOptions<TRecord> {
-  VectorSearchOptions({this.filter});
-
-  final bool Function(TRecord record)? filter;
-}
-
-/// A single result returned by a vector store search operation.
-class VectorSearchResult<TRecord> {
-  VectorSearchResult(this.record, [this.score]);
-
-  final TRecord record;
-  final double? score;
-}
 
 /// A context provider that stores all chat history in a vector store and is
 /// able to retrieve related chat history later to augment the conversation.
@@ -160,7 +95,7 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
   late final ProviderSessionState<State> _sessionState;
   List<String>? _stateKeys;
 
-  final VectorStoreCollection<Object, Map<String, Object?>> _collection;
+  final VectorStoreCollection<String, Map<String, Object?>> _collection;
   late final int _maxResults;
   late final String _contextPrompt;
   late final Redactor _redactor;
@@ -320,10 +255,12 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
           }).toList();
 
       if (itemsToStore.isNotEmpty) {
-        await collection.upsert(
-          itemsToStore,
-          cancellationToken: cancellationToken,
-        );
+        await collection
+            .upsertBatchAsync(
+              itemsToStore,
+              cancellationToken: cancellationToken,
+            )
+            .drain<void>();
       }
     } catch (error) {
       if (_logger?.isEnabled(LogLevel.error) == true) {
@@ -387,9 +324,9 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
       cancellationToken: cancellationToken,
     );
     final filter = _createScopeFilter(searchScope);
-    final searchResults = collection.search(
+    final searchResults = collection.searchAsync(
       queryText,
-      top,
+      top: top,
       options: VectorSearchOptions<Map<String, Object?>>(filter: filter),
       cancellationToken: cancellationToken,
     );
@@ -408,7 +345,7 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
     return results;
   }
 
-  Future<VectorStoreCollection<Object, Map<String, Object?>>>
+  Future<VectorStoreCollection<String, Map<String, Object?>>>
   ensureCollectionExists({CancellationToken? cancellationToken}) async {
     if (_disposedValue) {
       throw StateError('ChatHistoryMemoryProvider disposed');
@@ -423,7 +360,7 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
         return _collection;
       }
 
-      await _collection.ensureCollectionExists(
+      await _collection.ensureCollectionExistsAsync(
         cancellationToken: cancellationToken,
       );
       _collectionInitialized = true;
@@ -444,30 +381,25 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
 
   String sanitizeLogData(String? data) => _redactor.redact(data);
 
-  bool Function(Map<String, Object?> record)? _createScopeFilter(
-    ChatHistoryMemoryProviderScope scope,
-  ) {
-    final filters = <bool Function(Map<String, Object?> record)>[];
-    if (scope.applicationId != null) {
-      filters.add(
-        (record) => record[applicationIdField] == scope.applicationId,
-      );
-    }
-    if (scope.agentId != null) {
-      filters.add((record) => record[agentIdField] == scope.agentId);
-    }
-    if (scope.userId != null) {
-      filters.add((record) => record[userIdField] == scope.userId);
-    }
-    if (scope.sessionId != null) {
-      filters.add((record) => record[sessionIdField] == scope.sessionId);
-    }
+  VectorStoreFilter? _createScopeFilter(ChatHistoryMemoryProviderScope scope) {
+    final filters = <VectorStoreFilter>[
+      if (scope.applicationId != null)
+        VectorStoreFilter.equalTo(applicationIdField, scope.applicationId),
+      if (scope.agentId != null)
+        VectorStoreFilter.equalTo(agentIdField, scope.agentId),
+      if (scope.userId != null)
+        VectorStoreFilter.equalTo(userIdField, scope.userId),
+      if (scope.sessionId != null)
+        VectorStoreFilter.equalTo(sessionIdField, scope.sessionId),
+    ];
 
     if (filters.isEmpty) {
       return null;
     }
-
-    return (record) => filters.every((filter) => filter(record));
+    if (filters.length == 1) {
+      return filters.single;
+    }
+    return VectorStoreFilter.and(filters);
   }
 
   static VectorStore _validateVectorStore(VectorStore? vectorStore) {
@@ -504,21 +436,20 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
 
     return VectorStoreCollectionDefinition(
       properties: [
-        VectorStoreProperty(keyField, String),
-        VectorStoreProperty(roleField, String, isIndexed: true),
-        VectorStoreProperty(messageIdField, String, isIndexed: true),
-        VectorStoreProperty(authorNameField, String),
-        VectorStoreProperty(applicationIdField, String, isIndexed: true),
-        VectorStoreProperty(agentIdField, String, isIndexed: true),
-        VectorStoreProperty(userIdField, String, isIndexed: true),
-        VectorStoreProperty(sessionIdField, String, isIndexed: true),
-        VectorStoreProperty(contentField, String, isFullTextIndexed: true),
-        VectorStoreProperty(createdAtField, String, isIndexed: true),
-        VectorStoreProperty(
+        VectorStoreKeyProperty(keyField),
+        VectorStoreDataProperty(roleField)..isIndexed = true,
+        VectorStoreDataProperty(messageIdField)..isIndexed = true,
+        VectorStoreDataProperty(authorNameField),
+        VectorStoreDataProperty(applicationIdField)..isIndexed = true,
+        VectorStoreDataProperty(agentIdField)..isIndexed = true,
+        VectorStoreDataProperty(userIdField)..isIndexed = true,
+        VectorStoreDataProperty(sessionIdField)..isIndexed = true,
+        VectorStoreDataProperty(contentField)..isFullTextIndexed = true,
+        VectorStoreDataProperty(createdAtField)..isIndexed = true,
+        VectorStoreVectorProperty(
           contentEmbeddingField,
-          String,
           dimensions: vectorDimensions,
-        ),
+        )..distanceFunction = DistanceFunction.cosineSimilarity,
       ],
     );
   }
@@ -531,6 +462,13 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
     ).join();
   }
 }
+
+/// Public alias for [State], which the package barrel hides because its
+/// name collides with Flutter's widget `State`.
+///
+/// Upstream C# nests this type as `ChatHistoryMemoryProvider.State`; Dart
+/// has no nested classes, so the prefixed alias carries the qualified name.
+typedef ChatHistoryMemoryProviderState = State;
 
 /// Represents the state of a [ChatHistoryMemoryProvider] stored in the
 /// session state bag.

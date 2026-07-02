@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import '../chat_client_flutter_extensions.dart';
 import '../flutter_harness_agent_options.dart';
 import '../flutter_harness_service_collection_extensions.dart';
+import 'agent_scope.dart';
 import 'configured_agent_exception.dart';
 import 'configured_agents_manager.dart';
 import 'configured_chat_client_factory.dart';
@@ -24,6 +25,19 @@ import 'models/saved_agent_config.dart';
 /// cap per saved agent or through harness configuration when their model
 /// supports it.
 const int defaultConfiguredAgentMaxOutputTokens = 4096;
+
+/// Wires scope-dependent harness capabilities (chat history, file stores,
+/// memory) onto [options] when an agent is built for a specific
+/// conversation.
+///
+/// Called by [ConfiguredAgentFactory] after saved-agent access and
+/// delegations are applied, so the callback sees the effective options.
+typedef ConfigureHarnessForScope =
+    void Function(
+      SavedAgentConfig agent,
+      FlutterHarnessAgentOptions options,
+      AgentScope scope,
+    );
 
 /// Resolves a [SavedAgentConfig] into a runnable [AIAgent].
 ///
@@ -41,29 +55,35 @@ class ConfiguredAgentFactory {
     int maxContextWindowTokens = defaultFlutterHarnessMaxContextWindowTokens,
     int maxOutputTokens = defaultConfiguredAgentMaxOutputTokens,
     void Function(FlutterHarnessAgentOptions options)? configureHarness,
+    ConfigureHarnessForScope? configureHarnessForScope,
   }) : _chatClientFactory = chatClientFactory,
        _maxContextWindowTokens = maxContextWindowTokens,
        _maxOutputTokens = maxOutputTokens,
-       _configureHarness = configureHarness;
+       _configureHarness = configureHarness,
+       _configureHarnessForScope = configureHarnessForScope;
 
   final ConfiguredAgentsManager _manager;
   final ConfiguredChatClientFactory _chatClientFactory;
   final int _maxContextWindowTokens;
   final int _maxOutputTokens;
   final void Function(FlutterHarnessAgentOptions options)? _configureHarness;
+  final ConfigureHarnessForScope? _configureHarnessForScope;
 
   /// Resolves the saved agent with [agentId].
   ///
-  /// Supply [httpClient] to inject a fake transport in tests.
+  /// Supply [httpClient] to inject a fake transport in tests. Supply [scope]
+  /// to wire conversation-scoped capabilities via the factory's
+  /// [ConfigureHarnessForScope] callback.
   Future<AIAgent> createAgentById(
     String agentId, {
     http.Client? httpClient,
+    AgentScope? scope,
   }) async {
     final agent = await _manager.agents.getAgent(agentId);
     if (agent == null) {
       throw ConfiguredAgentException('No saved agent with id "$agentId".');
     }
-    return createAgent(agent, httpClient: httpClient);
+    return createAgent(agent, httpClient: httpClient, scope: scope);
   }
 
   /// Resolves [agent] into an [AIAgent].
@@ -73,16 +93,33 @@ class ConfiguredAgentFactory {
   /// agents. Delegates themselves are built without delegation support, so
   /// nested (and cyclic) configured delegation is inert.
   ///
-  /// Supply [httpClient] to inject a fake transport in tests.
+  /// Supply [httpClient] to inject a fake transport in tests. Supply [scope]
+  /// to wire conversation-scoped capabilities via the factory's
+  /// [ConfigureHarnessForScope] callback; delegates receive a child scope so
+  /// their persisted state stays separate from the parent conversation.
+  /// Additional delegates beyond the agent's saved delegations — for
+  /// example the other participants of a group conversation — are supplied
+  /// via [extraDelegations] and merged in (saved delegations win on
+  /// conflicting agent ids).
   Future<AIAgent> createAgent(
     SavedAgentConfig agent, {
     http.Client? httpClient,
-  }) => _createAgent(agent, httpClient: httpClient, includeDelegations: true);
+    AgentScope? scope,
+    List<AgentDelegationConfig> extraDelegations = const [],
+  }) => _createAgent(
+    agent,
+    httpClient: httpClient,
+    includeDelegations: true,
+    scope: scope,
+    extraDelegations: extraDelegations,
+  );
 
   Future<AIAgent> _createAgent(
     SavedAgentConfig agent, {
     required http.Client? httpClient,
     required bool includeDelegations,
+    required AgentScope? scope,
+    List<AgentDelegationConfig> extraDelegations = const [],
   }) async {
     final model = await _manager.sources.getModel(agent.modelId);
     if (model == null) {
@@ -119,8 +156,18 @@ class ConfiguredAgentFactory {
     if (access != null) {
       _applyAgentAccess(options, access);
     }
-    if (includeDelegations && agent.delegations.isNotEmpty) {
-      await _applyDelegations(options, agent, httpClient);
+    final delegations = [
+      ...agent.delegations,
+      ...extraDelegations.where(
+        (extra) =>
+            !agent.delegations.any((saved) => saved.agentId == extra.agentId),
+      ),
+    ];
+    if (includeDelegations && delegations.isNotEmpty) {
+      await _applyDelegations(options, agent, delegations, httpClient, scope);
+    }
+    if (scope != null) {
+      _configureHarnessForScope?.call(agent, options, scope);
     }
     final effectiveMaxOutputTokens =
         agent.maxOutputTokens ??
@@ -152,12 +199,14 @@ class ConfiguredAgentFactory {
   Future<void> _applyDelegations(
     FlutterHarnessAgentOptions options,
     SavedAgentConfig agent,
+    List<AgentDelegationConfig> delegations,
     http.Client? httpClient,
+    AgentScope? scope,
   ) async {
     final delegates = <AIAgent>[];
     final guidanceByAgentName = <String, String>{};
     final seenNames = <String>{};
-    for (final delegation in agent.delegations) {
+    for (final delegation in delegations) {
       if (delegation.agentId == agent.id) {
         throw ConfiguredAgentException(
           'Agent "${agent.name}" cannot delegate to itself.',
@@ -186,6 +235,7 @@ class ConfiguredAgentFactory {
           delegateConfig,
           httpClient: httpClient,
           includeDelegations: false,
+          scope: scope?.child('delegate-${delegateConfig.id}'),
         ),
       );
       if (delegation.instructions.trim().isNotEmpty) {

@@ -36,6 +36,8 @@ extension ConfiguredAgentsServiceCollectionExtensions on ServiceCollection {
     int maxContextWindowTokens = defaultFlutterHarnessMaxContextWindowTokens,
     int maxOutputTokens = defaultConfiguredAgentMaxOutputTokens,
     void Function(FlutterHarnessAgentOptions options)? configureHarness,
+    ConfigureHarnessForScope Function(ServiceProvider sp)?
+    configureHarnessForScope,
     ConfiguredChatClientFactory Function(ServiceProvider sp)? chatClientFactory,
     KeyValueStore Function(ServiceProvider sp)? keyValueStore,
     SecretStore Function(ServiceProvider sp)? secretStore,
@@ -67,6 +69,7 @@ extension ConfiguredAgentsServiceCollectionExtensions on ServiceCollection {
         maxContextWindowTokens: maxContextWindowTokens,
         maxOutputTokens: maxOutputTokens,
         configureHarness: configureHarness,
+        configureHarnessForScope: configureHarnessForScope?.call(sp),
       ),
     );
     return this;
@@ -95,6 +98,8 @@ extension ConfiguredAgentsFlutterBuilderExtensions on FlutterBuilder {
     int maxContextWindowTokens = defaultFlutterHarnessMaxContextWindowTokens,
     int maxOutputTokens = defaultConfiguredAgentMaxOutputTokens,
     void Function(FlutterHarnessAgentOptions options)? configureHarness,
+    ConfigureHarnessForScope Function(ServiceProvider sp)?
+    configureHarnessForScope,
     ConfiguredChatClientFactory Function(ServiceProvider sp)? chatClientFactory,
     KeyValueStore Function(ServiceProvider sp)? keyValueStore,
     SecretStore Function(ServiceProvider sp)? secretStore,
@@ -103,6 +108,7 @@ extension ConfiguredAgentsFlutterBuilderExtensions on FlutterBuilder {
       maxContextWindowTokens: maxContextWindowTokens,
       maxOutputTokens: maxOutputTokens,
       configureHarness: configureHarness,
+      configureHarnessForScope: configureHarnessForScope,
       chatClientFactory: chatClientFactory,
       keyValueStore: keyValueStore,
       secretStore: secretStore,
