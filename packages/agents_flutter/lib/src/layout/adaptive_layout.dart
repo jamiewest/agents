@@ -227,7 +227,14 @@ class _AdaptiveLayoutState extends State<AdaptiveLayout>
         vsync: this,
       )..forward();
     } else {
-      _controller = AnimationController(duration: Duration.zero, vsync: this);
+      // The layout delegate evaluates size tweens against this controller;
+      // it must sit at 1.0 (completed) or every slot resolves to its
+      // tween's `begin` — Size.zero — and the body collapses.
+      _controller = AnimationController(
+        duration: Duration.zero,
+        vsync: this,
+        value: 1.0,
+      );
     }
 
     for (final _SlotIds item in _SlotIds.values) {
