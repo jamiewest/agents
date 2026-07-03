@@ -23,8 +23,8 @@ class ConfiguredAgentsManager {
   ConfiguredAgentsManager({
     required this.sources,
     required this.agents,
-    required SecretStore secrets,
-  }) : _secrets = secrets;
+    required this._secrets,
+  });
 
   /// The source/model store.
   final ModelSourceStore sources;

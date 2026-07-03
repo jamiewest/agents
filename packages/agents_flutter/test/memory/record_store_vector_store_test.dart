@@ -6,7 +6,7 @@
 
 import 'package:agents/agents.dart';
 import 'package:agents_flutter/agents_flutter.dart';
-import 'package:extensions/ai.dart' hide VectorStoreCollection;
+import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 import 'package:extensions/vector_data.dart';
 import 'package:flutter_test/flutter_test.dart';

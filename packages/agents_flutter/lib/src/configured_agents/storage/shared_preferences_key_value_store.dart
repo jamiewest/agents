@@ -15,8 +15,7 @@ class SharedPreferencesKeyValueStore extends KeyValueStore {
   /// Creates a store. The underlying [SharedPreferences] instance is loaded
   /// lazily on first use, or you may supply [preferences] directly (useful for
   /// tests via `SharedPreferences.setMockInitialValues`).
-  SharedPreferencesKeyValueStore({SharedPreferences? preferences})
-    : _preferences = preferences;
+  SharedPreferencesKeyValueStore({this._preferences});
 
   SharedPreferences? _preferences;
 
