@@ -24,6 +24,9 @@ LlamaRuntime createLlamaRuntime() => WebLlamaRuntime();
 /// constructor.
 final class WebLlamaRuntime implements LlamaRuntime {
   @override
+  bool get supportsMultiThreading => web.window.crossOriginIsolated;
+
+  @override
   Future<LlamaSession> loadModel(
     ModelSpec spec, {
     String? localPath,
@@ -95,7 +98,7 @@ final class WebLlamaRuntime implements LlamaRuntime {
       ).toDart;
     }
 
-    return _WebLlamaSession(instance);
+    return _WebLlamaSession(instance, spec.contextSize);
   }
 
   static Future<web.Blob> _fetchBlob(String objectUrl) async {
@@ -158,9 +161,20 @@ final class WebLlamaRuntime implements LlamaRuntime {
 }
 
 final class _WebLlamaSession implements LlamaSession {
-  _WebLlamaSession(this._wllama);
+  _WebLlamaSession(this._wllama, this._contextSize);
 
   final JSObject _wllama;
+
+  /// The `n_ctx` the model was loaded with. Used to fail fast when a prompt
+  /// cannot fit (wllama's prefill hangs rather than erroring) and to clamp
+  /// `max_tokens` so prompt + output stays within the window.
+  final int _contextSize;
+
+  /// Pessimistic characters-per-token ratio for the token estimate below.
+  /// Real tokenization varies, but ~3 chars/token over-counts for English
+  /// prose, which is what we want for a conservative "does it fit" guard.
+  static const double _charsPerToken = 3;
+
   JSObject? _abortController;
 
   @override
@@ -192,6 +206,32 @@ final class _WebLlamaSession implements LlamaSession {
     }
 
     final controller = StreamController<String>();
+
+    // A prompt longer than the context window makes wllama's prefill hang
+    // indefinitely instead of erroring. Estimate prompt tokens pessimistically
+    // and fail fast with an actionable message; also clamp `max_tokens` so the
+    // prompt plus the requested output stays within `n_ctx`. Skip for image
+    // turns, whose token cost is dominated by mtmd image tokens we can't size
+    // from the text here.
+    var effectiveMaxTokens = maxTokens;
+    if (!isImageTurn) {
+      final estimatedPromptTokens = (prompt.length / _charsPerToken).ceil();
+      if (estimatedPromptTokens >= _contextSize) {
+        controller
+          ..addError(
+            StateError(
+              'The prompt (~$estimatedPromptTokens tokens) does not fit the '
+              'model context ($_contextSize tokens). Increase the model '
+              'context size or shorten the prompt (e.g. fewer tools).',
+            ),
+          )
+          ..close();
+        return StopSequenceFilter(stopSequences).bind(controller.stream);
+      }
+      final room = _contextSize - estimatedPromptTokens;
+      effectiveMaxTokens = maxTokens.clamp(1, room);
+    }
+
     final abortController = _createAbortController();
     _abortController = abortController;
     final abortSignal = abortController?.getProperty<JSAny?>('signal'.toJS);
@@ -203,7 +243,7 @@ final class _WebLlamaSession implements LlamaSession {
               else
                 'prompt': prompt,
               'stream': true,
-              'max_tokens': maxTokens,
+              'max_tokens': effectiveMaxTokens,
               'temp': temperature,
               if (topK != null) 'top_k': topK,
               if (topP != null) 'top_p': topP,

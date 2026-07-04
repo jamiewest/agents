@@ -5,6 +5,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'model_format_heuristics.dart';
+
 /// The metadata keys read from a GGUF header for format detection.
 ///
 /// Parsed from a bounded prefix of the file — GGUF stores all metadata
@@ -75,26 +77,71 @@ final class GgufMetadata {
 
 /// Maps parsed GGUF metadata to a chat-format name, or `null`.
 ///
-/// Chat-template markers are the strongest signal; `general.architecture`
-/// is the fallback. A bare `llama` architecture is ambiguous (it covers
-/// many fine-tunes), so it is only mapped when the template also matches.
-String? chatFormatFromGgufMetadata(GgufMetadata metadata) {
+/// Layered by signal strength: the embedded `tokenizer.chat_template` is
+/// authoritative (its control tokens are what the model was trained on),
+/// then `general.architecture`, then name heuristics over `general.name`.
+/// A bare `llama` architecture is ambiguous (it covers many fine-tunes),
+/// so it is only mapped when the template also matches.
+String? chatFormatFromGgufMetadata(GgufMetadata metadata) =>
+    _formatFromTemplate(metadata) ??
+    _formatFromArchitecture(metadata) ??
+    detectChatFormatName(metadata.name ?? '');
+
+String? _formatFromTemplate(GgufMetadata metadata) {
   final template = metadata.chatTemplate;
-  if (template != null) {
-    if (template.contains('<|start_header_id|>')) return 'llama3';
-    if (template.contains('<|tool_call_start|>')) return 'lfm2';
-    if (template.contains('<start_of_turn>')) return 'gemma';
-    if (template.contains('[INST]')) return 'mistral';
-    if (template.contains('<tool_call>')) return 'qwen';
-    if (template.contains('<|im_start|>')) return 'chatml';
+  if (template == null) return null;
+  if (template.contains('<|start_header_id|>')) return 'llama3';
+  if (template.contains('<|tool_list_start|>') ||
+      template.contains('<|tool_call_start|>')) {
+    return _lfmVariant(metadata);
   }
-  return switch (metadata.architecture) {
-    'qwen2' || 'qwen3' || 'qwen3moe' => 'qwen',
-    'gemma' || 'gemma2' || 'gemma3' => 'gemma',
-    'lfm2' || 'lfm2moe' => 'lfm2',
-    'phi2' || 'phi3' || 'smollm' => 'chatml',
-    _ => null,
-  };
+  // Gemma-4 templates use <|turn>…<turn|>; earlier Gemma generations used
+  // <start_of_turn>. Both resolve to the registry's gemma format.
+  if (template.contains('<|turn>') || template.contains('<start_of_turn>')) {
+    return 'gemma';
+  }
+  if (template.contains('[INST]') || template.contains('[TOOL_CALLS]')) {
+    return 'mistral';
+  }
+  if (template.contains('<tool_call>')) return 'qwen';
+  if (template.contains('<|im_start|>')) {
+    // LFM2.5 keeps ChatML-style turns but drops LFM2's tool wrapper
+    // tokens, so a bare <|im_start|> template on an LFM model means the
+    // plain-JSON LFM tool convention, not generic ChatML.
+    return _isLfmFamily(metadata) ? _lfmVariant(metadata) : 'chatml';
+  }
+  // Phi-style templates use bare role tags instead of ChatML markers but
+  // speak the same turn structure.
+  if (template.contains('<|user|>') && template.contains('<|assistant|>')) {
+    return 'chatml';
+  }
+  return null;
+}
+
+/// Architectures match by prefix: upstream mints a new suffix per
+/// generation (`gemma3`, `gemma4`, `qwen3moe`, `lfm2vl`, …) and each one
+/// keeps its family's chat convention.
+String? _formatFromArchitecture(GgufMetadata metadata) {
+  final architecture = metadata.architecture;
+  if (architecture == null) return null;
+  if (architecture.startsWith('qwen')) return 'qwen';
+  if (architecture.startsWith('gemma')) return 'gemma';
+  if (architecture.startsWith('lfm2')) return _lfmVariant(metadata);
+  if (architecture.startsWith('phi') || architecture == 'smollm') {
+    return 'chatml';
+  }
+  return null;
+}
+
+bool _isLfmFamily(GgufMetadata metadata) =>
+    (metadata.architecture?.startsWith('lfm2') ?? false) ||
+    (metadata.name?.toLowerCase().contains('lfm2') ?? false);
+
+/// Picks `lfm2` vs `lfm2.5` for a model known to be LFM: the generation
+/// only shows in `general.name`, so reuse the ordered name rules.
+String _lfmVariant(GgufMetadata metadata) {
+  final byName = detectChatFormatName(metadata.name ?? '');
+  return byName != null && byName.startsWith('lfm2') ? byName : 'lfm2';
 }
 
 /// Signals that the buffer ended before the value being read.

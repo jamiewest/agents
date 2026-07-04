@@ -16,6 +16,9 @@ final class NativeLlamaRuntime implements LlamaRuntime {
   final native.LlamaFlutter _llama;
 
   @override
+  bool get supportsMultiThreading => true;
+
+  @override
   Future<LlamaSession> loadModel(
     ModelSpec spec, {
     String? localPath,

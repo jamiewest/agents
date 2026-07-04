@@ -78,6 +78,30 @@ void main() {
       expect(restored.access?.enableFileMemory, isTrue);
     });
 
+    test('AgentAccessConfig round trips file tool policy fields', () {
+      const access = AgentAccessConfig(
+        enableFileWriteTools: false,
+        fileToolApprovalMode: FileToolApprovalMode.autoApproveReadOnly,
+      );
+
+      final restored = AgentAccessConfig.fromJson(access.toJson());
+
+      expect(restored.enableFileWriteTools, isFalse);
+      expect(
+        restored.fileToolApprovalMode,
+        FileToolApprovalMode.autoApproveReadOnly,
+      );
+    });
+
+    test('AgentAccessConfig defaults file tool policy on legacy JSON', () {
+      final restored = AgentAccessConfig.fromJson(const {
+        'enableFileAccess': true,
+      });
+
+      expect(restored.enableFileWriteTools, isTrue);
+      expect(restored.fileToolApprovalMode, FileToolApprovalMode.alwaysAsk);
+    });
+
     test('SavedAgentConfig keeps legacy access unset when absent', () {
       final restored = SavedAgentConfig.fromJson(const {
         'id': 'a1',

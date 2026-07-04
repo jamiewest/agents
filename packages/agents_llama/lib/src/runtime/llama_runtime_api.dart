@@ -61,6 +61,16 @@ abstract interface class LlamaSession {
 
 /// Cross-platform loader for local llama-family model sessions.
 abstract interface class LlamaRuntime {
+  /// Whether the engine can run inference on multiple threads.
+  ///
+  /// Native runtimes always can. The web runtime can only when the page is
+  /// cross-origin isolated (served with `Cross-Origin-Opener-Policy` and
+  /// `Cross-Origin-Embedder-Policy` headers), because wasm threads need
+  /// `SharedArrayBuffer`. Without isolation, wllama silently falls back to a
+  /// single thread and generation becomes slow enough to look like a hang for
+  /// multi-billion-parameter models — surface this to the user.
+  bool get supportsMultiThreading;
+
   /// Loads [spec], optionally using already-resolved local artifacts.
   ///
   /// [localPath], [localMmprojPath], and [localDraftPath] are filesystem

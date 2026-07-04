@@ -10,7 +10,9 @@ import 'package:agents/agents.dart'
         ChatClientAgent,
         FileAccessProvider,
         FileMemoryProvider,
-        TodoProvider;
+        LoopAgent,
+        TodoProvider,
+        ToolApprovalAgent;
 import 'package:agents_flutter/agents_flutter.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
@@ -548,6 +550,72 @@ void main() {
       },
     );
 
+    test(
+      'wraps the agent for file tool auto-approval, keeping the harness',
+      () async {
+        final manager = buildManager();
+        await manager.saveSource(_openAiSource, apiKey: 'sk-openai');
+        await manager.saveModel(_openAiModel);
+        const agent = SavedAgentConfig(
+          id: 'a1',
+          name: 'Helper',
+          modelId: 'm-openai',
+          access: AgentAccessConfig(
+            fileToolApprovalMode: FileToolApprovalMode.autoApproveReadOnly,
+          ),
+        );
+        await manager.saveAgent(agent);
+
+        final built = await ConfiguredAgentFactory(manager).createAgent(agent);
+
+        expect(built, isA<ToolApprovalAgent>());
+        expect(built.getServiceOf<ChatClientAgent>(), isNotNull);
+        expect(built.name, 'Helper');
+      },
+    );
+
+    test('always-ask approval mode keeps the plain harness agent', () async {
+      final manager = buildManager();
+      await manager.saveSource(_openAiSource, apiKey: 'sk-openai');
+      await manager.saveModel(_openAiModel);
+      const agent = SavedAgentConfig(
+        id: 'a1',
+        name: 'Helper',
+        modelId: 'm-openai',
+        access: AgentAccessConfig(),
+      );
+      await manager.saveAgent(agent);
+
+      final built = await ConfiguredAgentFactory(manager).createAgent(agent);
+
+      expect(built, isNot(isA<ToolApprovalAgent>()));
+      expect(built, isA<FlutterHarnessAgent>());
+    });
+
+    test(
+      'read-only file access still exposes one file access provider',
+      () async {
+        final manager = buildManager();
+        await manager.saveSource(_openAiSource, apiKey: 'sk-openai');
+        await manager.saveModel(_openAiModel);
+        const agent = SavedAgentConfig(
+          id: 'a1',
+          name: 'Helper',
+          modelId: 'm-openai',
+          access: AgentAccessConfig(enableFileWriteTools: false),
+        );
+        await manager.saveAgent(agent);
+
+        final built = await ConfiguredAgentFactory(manager).createAgent(agent);
+        final inner = built.getServiceOf<ChatClientAgent>()!;
+        final fileAccessProviders = inner.aiContextProviders!
+            .whereType<FileAccessProvider>()
+            .toList();
+
+        expect(fileAccessProviders, hasLength(1));
+      },
+    );
+
     group('delegation', () {
       Future<ConfiguredAgentsManager> buildOpenAiManager() async {
         final manager = buildManager();
@@ -596,6 +664,33 @@ void main() {
           isNot(contains(BackgroundAgentsProvider)),
         );
       });
+
+      test(
+        'loops a delegating agent until background tasks complete',
+        () async {
+          final manager = await buildOpenAiManager();
+          const accounting = SavedAgentConfig(
+            id: 'a2',
+            name: 'Accounting',
+            modelId: 'm-openai',
+          );
+          const primary = SavedAgentConfig(
+            id: 'a1',
+            name: 'Helper',
+            modelId: 'm-openai',
+            delegations: [AgentDelegationConfig(agentId: 'a2')],
+          );
+          await manager.saveAgent(accounting);
+          await manager.saveAgent(primary);
+          final factory = ConfiguredAgentFactory(manager);
+
+          final withDelegates = await factory.createAgent(primary);
+          final withoutDelegates = await factory.createAgent(accounting);
+
+          expect(withDelegates, isA<LoopAgent>());
+          expect(withoutDelegates, isNot(isA<LoopAgent>()));
+        },
+      );
 
       test(
         'delegate list text includes names, descriptions, and guidance',

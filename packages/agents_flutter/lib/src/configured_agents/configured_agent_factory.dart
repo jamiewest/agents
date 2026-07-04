@@ -22,6 +22,14 @@ import 'models/model_source_config.dart';
 import 'models/provider_type.dart';
 import 'models/saved_agent_config.dart';
 
+/// The author name stamped on loop-synthesized feedback messages injected
+/// while a delegating agent waits for its background agents.
+///
+/// The messages reach the model (and the durable transcript) like any other
+/// user-role message; UIs that display transcripts can skip messages carrying
+/// this author name.
+const String loopFeedbackAuthorName = 'background-task-loop';
+
 /// The default per-response output-token cap for configured agents.
 ///
 /// Configured agents can target arbitrary user-entered models, so this is more
@@ -171,11 +179,18 @@ class ConfiguredAgentFactory {
             !agent.delegations.any((saved) => saved.agentId == extra.agentId),
       ),
     ];
-    if (includeDelegations && delegations.isNotEmpty) {
+    final hasBackgroundAgents = includeDelegations && delegations.isNotEmpty;
+    if (hasBackgroundAgents) {
       await _applyDelegations(options, agent, delegations, httpClient, scope);
     }
     if (scope != null) {
       _configureHarnessForScope?.call(agent, options, scope);
+    }
+    // Applied after the scope callback so the policy sees the scoped file
+    // store when it has to rebuild the file access provider.
+    ToolApprovalAgentOptions? toolApprovalOptions;
+    if (access != null && access.enableFileAccess) {
+      toolApprovalOptions = _applyFileAccessPolicy(options, access);
     }
     final effectiveMaxOutputTokens =
         agent.maxOutputTokens ??
@@ -193,11 +208,70 @@ class ConfiguredAgentFactory {
         maxOutputTokens: effectiveMaxOutputTokens,
       );
 
-    return chatClient.asFlutterHarnessAgent(
+    AIAgent result = chatClient.asFlutterHarnessAgent(
       _maxContextWindowTokens,
       effectiveMaxOutputTokens,
       options: options,
     );
+    if (toolApprovalOptions != null) {
+      result = ToolApprovalAgent(result, options: toolApprovalOptions);
+    }
+    if (hasBackgroundAgents) {
+      // A delegating agent must not end its turn while delegate tasks are
+      // still running: keep re-invoking it until the background agents
+      // provider reports every task finished. The loop's synthesized
+      // feedback messages carry a marker author name so UIs can filter them
+      // out of displayed transcripts.
+      result = LoopAgent(
+        result,
+        BackgroundTaskCompletionLoopEvaluator(),
+        options: LoopAgentOptions()
+          ..onBehalfOfAuthorName = loopFeedbackAuthorName
+          ..excludeOnBehalfOfMessages = true,
+      );
+    }
+    return result;
+  }
+
+  /// Applies the saved file access policy from [access] to [options].
+  ///
+  /// Read-only access replaces the harness-built file access provider with
+  /// one whose write tools are disabled. Auto-approval modes move the
+  /// tool-approval middleware out of the harness and return the
+  /// [ToolApprovalAgentOptions] carrying the matching file access
+  /// auto-approval rule; the factory then wraps the built agent in a
+  /// [ToolApprovalAgent] configured with those options, since the harness
+  /// does not expose its own middleware's options.
+  ToolApprovalAgentOptions? _applyFileAccessPolicy(
+    FlutterHarnessAgentOptions options,
+    AgentAccessConfig access,
+  ) {
+    if (!access.enableFileWriteTools) {
+      final store = options.fileAccessStore ?? InMemoryAgentFileStore();
+      options
+        ..disableFileAccess = true
+        ..aiContextProviders = [
+          ...?options.aiContextProviders,
+          FileAccessProvider(
+            store,
+            options: FileAccessProviderOptions()..disableWriteTools = true,
+          ),
+        ];
+    }
+
+    final rule = switch (access.fileToolApprovalMode) {
+      FileToolApprovalMode.alwaysAsk => null,
+      FileToolApprovalMode.autoApproveReadOnly =>
+        FileAccessProvider.readOnlyToolsAutoApprovalRule,
+      FileToolApprovalMode.autoApproveAll =>
+        FileAccessProvider.allToolsAutoApprovalRule,
+    };
+    if (rule == null || options.disableToolApproval) {
+      return null;
+    }
+
+    options.disableToolApproval = true;
+    return ToolApprovalAgentOptions()..autoApprovalRules = [rule];
   }
 
   /// Builds a remote A2A agent for a network source.

@@ -191,4 +191,47 @@ void main() {
       expect(turns.last.images, isEmpty);
     });
   });
+
+  group('formatResolver', () {
+    test(
+      'format resolved during session load applies to the first request',
+      () async {
+        final session = _RecordingSession();
+        ChatFormat? resolved;
+        final client = LlamaChatClient(
+          sessionProvider: () async {
+            // Simulates the host sniffing the GGUF while loading the model.
+            resolved = const GemmaChatFormat();
+            return session;
+          },
+          format: const Lfm2ChatFormat(),
+          formatResolver: () => resolved,
+          contextSize: 4096,
+        );
+
+        await client.getResponse(
+          messages: [ChatMessage.fromText(ChatRole.user, 'Hi')],
+        );
+
+        expect(session.prompt, contains('<|turn>'));
+        expect(session.prompt, isNot(contains('<|im_start|>')));
+      },
+    );
+
+    test('null resolver result falls back to the constructor format', () async {
+      final session = _RecordingSession();
+      final client = LlamaChatClient(
+        sessionProvider: () async => session,
+        format: const Lfm2ChatFormat(),
+        formatResolver: () => null,
+        contextSize: 4096,
+      );
+
+      await client.getResponse(
+        messages: [ChatMessage.fromText(ChatRole.user, 'Hi')],
+      );
+
+      expect(session.prompt, contains('<|im_start|>'));
+    });
+  });
 }

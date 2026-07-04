@@ -155,6 +155,7 @@ class LlamaChatClient extends ChatClient {
     required this.sessionProvider,
     required this.format,
     required this.contextSize,
+    this.formatResolver,
     this.sampling = const SamplingDefaults(),
     this.inspector,
     this.isThinkingEnabled,
@@ -163,8 +164,16 @@ class LlamaChatClient extends ChatClient {
   /// Resolves the ready session; the caller owns its lifecycle.
   final SessionProvider sessionProvider;
 
-  /// The model family's prompt rendering and output decoding.
+  /// The model family's prompt rendering and output decoding, used when
+  /// [formatResolver] is absent or returns null.
   final ChatFormat format;
+
+  /// Optional late-bound format, read per request **after** the session
+  /// resolves. This lets a host defer the choice until the model file is
+  /// actually on disk — e.g. picking the format from the GGUF's embedded
+  /// chat template during load — instead of guessing from the file name
+  /// at construction time. Returning null falls back to [format].
+  final ChatFormat? Function()? formatResolver;
 
   /// The model's context window in tokens, recorded on each [PromptSnapshot]
   /// so the UI can gauge how full the context is.
@@ -191,12 +200,16 @@ class LlamaChatClient extends ChatClient {
     CancellationToken? cancellationToken,
   }) async* {
     final session = await sessionProvider();
+    // Resolved after the session so a formatResolver populated during model
+    // load (e.g. from the GGUF's embedded chat template) applies to the very
+    // first request.
+    final activeFormat = formatResolver?.call() ?? format;
     final tools = (options?.tools ?? const <AITool>[])
         .whereType<AIFunctionDeclaration>();
     final thinking =
-        (isThinkingEnabled?.call() ?? false) && format.supportsThinking;
+        (isThinkingEnabled?.call() ?? false) && activeFormat.supportsThinking;
     final prepared = messagesWithInstructions(messages, options?.instructions);
-    final prompt = format.render(
+    final prompt = activeFormat.render(
       prepared,
       tools: tools,
       enableThinking: thinking,
@@ -240,7 +253,7 @@ class LlamaChatClient extends ChatClient {
       );
     }
 
-    yield* format.decode(tokens);
+    yield* activeFormat.decode(tokens);
   }
 
   @override

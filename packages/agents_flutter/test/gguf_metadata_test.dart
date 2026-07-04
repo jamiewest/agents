@@ -144,8 +144,11 @@ void main() {
     test('template markers map each family', () {
       const templates = <String, String>{
         '<|tool_call_start|>': 'lfm2',
+        '<|tool_list_start|>': 'lfm2',
         '<start_of_turn>': 'gemma',
+        '<|turn>': 'gemma',
         '[INST]': 'mistral',
+        '[TOOL_CALLS]': 'mistral',
         '<tool_call>': 'qwen',
         '<|im_start|>': 'chatml',
       };
@@ -155,8 +158,51 @@ void main() {
               .header(kvCount: 1)
               .stringKv('tokenizer.chat_template', 'prefix $marker suffix'),
         );
-        expect(chatFormatFromGgufMetadata(metadata), expected);
+        expect(
+          chatFormatFromGgufMetadata(metadata),
+          expected,
+          reason: 'marker $marker',
+        );
       });
+    });
+
+    test('phi-style role tags map to chatml', () {
+      final metadata = parse(
+        _GgufBuilder()
+            .header(kvCount: 1)
+            .stringKv(
+              'tokenizer.chat_template',
+              '<|user|>\n{{ content }}<|end|>\n<|assistant|>',
+            ),
+      );
+      expect(chatFormatFromGgufMetadata(metadata), 'chatml');
+    });
+
+    test('LFM2.5 name upgrades the lfm2 tool markers', () {
+      final metadata = parse(
+        _GgufBuilder()
+            .header(kvCount: 3)
+            .stringKv('general.architecture', 'lfm2')
+            .stringKv('general.name', 'LFM2.5-VL-1.6B-Extract')
+            .stringKv(
+              'tokenizer.chat_template',
+              '<|im_start|>user {{ content }}',
+            ),
+      );
+      expect(chatFormatFromGgufMetadata(metadata), 'lfm2.5');
+    });
+
+    test('LFM2 chatml-style template stays lfm2, not chatml', () {
+      final metadata = parse(
+        _GgufBuilder()
+            .header(kvCount: 2)
+            .stringKv('general.architecture', 'lfm2')
+            .stringKv(
+              'tokenizer.chat_template',
+              '<|im_start|>user {{ content }}',
+            ),
+      );
+      expect(chatFormatFromGgufMetadata(metadata), 'lfm2');
     });
 
     test('falls back to architecture', () {
@@ -168,7 +214,38 @@ void main() {
       expect(chatFormatFromGgufMetadata(metadata), 'qwen');
     });
 
-    test('bare llama architecture is ambiguous', () {
+    test('architecture matches by family prefix', () {
+      const architectures = <String, String>{
+        'gemma4': 'gemma',
+        'qwen3moe': 'qwen',
+        'lfm2vl': 'lfm2',
+        'phi3': 'chatml',
+      };
+      architectures.forEach((architecture, expected) {
+        final metadata = parse(
+          _GgufBuilder()
+              .header(kvCount: 1)
+              .stringKv('general.architecture', architecture),
+        );
+        expect(
+          chatFormatFromGgufMetadata(metadata),
+          expected,
+          reason: 'architecture $architecture',
+        );
+      });
+    });
+
+    test('falls back to general.name heuristics last', () {
+      final metadata = parse(
+        _GgufBuilder()
+            .header(kvCount: 2)
+            .stringKv('general.architecture', 'llama')
+            .stringKv('general.name', 'Meta Llama 3.1 8B Instruct'),
+      );
+      expect(chatFormatFromGgufMetadata(metadata), 'llama3');
+    });
+
+    test('bare llama architecture with no other signal is ambiguous', () {
       final metadata = parse(
         _GgufBuilder()
             .header(kvCount: 1)

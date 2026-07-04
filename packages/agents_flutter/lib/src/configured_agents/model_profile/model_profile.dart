@@ -9,6 +9,7 @@ library;
 
 export 'detection/gguf_inspection.dart';
 export 'detection/gguf_metadata.dart';
+export 'detection/gguf_url_inspection.dart';
 export 'detection/model_format_heuristics.dart';
 export 'model_profile_settings.dart';
 export 'open_ai_compatible_chat_client.dart';

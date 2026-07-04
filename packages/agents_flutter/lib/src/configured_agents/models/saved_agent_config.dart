@@ -157,6 +157,19 @@ class AgentDelegationConfig {
       );
 }
 
+/// How file access tool calls are approved before execution.
+enum FileToolApprovalMode {
+  /// Every file access tool call requires an explicit user approval.
+  alwaysAsk,
+
+  /// Read-only file tools (read, ls, grep) run without prompting; tools that
+  /// modify the store still require approval.
+  autoApproveReadOnly,
+
+  /// All file access tools run without prompting.
+  autoApproveAll,
+}
+
 /// Per-agent access settings for built-in harness tools and context.
 ///
 /// Defaults match the current Flutter harness behavior: safe passive
@@ -167,6 +180,8 @@ class AgentAccessConfig {
   const AgentAccessConfig({
     this.enableFileMemory = true,
     this.enableFileAccess = true,
+    this.enableFileWriteTools = true,
+    this.fileToolApprovalMode = FileToolApprovalMode.alwaysAsk,
     this.enableWebSearch = true,
     this.enableTodoList = true,
     this.enableAgentMode = true,
@@ -185,6 +200,18 @@ class AgentAccessConfig {
 
   /// Whether the agent may use working-folder file context.
   final bool enableFileAccess;
+
+  /// Whether the file access tools that modify the store (write, delete,
+  /// replace, replace_lines) are available. When `false`, file access is
+  /// read-only.
+  ///
+  /// Only meaningful while [enableFileAccess] is `true`.
+  final bool enableFileWriteTools;
+
+  /// How file access tool calls are approved.
+  ///
+  /// Only meaningful while [enableFileAccess] is `true`.
+  final FileToolApprovalMode fileToolApprovalMode;
 
   /// Whether the hosted web-search tool is available.
   final bool enableWebSearch;
@@ -223,6 +250,8 @@ class AgentAccessConfig {
   AgentAccessConfig copyWith({
     bool? enableFileMemory,
     bool? enableFileAccess,
+    bool? enableFileWriteTools,
+    FileToolApprovalMode? fileToolApprovalMode,
     bool? enableWebSearch,
     bool? enableTodoList,
     bool? enableAgentMode,
@@ -237,6 +266,8 @@ class AgentAccessConfig {
   }) => AgentAccessConfig(
     enableFileMemory: enableFileMemory ?? this.enableFileMemory,
     enableFileAccess: enableFileAccess ?? this.enableFileAccess,
+    enableFileWriteTools: enableFileWriteTools ?? this.enableFileWriteTools,
+    fileToolApprovalMode: fileToolApprovalMode ?? this.fileToolApprovalMode,
     enableWebSearch: enableWebSearch ?? this.enableWebSearch,
     enableTodoList: enableTodoList ?? this.enableTodoList,
     enableAgentMode: enableAgentMode ?? this.enableAgentMode,
@@ -254,6 +285,8 @@ class AgentAccessConfig {
   Map<String, Object?> toJson() => <String, Object?>{
     'enableFileMemory': enableFileMemory,
     'enableFileAccess': enableFileAccess,
+    'enableFileWriteTools': enableFileWriteTools,
+    'fileToolApprovalMode': fileToolApprovalMode.name,
     'enableWebSearch': enableWebSearch,
     'enableTodoList': enableTodoList,
     'enableAgentMode': enableAgentMode,
@@ -272,6 +305,12 @@ class AgentAccessConfig {
       AgentAccessConfig(
         enableFileMemory: (json['enableFileMemory'] as bool?) ?? true,
         enableFileAccess: (json['enableFileAccess'] as bool?) ?? true,
+        enableFileWriteTools: (json['enableFileWriteTools'] as bool?) ?? true,
+        fileToolApprovalMode:
+            FileToolApprovalMode.values.asNameMap()[json['fileToolApprovalMode']
+                    as String? ??
+                ''] ??
+            FileToolApprovalMode.alwaysAsk,
         enableWebSearch: (json['enableWebSearch'] as bool?) ?? true,
         enableTodoList: (json['enableTodoList'] as bool?) ?? true,
         enableAgentMode: (json['enableAgentMode'] as bool?) ?? true,
