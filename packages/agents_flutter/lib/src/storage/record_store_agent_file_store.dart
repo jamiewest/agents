@@ -93,10 +93,36 @@ class RecordStoreAgentFileStore extends AgentFileStore {
   }
 
   @override
+  Future<List<FileStoreEntry>> listChildrenAsync(
+    String directory, [
+    CancellationToken? cancellationToken,
+  ]) async {
+    final prefix = _directoryPrefix(directory);
+    final directories = <String>{};
+    final files = <String>[];
+    for (final (path, _) in await _namespaceFiles()) {
+      if (!path.toLowerCase().startsWith(prefix.toLowerCase())) continue;
+      final remainder = path.substring(prefix.length);
+      final separatorIndex = remainder.indexOf('/');
+      if (separatorIndex < 0) {
+        files.add(remainder);
+      } else {
+        directories.add(remainder.substring(0, separatorIndex));
+      }
+    }
+    return [
+      for (final name in directories)
+        FileStoreEntry(name, FileStoreEntry.directory),
+      for (final name in files) FileStoreEntry(name, FileStoreEntry.file),
+    ];
+  }
+
+  @override
   Future<List<FileSearchResult>> searchFilesAsync(
     String directory,
     String regexPattern, [
     String? filePattern,
+    bool recursive = false,
     CancellationToken? cancellationToken,
   ]) async {
     final prefix = _directoryPrefix(directory);
@@ -107,7 +133,11 @@ class RecordStoreAgentFileStore extends AgentFileStore {
 
     final results = <FileSearchResult>[];
     for (final (path, content) in await _namespaceFiles()) {
-      if (!_inDirectory(path, prefix)) continue;
+      if (recursive
+          ? !path.toLowerCase().startsWith(prefix.toLowerCase())
+          : !_inDirectory(path, prefix)) {
+        continue;
+      }
       final relativeName = path.substring(prefix.length);
       if (!StorePaths.matchesGlob(relativeName, glob)) continue;
 
