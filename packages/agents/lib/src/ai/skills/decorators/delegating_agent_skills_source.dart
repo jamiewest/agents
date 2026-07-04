@@ -1,6 +1,7 @@
 import 'package:extensions/system.dart';
 import '../agent_skill.dart';
 import '../agent_skills_source.dart';
+import '../agent_skills_source_context.dart';
 
 /// Provides an abstract base class for skill sources that delegate operations
 /// to an inner source while allowing for extensibility and customization.
@@ -17,7 +18,15 @@ abstract class DelegatingAgentSkillsSource extends AgentSkillsSource {
   final AgentSkillsSource innerSource;
 
   @override
-  Future<List<AgentSkill>> getSkills({CancellationToken? cancellationToken}) {
-    return innerSource.getSkills(cancellationToken: cancellationToken);
+  Future<List<AgentSkill>> getSkills(
+    AgentSkillsSourceContext context, {
+    CancellationToken? cancellationToken,
+  }) {
+    return innerSource.getSkills(context, cancellationToken: cancellationToken);
+  }
+
+  @override
+  void dispose() {
+    innerSource.dispose();
   }
 }

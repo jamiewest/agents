@@ -5,6 +5,7 @@ import 'package:extensions/system.dart';
 import 'agent_file_store.dart';
 import 'file_search_match.dart';
 import 'file_search_result.dart';
+import 'file_store_entry.dart';
 import 'store_paths.dart';
 
 /// An in-memory implementation of [AgentFileStore] that stores files in a
@@ -62,6 +63,39 @@ class InMemoryAgentFileStore extends AgentFileStore {
         .map((f) => f.path.substring(prefix.length))
         .where((name) => !name.contains('/'))
         .toList();
+  }
+
+  @override
+  Future<List<FileStoreEntry>> listChildrenAsync(
+    String directory, [
+    CancellationToken? cancellationToken,
+  ]) async {
+    var prefix = StorePaths.normalizeRelativePath(directory, isDirectory: true);
+    if (prefix.isNotEmpty && !prefix.endsWith('/')) {
+      prefix += '/';
+    }
+    final prefixKey = _key(prefix);
+
+    final directories = <String>{};
+    final files = <String>[];
+    for (final file in _files.values) {
+      if (!_key(file.path).startsWith(prefixKey)) {
+        continue;
+      }
+      final remainder = file.path.substring(prefix.length);
+      final separatorIndex = remainder.indexOf('/');
+      if (separatorIndex < 0) {
+        files.add(remainder);
+      } else {
+        directories.add(remainder.substring(0, separatorIndex));
+      }
+    }
+
+    return [
+      for (final name in directories)
+        FileStoreEntry(name, FileStoreEntry.directory),
+      for (final name in files) FileStoreEntry(name, FileStoreEntry.file),
+    ];
   }
 
   @override

@@ -21,6 +21,8 @@ import 'chat_client_agent_options.dart';
 import 'chat_client_agent_run_options.dart';
 import 'chat_client_agent_session.dart';
 import 'chat_response_update_extensions.dart';
+import 'message_injecting_chat_client.dart';
+import 'non_approval_required_function_bypassing_chat_client.dart';
 import 'per_service_call_chat_history_persisting_chat_client.dart';
 
 /// Provides an [AIAgent] that delegates to a [ChatClient] implementation.
@@ -977,6 +979,14 @@ final class ChatClientAgent extends AIAgent {
   ) {
     final chatBuilder = ChatClientBuilder(chatClient);
 
+    // Registration order matters: the first `use` is the outermost decorator.
+    if (options?.enableNonApprovalRequiredFunctionBypassing == true) {
+      chatBuilder.use(
+        (innerClient) =>
+            NonApprovalRequiredFunctionBypassingChatClient(innerClient),
+      );
+    }
+
     if (chatClient.getService<FunctionInvokingChatClient>() == null) {
       chatBuilder.use(
         (innerClient) => FunctionInvokingChatClient(
@@ -984,6 +994,10 @@ final class ChatClientAgent extends AIAgent {
           logger: loggerFactory?.createLogger('FunctionInvokingChatClient'),
         ),
       );
+    }
+
+    if (options?.enableMessageInjection == true) {
+      chatBuilder.use((innerClient) => MessageInjectingChatClient(innerClient));
     }
 
     if (options?.requirePerServiceCallChatHistoryPersistence == true) {

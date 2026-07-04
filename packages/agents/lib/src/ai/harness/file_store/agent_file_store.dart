@@ -1,6 +1,7 @@
 import 'package:extensions/system.dart';
 
 import 'file_search_result.dart';
+import 'file_store_entry.dart';
 
 /// Provides an abstract base class for file storage operations.
 ///
@@ -33,6 +34,15 @@ abstract class AgentFileStore {
 
   /// Lists files in a directory.
   Future<List<String>> listFilesAsync(
+    String directory, [
+    CancellationToken? cancellationToken,
+  ]);
+
+  /// Lists the direct children (files and subdirectories) of a directory.
+  ///
+  /// Use an empty string for the root. Subdirectories are listed before
+  /// files.
+  Future<List<FileStoreEntry>> listChildrenAsync(
     String directory, [
     CancellationToken? cancellationToken,
   ]);

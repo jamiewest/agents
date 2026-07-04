@@ -11,6 +11,8 @@ import 'agent_skill.dart';
 import 'agent_skill_script.dart';
 import 'agent_skills_provider_options.dart';
 import 'agent_skills_source.dart';
+import 'agent_skills_source_context.dart';
+import 'decorators/caching_agent_skills_source.dart';
 import 'decorators/deduplicating_agent_skills_source.dart';
 import 'file/agent_file_skill_script_runner.dart';
 import 'file/agent_file_skills_source.dart';
@@ -19,7 +21,22 @@ import 'package:agents/src/abstractions/invoking_context.dart';
 
 /// An [AIContextProvider] that exposes agent skills from one or more
 /// [AgentSkillsSource] instances.
-class AgentSkillsProvider extends AIContextProvider {
+///
+/// This provider implements the progressive disclosure pattern from the
+/// [Agent Skills specification](https://agentskills.io/): skill names and
+/// descriptions are advertised in the system prompt, the full skill body is
+/// returned via the `load_skill` tool, supplementary content is read on
+/// demand via `read_skill_resource`, and scripts are executed via
+/// `run_skill_script`.
+///
+/// The provider can optionally own the lifetime of its underlying
+/// [AgentSkillsSource]. When constructed via the convenience parameters
+/// (skill paths or in-memory skills) or via `AgentSkillsProviderBuilder`,
+/// the source pipeline is created internally and owned by the provider, so
+/// disposing the provider disposes the pipeline. When constructed from a
+/// caller-supplied [AgentSkillsSource], ownership is controlled by the
+/// `ownsSource` parameter and defaults to the caller retaining ownership.
+class AgentSkillsProvider extends AIContextProvider implements Disposable {
   AgentSkillsProvider({
     String? skillPath,
     Iterable<String>? skillPaths,
@@ -27,6 +44,7 @@ class AgentSkillsProvider extends AIContextProvider {
     AgentFileSkillsSourceOptions? fileOptions,
     Iterable<AgentSkill>? skills,
     AgentSkillsSource? source,
+    bool ownsSource = false,
     AgentSkillsProviderOptions? options,
     LoggerFactory? loggerFactory,
   }) : _source = _resolveSource(
@@ -38,6 +56,7 @@ class AgentSkillsProvider extends AIContextProvider {
          source: source,
          loggerFactory: loggerFactory,
        ),
+       _ownsSource = source == null || ownsSource,
        _options = options,
        _logger = (loggerFactory ?? NullLoggerFactory.instance).createLogger(
          'AgentSkillsProvider',
@@ -48,10 +67,57 @@ class AgentSkillsProvider extends AIContextProvider {
     }
   }
 
+  /// The name of the tool that loads a skill.
+  static const String loadSkillToolName = 'load_skill';
+
+  /// The name of the tool that reads a skill resource.
+  static const String readSkillResourceToolName = 'read_skill_resource';
+
+  /// The name of the tool that runs a skill script.
+  static const String runSkillScriptToolName = 'run_skill_script';
+
+  /// The names of the tools that only read (never execute scripts from) the
+  /// skills source.
+  static const Set<String> _readOnlyToolNames = {
+    loadSkillToolName,
+    readSkillResourceToolName,
+  };
+
+  /// The names of all tools exposed by this provider.
+  static const Set<String> _allToolNames = {
+    loadSkillToolName,
+    readSkillResourceToolName,
+    runSkillScriptToolName,
+  };
+
+  /// An auto-approval rule that approves the read-only skill tools
+  /// ([loadSkillToolName] and [readSkillResourceToolName]).
+  ///
+  /// This rule only applies when approval is enabled for the matching tools
+  /// in [AgentSkillsProviderOptions]. Add it to
+  /// `ToolApprovalAgentOptions.autoApprovalRules` to automatically approve
+  /// only the tools that read skill content, while still prompting for script
+  /// execution ([runSkillScriptToolName]) if it also requires approval.
+  static Future<bool> Function(FunctionCallContent functionCall)
+  get readOnlyToolsAutoApprovalRule => _readOnlyToolsAutoApprovalRule;
+
+  /// An auto-approval rule that approves all skill tools, including the
+  /// script execution tool ([runSkillScriptToolName]).
+  static Future<bool> Function(FunctionCallContent functionCall)
+  get allToolsAutoApprovalRule => _allToolsAutoApprovalRule;
+
+  static Future<bool> _readOnlyToolsAutoApprovalRule(
+    FunctionCallContent functionCall,
+  ) async => _readOnlyToolNames.contains(functionCall.name);
+
+  static Future<bool> _allToolsAutoApprovalRule(
+    FunctionCallContent functionCall,
+  ) async => _allToolNames.contains(functionCall.name);
+
+  /// Placeholder token for the generated skills list in the prompt template.
   static const String skillsPlaceholder = '{skills}';
-  static const String scriptInstructionsPlaceholder = '{script_instructions}';
-  static const String resourceInstructionsPlaceholder =
-      '{resource_instructions}';
+
+  /// The default system prompt template used to advertise skills.
   static const String defaultSkillsInstructionPrompt = '''
 You have access to skills containing domain-specific knowledge and capabilities.
 Each skill provides specialized instructions, reference documents, and assets for specific tasks.
@@ -63,31 +129,24 @@ Each skill provides specialized instructions, reference documents, and assets fo
 When a task aligns with a skill's domain, follow these steps in exact order:
 - Use `load_skill` to retrieve the skill's instructions.
 - Follow the provided guidance.
-{resource_instructions}
-{script_instructions}
+- Use `read_skill_resource` to read any referenced resources, using the name exactly as listed
+   (e.g. `"style-guide"` not `"style-guide.md"`, `"references/FAQ.md"` not `"FAQ.md"`).
+- Use `run_skill_script` to run referenced scripts, using the name exactly as listed.
 Only load what is needed, when it is needed.''';
 
   final AgentSkillsSource _source;
+  final bool _ownsSource;
   final AgentSkillsProviderOptions? _options;
   final Logger _logger;
-  Future<AIContext>? _contextFuture;
+  bool _disposed = false;
 
   @override
   Future<AIContext> provideAIContext(
     InvokingContext context, {
     CancellationToken? cancellationToken,
-  }) {
-    if (_options?.disableCaching == true) {
-      return createContext(context, cancellationToken);
-    }
-    return getOrCreateContext(context, cancellationToken);
-  }
-
-  Future<AIContext> createContext(
-    InvokingContext context,
-    CancellationToken? cancellationToken,
-  ) async {
+  }) async {
     final skills = await _source.getSkills(
+      AgentSkillsSourceContext(context.agent, context.session),
       cancellationToken: cancellationToken,
     );
     if (skills.isEmpty) {
@@ -97,55 +156,49 @@ Only load what is needed, when it is needed.''';
       );
     }
 
-    final hasScripts = skills.any((skill) => skill.scripts?.isNotEmpty == true);
-    final hasResources = skills.any(
-      (skill) => skill.resources?.isNotEmpty == true,
-    );
-
     return AIContext()
-      ..instructions = buildSkillsInstructions(
-        skills,
-        includeScriptInstructions: hasScripts,
-        includeResourceInstructions: hasResources,
-      )
-      ..tools = buildTools(skills, hasScripts, hasResources);
+      ..instructions = buildSkillsInstructions(skills)
+      ..tools = buildTools(skills);
   }
 
-  Future<AIContext> getOrCreateContext(
-    InvokingContext context,
-    CancellationToken? cancellationToken,
-  ) {
-    return _contextFuture ??= createContext(context, cancellationToken);
+  /// Releases the resources used by this provider. When the provider owns
+  /// its underlying [AgentSkillsSource] (see the `ownsSource` constructor
+  /// parameter), the source is disposed as well.
+  @override
+  void dispose() {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    if (_ownsSource) {
+      _source.dispose();
+    }
   }
 
-  List<AIFunction> buildTools(
-    List<AgentSkill> skills,
-    bool hasScripts,
-    bool hasResources,
-  ) {
-    final tools = <AIFunction>[
-      AIFunctionFactory.create(
-        name: 'load_skill',
-        description: 'Loads the full content of a specific skill.',
-        parametersSchema: const {
-          'type': 'object',
-          'properties': {
-            'skillName': {'type': 'string'},
-          },
-          'required': ['skillName'],
-        },
-        callback: (arguments, {cancellationToken}) => loadSkill(
-          skills,
-          _stringArgument(arguments, 'skillName'),
-          cancellationToken: cancellationToken,
-        ),
-      ),
-    ];
-
-    if (hasResources) {
-      tools.add(
+  List<AIFunction> buildTools(List<AgentSkill> skills) {
+    return [
+      _wrapWithApprovalIfRequired(
         AIFunctionFactory.create(
-          name: 'read_skill_resource',
+          name: loadSkillToolName,
+          description: 'Loads the full content of a specific skill',
+          parametersSchema: const {
+            'type': 'object',
+            'properties': {
+              'skillName': {'type': 'string'},
+            },
+            'required': ['skillName'],
+          },
+          callback: (arguments, {cancellationToken}) => loadSkill(
+            skills,
+            _stringArgument(arguments, 'skillName'),
+            cancellationToken: cancellationToken,
+          ),
+        ),
+        _options?.disableLoadSkillApproval != true,
+      ),
+      _wrapWithApprovalIfRequired(
+        AIFunctionFactory.create(
+          name: readSkillResourceToolName,
           description:
               'Reads a resource associated with a skill, such as references, assets, or dynamic data.',
           parametersSchema: const {
@@ -164,13 +217,11 @@ Only load what is needed, when it is needed.''';
             cancellationToken: cancellationToken,
           ),
         ),
-      );
-    }
-
-    if (hasScripts) {
-      tools.add(
+        _options?.disableReadSkillResourceApproval != true,
+      ),
+      _wrapWithApprovalIfRequired(
         AIFunctionFactory.create(
-          name: 'run_skill_script',
+          name: runSkillScriptToolName,
           description: 'Runs a script associated with a skill.',
           parametersSchema: const {
             'type': 'object',
@@ -190,17 +241,17 @@ Only load what is needed, when it is needed.''';
             cancellationToken: cancellationToken,
           ),
         ),
-      );
-    }
-
-    return tools;
+        _options?.disableRunSkillScriptApproval != true,
+      ),
+    ];
   }
 
-  String buildSkillsInstructions(
-    List<AgentSkill> skills, {
-    required bool includeScriptInstructions,
-    required bool includeResourceInstructions,
-  }) {
+  static AIFunction _wrapWithApprovalIfRequired(
+    AIFunction function,
+    bool requireApproval,
+  ) => requireApproval ? ApprovalRequiredAIFunction(function) : function;
+
+  String buildSkillsInstructions(List<AgentSkill> skills) {
     final promptTemplate =
         _options?.skillsInstructionPrompt ?? defaultSkillsInstructionPrompt;
     final sorted = List<AgentSkill>.of(skills)
@@ -219,17 +270,10 @@ Only load what is needed, when it is needed.''';
         ..writeln('  </skill>');
     }
 
-    final resourceInstruction = includeResourceInstructions
-        ? '- Use `read_skill_resource` to read any referenced resources, using the name exactly as listed.'
-        : '';
-    final scriptInstruction = includeScriptInstructions
-        ? '- Use `run_skill_script` to run referenced scripts, using the name exactly as listed.'
-        : '';
-
-    return promptTemplate
-        .replaceAll(skillsPlaceholder, buffer.toString().trimRight())
-        .replaceAll(resourceInstructionsPlaceholder, resourceInstruction)
-        .replaceAll(scriptInstructionsPlaceholder, scriptInstruction);
+    return promptTemplate.replaceAll(
+      skillsPlaceholder,
+      buffer.toString().trimRight(),
+    );
   }
 
   Future<String> loadSkill(
@@ -242,7 +286,7 @@ Only load what is needed, when it is needed.''';
     }
     final skill = _findSkill(skills, skillName);
     if (skill == null) {
-      return 'Error: Skill $skillName not found.';
+      return "Error: Skill '$skillName' not found.";
     }
     logSkillLoading(_logger, skillName);
     return skill.getContent(cancellationToken: cancellationToken);
@@ -263,23 +307,24 @@ Only load what is needed, when it is needed.''';
     }
     final skill = _findSkill(skills, skillName);
     if (skill == null) {
-      return 'Error: Skill $skillName not found.';
-    }
-    final resource = await skill.getResource(
-      resourceName,
-      cancellationToken: cancellationToken,
-    );
-    if (resource == null) {
-      return 'Error: Resource $resourceName not found in skill "$skillName".';
+      return "Error: Skill '$skillName' not found.";
     }
     try {
+      final resource = await skill.getResource(
+        resourceName,
+        cancellationToken: cancellationToken,
+      );
+      if (resource == null) {
+        return "Error: Resource '$resourceName' not found in skill "
+            "'$skillName'.";
+      }
       return await resource.read(
         serviceProvider: serviceProvider,
         cancellationToken: cancellationToken,
       );
     } catch (error) {
       logResourceReadError(_logger, skillName, resourceName, error);
-      return 'Error: Failed to read resource $resourceName from skill "$skillName".';
+      rethrow;
     }
   }
 
@@ -299,13 +344,13 @@ Only load what is needed, when it is needed.''';
     }
     final skill = _findSkill(skills, skillName);
     if (skill == null) {
-      return 'Error: Skill $skillName not found.';
-    }
-    final script = _findByName(skill.scripts, scriptName);
-    if (script == null) {
-      return 'Error: Script $scriptName not found in skill "$skillName".';
+      return "Error: Skill '$skillName' not found.";
     }
     try {
+      final script = _findByName(skill.scripts, scriptName);
+      if (script == null) {
+        return "Error: Script '$scriptName' not found in skill '$skillName'.";
+      }
       return await script.run(
         skill,
         arguments,
@@ -314,37 +359,30 @@ Only load what is needed, when it is needed.''';
       );
     } catch (error) {
       logScriptExecutionError(_logger, skillName, scriptName, error);
-      return 'Error: Failed to execute script $scriptName from skill "$skillName".';
+      if (_options?.includeDetailedErrors == true) {
+        return "Error: Failed to execute script '$scriptName' from skill "
+            "'$skillName'. Exception: $error";
+      }
+      rethrow;
     }
   }
 
+  /// Validates that a custom prompt template contains the required
+  /// placeholder tokens.
   static void validatePromptTemplate(String template, String paramName) {
     if (!template.contains(skillsPlaceholder)) {
       throw ArgumentError.value(
         template,
         paramName,
-        'The custom prompt template must contain the $skillsPlaceholder placeholder.',
-      );
-    }
-    if (!template.contains(resourceInstructionsPlaceholder)) {
-      throw ArgumentError.value(
-        template,
-        paramName,
-        'The custom prompt template must contain the $resourceInstructionsPlaceholder placeholder.',
-      );
-    }
-    if (!template.contains(scriptInstructionsPlaceholder)) {
-      throw ArgumentError.value(
-        template,
-        paramName,
-        'The custom prompt template must contain the $scriptInstructionsPlaceholder placeholder.',
+        "The custom prompt template must contain the '$skillsPlaceholder' "
+        'placeholder for the generated skills list.',
       );
     }
   }
 
   static void logSkillLoading(Logger logger, String skillName) {
-    if (logger.isEnabled(LogLevel.debug)) {
-      logger.logDebug('Loading skill $skillName.');
+    if (logger.isEnabled(LogLevel.information)) {
+      logger.logInformation('Loading skill: $skillName');
     }
   }
 
@@ -356,7 +394,7 @@ Only load what is needed, when it is needed.''';
   ) {
     if (logger.isEnabled(LogLevel.error)) {
       logger.logError(
-        'Failed to read resource $resourceName from skill $skillName.',
+        "Failed to read resource '$resourceName' from skill '$skillName'",
         error: error,
       );
     }
@@ -370,7 +408,7 @@ Only load what is needed, when it is needed.''';
   ) {
     if (logger.isEnabled(LogLevel.error)) {
       logger.logError(
-        'Failed to execute script $scriptName from skill $skillName.',
+        "Failed to execute script '$scriptName' from skill '$skillName'",
         error: error,
       );
     }
@@ -426,18 +464,20 @@ Only load what is needed, when it is needed.''';
     }
     if (skills != null) {
       return DeduplicatingAgentSkillsSource(
-        AgentInMemorySkillsSource(skills),
+        CachingAgentSkillsSource(AgentInMemorySkillsSource(skills)),
         loggerFactory: loggerFactory,
       );
     }
     final paths = [?skillPath, ...?skillPaths];
     if (paths.isNotEmpty) {
       return DeduplicatingAgentSkillsSource(
-        AgentFileSkillsSource(
-          paths,
-          scriptRunner: scriptRunner,
-          options: fileOptions,
-          loggerFactory: loggerFactory,
+        CachingAgentSkillsSource(
+          AgentFileSkillsSource(
+            paths,
+            scriptRunner: scriptRunner,
+            options: fileOptions,
+            loggerFactory: loggerFactory,
+          ),
         ),
         loggerFactory: loggerFactory,
       );

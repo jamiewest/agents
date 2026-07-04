@@ -8,6 +8,7 @@ import 'package:agents/src/ai/ai_agent_builder.dart';
 import 'package:agents/src/ai/harness/tool_approval/always_approve_tool_approval_response_content.dart';
 import 'package:agents/src/ai/harness/tool_approval/tool_approval_agent.dart';
 import 'package:agents/src/ai/harness/tool_approval/tool_approval_agent_builder_extensions.dart';
+import 'package:agents/src/ai/harness/tool_approval/tool_approval_agent_options.dart';
 import 'package:agents/src/ai/harness/tool_approval/tool_approval_request_content_extensions.dart';
 import 'package:agents/src/ai/harness/tool_approval/tool_approval_rule.dart';
 import 'package:agents/src/ai/harness/tool_approval/tool_approval_state.dart';
@@ -24,10 +25,10 @@ void main() {
         expect(() => ToolApprovalAgent(null), throwsA(isA<ArgumentError>()));
 
         final innerAgent = _ScriptedAgent();
-        final options = JsonSerializerOptions();
         final agent = ToolApprovalAgent(
           innerAgent,
-          jsonSerializerOptions: options,
+          options: ToolApprovalAgentOptions()
+            ..jsonSerializerOptions = JsonSerializerOptions(),
         );
 
         expect(agent.innerAgent, same(innerAgent));
@@ -61,6 +62,46 @@ void main() {
       final innerAgent = _ScriptedAgent()
         ..responses.add(_responseContents([request]));
       final agent = ToolApprovalAgent(innerAgent);
+
+      final response = await agent.runCore([_userText('go')]);
+
+      expect(_contentsOf<ToolApprovalRequestContent>(response), [request]);
+      expect(innerAgent.runCount, 1);
+    });
+
+    test('auto-approval rule approves without prompting', () async {
+      final request = _approvalRequest('r1', 'Search');
+      final innerAgent = _ScriptedAgent()
+        ..responses.addAll([
+          _responseContents([request]),
+          _responseText('done'),
+        ]);
+      final agent = ToolApprovalAgent(
+        innerAgent,
+        options: ToolApprovalAgentOptions()
+          ..autoApprovalRules = [ToolApprovalAgent.allToolsAutoApprovalRule],
+      );
+      final session = _TestSession();
+
+      final response = await agent.runCore([_userText('go')], session: session);
+
+      expect(response.text, 'done');
+      expect(innerAgent.runCount, 2);
+      expect(
+        innerAgent.capturedRuns.last.first.contents,
+        contains(isA<ToolApprovalResponseContent>()),
+      );
+    });
+
+    test('non-matching auto-approval rule still prompts', () async {
+      final request = _approvalRequest('r1', 'Search');
+      final innerAgent = _ScriptedAgent()
+        ..responses.add(_responseContents([request]));
+      final agent = ToolApprovalAgent(
+        innerAgent,
+        options: ToolApprovalAgentOptions()
+          ..autoApprovalRules = [(call) async => call.name == 'Other'],
+      );
 
       final response = await agent.runCore([_userText('go')]);
 

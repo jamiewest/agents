@@ -6,23 +6,45 @@ class AgentSkillsProviderOptions {
 
   /// Custom system prompt template for advertising skills.
   ///
-  /// The template must contain `{skills}` as the placeholder for the generated
-  /// skills list, `{resource_instructions}` for resource instructions, and
-  /// `{script_instructions}` for script instructions. When `null`, a default
-  /// template is used.
+  /// The template must contain `{skills}` as the placeholder for the
+  /// generated skills list. When `null`, a default template is used.
   String? skillsInstructionPrompt;
 
-  /// Whether script execution requires approval.
+  /// Whether detailed exception information is included in the error message
+  /// returned to the model when a script execution fails.
   ///
-  /// When `true`, script execution is blocked until approved. Defaults to
-  /// `false`.
-  bool scriptApproval = false;
+  /// When `false` (the default), exceptions propagate to the caller. When
+  /// `true`, the exception message is appended to the error string returned
+  /// directly to the model, enabling it to retry with different arguments —
+  /// but this may disclose raw exception details to the model. Exercise
+  /// particular caution when enabling this for skills whose scripts originate
+  /// from untrusted or third-party sources: a maliciously crafted script
+  /// could throw an exception whose message embeds a prompt-injection
+  /// payload, which would then be fed back to the model. Only enable this
+  /// when the skills and their scripts come from a trusted source.
+  bool includeDetailedErrors = false;
 
-  /// Whether caching of tools and instructions is disabled.
+  /// Whether approval is disabled for the
+  /// [AgentSkillsProvider.loadSkillToolName] tool.
   ///
-  /// When `false` (the default), the provider caches the tools and
-  /// instructions after the first build and returns the cached instance on
-  /// subsequent calls. Set to `true` to rebuild tools and instructions on
-  /// every invocation.
-  bool disableCaching = false;
+  /// When `false` (the default), the tool requires approval before
+  /// invocation. When approval is required, auto-approval rules (e.g.
+  /// [AgentSkillsProvider.readOnlyToolsAutoApprovalRule] or
+  /// [AgentSkillsProvider.allToolsAutoApprovalRule]) can be used to
+  /// automatically approve calls.
+  bool disableLoadSkillApproval = false;
+
+  /// Whether approval is disabled for the
+  /// [AgentSkillsProvider.readSkillResourceToolName] tool.
+  ///
+  /// When `false` (the default), the tool requires approval before
+  /// invocation.
+  bool disableReadSkillResourceApproval = false;
+
+  /// Whether approval is disabled for the
+  /// [AgentSkillsProvider.runSkillScriptToolName] tool.
+  ///
+  /// When `false` (the default), the tool requires approval before
+  /// invocation.
+  bool disableRunSkillScriptApproval = false;
 }

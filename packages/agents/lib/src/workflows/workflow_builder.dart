@@ -4,6 +4,7 @@ import 'edge_id.dart';
 import 'executor_binding.dart';
 import 'fan_in_edge_data.dart';
 import 'fan_out_edge_data.dart';
+import 'output_tag.dart';
 import 'request_port.dart';
 import 'workflow.dart';
 
@@ -24,7 +25,8 @@ class WorkflowBuilder {
   final Map<String, ExecutorBinding> _executorBindings =
       <String, ExecutorBinding>{};
   final List<Edge> _edges = <Edge>[];
-  final List<String> _outputExecutorIds = <String>[];
+  final Map<String, Set<OutputTag>> _outputExecutors =
+      <String, Set<OutputTag>>{};
   final List<RequestPortDescriptor> _requestPorts = <RequestPortDescriptor>[];
 
   /// Sets the workflow name.
@@ -45,14 +47,35 @@ class WorkflowBuilder {
     return this;
   }
 
-  /// Adds an output executor identifier.
+  /// Adds an output executor identifier (untagged terminal output).
   WorkflowBuilder addOutput(String executorId) {
     _throwIfExecutorMissing(executorId);
-    if (!_outputExecutorIds.contains(executorId)) {
-      _outputExecutorIds.add(executorId);
+    _ensureOutputExecutor(executorId);
+    return this;
+  }
+
+  /// Registers [executorIds] as sources of workflow output, optionally
+  /// associating each with [tag]. Registering an executor without a tag (or
+  /// via [addOutput]) marks it as a terminal output source; registered tags
+  /// accumulate across calls.
+  WorkflowBuilder withOutputFrom(
+    Iterable<String> executorIds, {
+    OutputTag? tag,
+  }) {
+    for (final executorId in executorIds) {
+      _throwIfExecutorMissing(executorId);
+      final tags = _ensureOutputExecutor(executorId);
+      if (tag != null) {
+        tags.add(tag);
+      }
     }
     return this;
   }
+
+  /// Registers [executorIds] as sources of intermediate workflow output.
+  /// Their `WorkflowOutputEvent`s carry [OutputTag.intermediate].
+  WorkflowBuilder withIntermediateOutputFrom(Iterable<String> executorIds) =>
+      withOutputFrom(executorIds, tag: OutputTag.intermediate);
 
   /// Adds a workflow-level external request port.
   WorkflowBuilder addRequestPort(RequestPortDescriptor port) {
@@ -134,9 +157,12 @@ class WorkflowBuilder {
     description: _description,
     executorBindings: _executorBindings.values,
     edges: _edges,
-    outputExecutorIds: _outputExecutorIds,
+    outputExecutors: _outputExecutors,
     requestPorts: _requestPorts,
   );
+
+  Set<OutputTag> _ensureOutputExecutor(String executorId) =>
+      _outputExecutors.putIfAbsent(executorId, () => <OutputTag>{});
 
   EdgeId _createEdgeId() => EdgeId('edge-${++_nextEdgeId}');
 

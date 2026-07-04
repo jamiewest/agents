@@ -7,7 +7,12 @@ import 'package:agents/src/abstractions/agent_session.dart';
 import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/ai/harness/agent_mode/agent_mode_provider.dart';
+import 'package:agents/src/ai/harness/background_agents/background_agent_state.dart';
+import 'package:agents/src/ai/harness/background_agents/background_agents_provider.dart';
+import 'package:agents/src/ai/harness/background_agents/background_task_info.dart';
+import 'package:agents/src/ai/harness/background_agents/background_task_status.dart';
 import 'package:agents/src/ai/harness/loop/ai_judge_loop_evaluator.dart';
+import 'package:agents/src/ai/harness/loop/background_task_completion_loop_evaluator.dart';
 import 'package:agents/src/ai/harness/loop/completion_marker_loop_evaluator.dart';
 import 'package:agents/src/ai/harness/loop/completion_marker_loop_evaluator_options.dart';
 import 'package:agents/src/ai/harness/loop/delegate_loop_evaluator.dart';
@@ -391,6 +396,71 @@ void main() {
       expect(result.shouldReinvoke, isFalse);
     });
   });
+
+  group('BackgroundTaskCompletionLoopEvaluator', () {
+    test('throws when no BackgroundAgentsProvider is resolvable', () async {
+      final evaluator = BackgroundTaskCompletionLoopEvaluator();
+
+      expect(
+        () => evaluator.evaluate(_contextWith('x')),
+        throwsA(isA<StateError>()),
+      );
+    });
+
+    test('stops when no background tasks are running', () async {
+      final provider = BackgroundAgentsProvider([_NamedAgent('researcher')]);
+      final session = _TestSession();
+      final agent = _ServiceAgent({BackgroundAgentsProvider: provider});
+      final evaluator = BackgroundTaskCompletionLoopEvaluator();
+
+      final result = await evaluator.evaluate(
+        LoopContext(agent, session, [_userText('go')], _text('done')),
+      );
+
+      expect(result.shouldReinvoke, isFalse);
+    });
+
+    test('continues while background tasks are still running', () async {
+      final provider = BackgroundAgentsProvider([_NamedAgent('researcher')]);
+      final session = _TestSession();
+      _seedBackgroundTasks(session, [
+        BackgroundTaskInfo()
+          ..id = 7
+          ..agentName = 'researcher'
+          ..description = 'dig into the archives'
+          ..status = BackgroundTaskStatus.running,
+        BackgroundTaskInfo()
+          ..id = 8
+          ..agentName = 'researcher'
+          ..description = 'already done'
+          ..status = BackgroundTaskStatus.completed,
+      ]);
+      final agent = _ServiceAgent({BackgroundAgentsProvider: provider});
+      final evaluator = BackgroundTaskCompletionLoopEvaluator();
+
+      final result = await evaluator.evaluate(
+        LoopContext(agent, session, [_userText('go')], _text('partial')),
+      );
+
+      expect(result.shouldReinvoke, isTrue);
+      expect(result.feedback, contains('1 background task(s)'));
+      expect(
+        result.feedback,
+        contains('- #7 (researcher): dig into the archives'),
+      );
+      expect(result.feedback, isNot(contains('already done')));
+    });
+  });
+}
+
+void _seedBackgroundTasks(
+  AgentSession session,
+  List<BackgroundTaskInfo> tasks,
+) {
+  session.stateBag.setValue<BackgroundAgentState>(
+    'BackgroundAgentsProvider',
+    BackgroundAgentState()..tasks = tasks,
+  );
 }
 
 Future<void> _seedTodo(
@@ -539,6 +609,15 @@ class _ServiceAgent extends _ScriptedAgent {
   Object? getService(Type serviceType, {Object? serviceKey}) =>
       _services[serviceType] ??
       super.getService(serviceType, serviceKey: serviceKey);
+}
+
+class _NamedAgent extends _ScriptedAgent {
+  _NamedAgent(this._name);
+
+  final String _name;
+
+  @override
+  String? get name => _name;
 }
 
 class _TestSession extends AgentSession {

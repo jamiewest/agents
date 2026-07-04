@@ -2,6 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:agents/src/abstractions/agent_response.dart';
+import 'package:agents/src/abstractions/agent_response_update.dart';
+import 'package:agents/src/abstractions/agent_run_options.dart';
+import 'package:agents/src/abstractions/agent_session.dart';
+import 'package:agents/src/abstractions/agent_session_state_bag.dart';
+import 'package:agents/src/abstractions/ai_agent.dart';
+import 'package:agents/src/ai/skills/agent_skills_source_context.dart';
 import 'package:agents/src/mcp/agent_mcp_skills_source.dart';
 import 'package:agents/src/mcp/agent_mcp_skills_source_options.dart';
 import 'package:agents/src/mcp/mcp_client_task_extensions.dart';
@@ -144,15 +151,24 @@ void main() {
       'returns empty for missing empty malformed and unsupported indexes',
       () async {
         final missing = _FakeMcpClient();
-        expect(await AgentMcpSkillsSource(missing).getSkills(), isEmpty);
+        expect(
+          await AgentMcpSkillsSource(missing).getSkills(_skillsContext),
+          isEmpty,
+        );
 
         final empty = _FakeMcpClient()
           ..resources[AgentMcpSkillsSource.indexUri] = _textResource('');
-        expect(await AgentMcpSkillsSource(empty).getSkills(), isEmpty);
+        expect(
+          await AgentMcpSkillsSource(empty).getSkills(_skillsContext),
+          isEmpty,
+        );
 
         final malformed = _FakeMcpClient()
           ..resources[AgentMcpSkillsSource.indexUri] = _textResource('{nope');
-        expect(await AgentMcpSkillsSource(malformed).getSkills(), isEmpty);
+        expect(
+          await AgentMcpSkillsSource(malformed).getSkills(_skillsContext),
+          isEmpty,
+        );
 
         final unsupported = _FakeMcpClient()
           ..resources[AgentMcpSkillsSource.indexUri] = _textResource(
@@ -167,7 +183,10 @@ void main() {
               ],
             }),
           );
-        expect(await AgentMcpSkillsSource(unsupported).getSkills(), isEmpty);
+        expect(
+          await AgentMcpSkillsSource(unsupported).getSkills(_skillsContext),
+          isEmpty,
+        );
       },
     );
 
@@ -192,7 +211,9 @@ void main() {
           'guide',
         );
 
-      final skill = (await AgentMcpSkillsSource(client).getSkills()).single;
+      final skill = (await AgentMcpSkillsSource(
+        client,
+      ).getSkills(_skillsContext)).single;
 
       expect(skill.frontmatter.name, 'remote-skill');
       expect(await skill.getContent(), 'Use remote skill.');
@@ -221,8 +242,8 @@ void main() {
         ),
       );
 
-      await source.getSkills();
-      await source.getSkills();
+      await source.getSkills(_skillsContext);
+      await source.getSkills(_skillsContext);
 
       expect(client.resourceReadCount[AgentMcpSkillsSource.indexUri], 1);
     });
@@ -251,7 +272,7 @@ void main() {
       );
       client.resources[archiveUri] = _blobResource(_zipSkillArchive());
 
-      final skills = await source.getSkills();
+      final skills = await source.getSkills(_skillsContext);
 
       expect(skills.single.frontmatter.name, 'zip-skill');
       expect(await skills.single.getResource('references/guide.md'), isNotNull);
@@ -260,7 +281,7 @@ void main() {
       client.resources[AgentMcpSkillsSource.indexUri] = _textResource(
         jsonEncode({'skills': <Object>[]}),
       );
-      expect(await source.getSkills(), isEmpty);
+      expect(await source.getSkills(_skillsContext), isEmpty);
       expect(Directory('${root.path}/zip-skill').existsSync(), isFalse);
     });
 
@@ -291,7 +312,7 @@ void main() {
           archiveSkillsDirectory: root.path,
           archiveMaxFileCount: 1,
         ),
-      ).getSkills();
+      ).getSkills(_skillsContext);
 
       expect(skills, isEmpty);
       expect(Directory('${root.path}/limit-skill').existsSync(), isFalse);
@@ -454,4 +475,50 @@ Use zip skill.
     )
     ..addFile(ArchiveFile.string('zip-skill/references/guide.md', 'guide'));
   return ZipEncoder().encodeBytes(archive);
+}
+
+final _skillsContext = AgentSkillsSourceContext(_FakeAgent(), null);
+
+class _FakeSession extends AgentSession {
+  _FakeSession() : super(AgentSessionStateBag(null));
+}
+
+class _FakeAgent extends AIAgent {
+  @override
+  Future<AgentSession> createSessionCore({
+    CancellationToken? cancellationToken,
+  }) async => _FakeSession();
+
+  @override
+  Future<AgentSession> deserializeSessionCore(
+    dynamic serializedState, {
+    // ignore: non_constant_identifier_names
+    Object? JsonSerializerOptions,
+    CancellationToken? cancellationToken,
+  }) async => _FakeSession();
+
+  @override
+  Future<dynamic> serializeSessionCore(
+    AgentSession session, {
+    // ignore: non_constant_identifier_names
+    Object? JsonSerializerOptions,
+    CancellationToken? cancellationToken,
+  }) async => {};
+
+  @override
+  Future<AgentResponse> runCore(
+    Iterable<ChatMessage> messages, {
+    AgentSession? session,
+    AgentRunOptions? options,
+    CancellationToken? cancellationToken,
+  }) async =>
+      AgentResponse(message: ChatMessage.fromText(ChatRole.assistant, 'ok'));
+
+  @override
+  Stream<AgentResponseUpdate> runCoreStreaming(
+    Iterable<ChatMessage> messages, {
+    AgentSession? session,
+    AgentRunOptions? options,
+    CancellationToken? cancellationToken,
+  }) async* {}
 }

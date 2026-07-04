@@ -27,15 +27,23 @@ class ChatClientAgentSession extends AgentSession {
     Object? JsonSerializerOptions,
   }) {
     final map = jsonDecode(serializedState) as Map<String, dynamic>;
+    final bagJson = map['stateBag'];
     return ChatClientAgentSession(
       conversationId: map['conversationId'] as String?,
+      stateBag: bagJson == null
+          ? null
+          : AgentSessionStateBag.deserialize(jsonEncode(bagJson)),
     );
   }
 
-  /// Serializes this session to a JSON String.
+  /// Serializes this session to a JSON String, including the [stateBag] so
+  /// provider state (such as in-memory chat history) round-trips. Mirrors the
+  /// upstream C# shape `{conversationId, stateBag}`.
   // ignore: non_constant_identifier_names
-  String serialize({Object? JsonSerializerOptions}) =>
-      jsonEncode({'conversationId': conversationId});
+  String serialize({Object? JsonSerializerOptions}) => jsonEncode({
+    'conversationId': conversationId,
+    'stateBag': jsonDecode(stateBag.serialize()),
+  });
 
   /// A human-readable summary of this session for use in debugger displays.
   String get debuggerDisplay => conversationId != null

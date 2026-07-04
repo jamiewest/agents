@@ -310,7 +310,11 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
     _checkEnded();
     if (_outputFilter.canOutput(sourceId, output)) {
       await _addEventAsync(
-        WorkflowOutputEvent(executorId: sourceId, data: output),
+        WorkflowOutputEvent(
+          executorId: sourceId,
+          data: output,
+          tags: _workflow.outputTagsFor(sourceId),
+        ),
       );
     }
   }

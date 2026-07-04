@@ -12,6 +12,7 @@ import '../ai/skills/agent_skill.dart';
 import '../ai/skills/agent_skill_frontmatter.dart';
 import '../ai/skills/agent_skill_resource.dart';
 import '../ai/skills/agent_skills_source.dart';
+import '../ai/skills/agent_skills_source_context.dart';
 import '../ai/skills/file/agent_file_skills_source.dart';
 import '../ai/skills/file/agent_file_skills_source_options.dart';
 import 'agent_mcp_skill_resource.dart';
@@ -38,7 +39,8 @@ class AgentMcpSkillsSource extends AgentSkillsSource {
   String? _archiveSkillsDirectory;
 
   @override
-  Future<List<AgentSkill>> getSkills({
+  Future<List<AgentSkill>> getSkills(
+    AgentSkillsSourceContext context, {
     CancellationToken? cancellationToken,
   }) async {
     final cached = _tryGetCachedSkills();
@@ -51,7 +53,10 @@ class AgentMcpSkillsSource extends AgentSkillsSource {
       return existing;
     }
 
-    final refresh = _getCoreSkills(cancellationToken ?? CancellationToken.none);
+    final refresh = _getCoreSkills(
+      context,
+      cancellationToken ?? CancellationToken.none,
+    );
     _refreshFuture = refresh;
     try {
       final skills = await refresh;
@@ -78,6 +83,7 @@ class AgentMcpSkillsSource extends AgentSkillsSource {
   }
 
   Future<List<AgentSkill>> _getCoreSkills(
+    AgentSkillsSourceContext context,
     CancellationToken cancellationToken,
   ) async {
     cancellationToken.throwIfCancellationRequested();
@@ -100,6 +106,7 @@ class AgentMcpSkillsSource extends AgentSkillsSource {
       ..._loadSkillMdEntries(skillMdEntries),
       ...await _ArchiveEntryLoader(client, options).load(
         archiveEntries,
+        context: context,
         archiveSkillsDirectory: _archiveSkillsDirectory,
         onArchiveSkillsDirectoryResolved: (directory) {
           _archiveSkillsDirectory = directory;
@@ -315,6 +322,7 @@ class _ArchiveEntryLoader {
 
   Future<List<AgentSkill>> load(
     List<McpSkillIndexEntry> entries, {
+    required AgentSkillsSourceContext context,
     required String? archiveSkillsDirectory,
     required void Function(String directory) onArchiveSkillsDirectoryResolved,
     required CancellationToken cancellationToken,
@@ -359,7 +367,7 @@ class _ArchiveEntryLoader {
     return AgentFileSkillsSource(
       skillDirectories,
       options: fileOptions,
-    ).getSkills(cancellationToken: cancellationToken);
+    ).getSkills(context, cancellationToken: cancellationToken);
   }
 
   Future<String?> _tryDownloadAndExtractSkill(

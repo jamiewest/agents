@@ -1,6 +1,7 @@
 import 'package:extensions/system.dart';
 import 'agent_skill.dart';
 import 'agent_skills_source.dart';
+import 'agent_skills_source_context.dart';
 
 /// A skill source that holds [AgentSkill] instances in memory.
 class AgentInMemorySkillsSource extends AgentSkillsSource {
@@ -11,7 +12,10 @@ class AgentInMemorySkillsSource extends AgentSkillsSource {
   final List<AgentSkill> _skills;
 
   @override
-  Future<List<AgentSkill>> getSkills({CancellationToken? cancellationToken}) {
+  Future<List<AgentSkill>> getSkills(
+    AgentSkillsSourceContext context, {
+    CancellationToken? cancellationToken,
+  }) {
     return Future.value(_skills);
   }
 }

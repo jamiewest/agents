@@ -1,3 +1,6 @@
+import '../../../func_typedefs.dart';
+import 'agent_file_skill_filter_context.dart';
+
 /// Configuration options for file-based skill sources.
 ///
 /// Use this class to configure file-based skill discovery without relying on
@@ -43,4 +46,20 @@ class AgentFileSkillsSourceOptions {
   /// scans the resource directory and its immediate child directories. When
   /// `null`, defaults to `1`, preserving the historical behavior.
   int? resourceSearchDepth;
+
+  /// Filters discovered script files.
+  ///
+  /// The predicate receives an [AgentFileSkillFilterContext] containing the
+  /// skill's name and the file's path relative to the skill directory. Return
+  /// `true` to include the file or `false` to exclude it. When `null`, all
+  /// scripts matching the allowed extensions are included.
+  Func<AgentFileSkillFilterContext, bool>? scriptFilter;
+
+  /// Filters discovered resource files.
+  ///
+  /// The predicate receives an [AgentFileSkillFilterContext] containing the
+  /// skill's name and the file's path relative to the skill directory. Return
+  /// `true` to include the file or `false` to exclude it. When `null`, all
+  /// resources matching the allowed extensions are included.
+  Func<AgentFileSkillFilterContext, bool>? resourceFilter;
 }

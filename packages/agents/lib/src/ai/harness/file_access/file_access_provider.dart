@@ -4,6 +4,8 @@ import 'package:extensions/system.dart';
 import '../../../abstractions/ai_context.dart';
 import '../../../abstractions/ai_context_provider.dart';
 import '../file_store/agent_file_store.dart';
+import '../file_store/file_editor.dart';
+import '../file_store/file_line_edit.dart';
 import '../file_store/file_search_result.dart';
 import '../file_store/store_paths.dart';
 import 'file_access_provider_options.dart';
@@ -105,6 +107,49 @@ Use these tools to read input data provided by the user, write output artifacts,
         : "File '$fileName' not found.";
   }
 
+  /// Replace occurrences of a string in a file. Fails when the target string
+  /// is absent, or when it is ambiguous and [replaceAll] is `false`.
+  Future<String> replaceAsync(
+    String fileName,
+    String oldString,
+    String newString, {
+    bool replaceAll = false,
+    CancellationToken? cancellationToken,
+  }) async {
+    final path = StorePaths.normalizeRelativePath(fileName);
+    final content = await _fileStore.readFileAsync(path, cancellationToken);
+    if (content == null) {
+      return "File '$fileName' not found.";
+    }
+
+    final (newContent, count) = FileEditor.applyReplace(
+      content,
+      oldString,
+      newString,
+      replaceAll: replaceAll,
+    );
+    await _fileStore.writeFileAsync(path, newContent, cancellationToken);
+    return "Replaced $count occurrence(s) in '$fileName'.";
+  }
+
+  /// Replace lines in a file. Each edit targets a 1-based line number with
+  /// literal replacement text; an empty replacement deletes the line.
+  Future<String> replaceLinesAsync(
+    String fileName,
+    List<FileLineEdit> edits, {
+    CancellationToken? cancellationToken,
+  }) async {
+    final path = StorePaths.normalizeRelativePath(fileName);
+    final content = await _fileStore.readFileAsync(path, cancellationToken);
+    if (content == null) {
+      return "File '$fileName' not found.";
+    }
+
+    final newContent = FileEditor.applyReplaceLines(content, edits);
+    await _fileStore.writeFileAsync(path, newContent, cancellationToken);
+    return "Replaced ${edits.length} line(s) in '$fileName'.";
+  }
+
   /// List all file names.
   Future<List<String>> listFilesAsync({
     CancellationToken? cancellationToken,
@@ -184,6 +229,69 @@ Use these tools to read input data provided by the user, write output artifacts,
         },
       ),
       AIFunctionFactory.create(
+        name: 'FileAccess_Replace',
+        description:
+            'Replace occurrences of a string in a file. Fails when old_string is not found, or when it occurs more than once and replaceAll is not set.',
+        parametersSchema: _objectSchema(
+          {
+            'fileName': 'The name of the file to modify.',
+            'oldString': 'The exact text to replace.',
+            'newString': 'The replacement text.',
+            'replaceAll':
+                'Whether to replace every occurrence; when false, old_string must occur exactly once.',
+          },
+          required: ['fileName', 'oldString', 'newString'],
+        ),
+        callback: (arguments, {cancellationToken}) {
+          return replaceAsync(
+            _getRequiredString(arguments, 'fileName'),
+            _getRequiredString(arguments, 'oldString'),
+            _getRequiredString(arguments, 'newString'),
+            replaceAll: _getOptionalBool(arguments, 'replaceAll') ?? false,
+            cancellationToken: cancellationToken,
+          );
+        },
+      ),
+      AIFunctionFactory.create(
+        name: 'FileAccess_ReplaceLines',
+        description:
+            'Replace lines in a file. Provide a list of edits, each with a 1-based line_number and a literal new_line (include your own trailing newline); an empty new_line deletes the line, including its line break. Fails on out-of-range or duplicate line numbers.',
+        parametersSchema: const {
+          'type': 'object',
+          'properties': {
+            'fileName': {'description': 'The name of the file to modify.'},
+            'edits': {
+              'type': 'array',
+              'description':
+                  'The list of 1-based line numbers and their literal replacement text.',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'line_number': {
+                    'type': 'integer',
+                    'description': '1-based line number to replace.',
+                  },
+                  'new_line': {
+                    'type': 'string',
+                    'description':
+                        'Literal replacement text for the line; empty deletes the line.',
+                  },
+                },
+                'required': ['line_number', 'new_line'],
+              },
+            },
+          },
+          'required': ['fileName', 'edits'],
+        },
+        callback: (arguments, {cancellationToken}) {
+          return replaceLinesAsync(
+            _getRequiredString(arguments, 'fileName'),
+            _getLineEdits(arguments, 'edits'),
+            cancellationToken: cancellationToken,
+          );
+        },
+      ),
+      AIFunctionFactory.create(
         name: 'FileAccess_ListFiles',
         description: 'List all file names.',
         callback: (arguments, {cancellationToken}) {
@@ -234,6 +342,21 @@ Use these tools to read input data provided by the user, write output artifacts,
       return value;
     }
     throw ArgumentError.value(value, name, 'Expected a string value.');
+  }
+
+  static List<FileLineEdit> _getLineEdits(
+    AIFunctionArguments arguments,
+    String name,
+  ) {
+    final value = arguments[name];
+    if (value is List) {
+      return [
+        for (final entry in value)
+          if (entry is Map)
+            FileLineEdit.fromJson(entry.cast<String, Object?>()),
+      ];
+    }
+    throw ArgumentError.value(value, name, 'Expected a list of line edits.');
   }
 
   static bool? _getOptionalBool(AIFunctionArguments arguments, String name) {

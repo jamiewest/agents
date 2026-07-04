@@ -1,6 +1,7 @@
 import 'package:extensions/system.dart';
 import 'agent_skill.dart';
 import 'agent_skills_source.dart';
+import 'agent_skills_source_context.dart';
 
 /// A skill source that aggregates multiple child sources, preserving their
 /// registration order.
@@ -16,16 +17,25 @@ class AggregatingAgentSkillsSource extends AgentSkillsSource {
   final List<AgentSkillsSource> _sources;
 
   @override
-  Future<List<AgentSkill>> getSkills({
+  Future<List<AgentSkill>> getSkills(
+    AgentSkillsSourceContext context, {
     CancellationToken? cancellationToken,
   }) async {
     var allSkills = <AgentSkill>[];
     for (final source in _sources) {
       final skills = await source.getSkills(
+        context,
         cancellationToken: cancellationToken,
       );
       allSkills.addAll(skills);
     }
     return allSkills;
+  }
+
+  @override
+  void dispose() {
+    for (final source in _sources) {
+      source.dispose();
+    }
   }
 }

@@ -4,6 +4,7 @@ import 'package:extensions/system.dart';
 
 import 'agent_session.dart';
 import 'chat_history_provider.dart';
+import 'chat_message_json_converter.dart';
 import 'in_memory_chat_history_provider_options.dart';
 import 'invoked_context.dart';
 import 'provider_session_state.dart';
@@ -21,6 +22,7 @@ class InMemoryChatHistoryProvider extends ChatHistoryProvider {
         options?.stateInitializer ??
             ((_) => InMemoryChatHistoryProviderState()),
         options?.stateKey ?? 'InMemoryChatHistoryProvider',
+        stateRehydrator: InMemoryChatHistoryProviderState.fromJson,
         JsonSerializerOptions: options?.JsonSerializerOptions,
       ),
       chatReducer = options?.chatReducer,
@@ -99,4 +101,19 @@ class InMemoryChatHistoryProvider extends ChatHistoryProvider {
 class InMemoryChatHistoryProviderState {
   /// The stored chat messages.
   List<ChatMessage> messages = [];
+
+  /// Encodes this state to a JSON-compatible map so the session's
+  /// [AgentSessionStateBag] can serialize the stored transcript.
+  Map<String, Object?> toJson() => {
+    'messages': ChatMessageJsonConverter.encodeList(messages),
+  };
+
+  /// Rebuilds the state from a raw JSON-decoded value produced by [toJson].
+  static InMemoryChatHistoryProviderState fromJson(Object? json) {
+    final state = InMemoryChatHistoryProviderState();
+    if (json is Map) {
+      state.messages = ChatMessageJsonConverter.decodeList(json['messages']);
+    }
+    return state;
+  }
 }

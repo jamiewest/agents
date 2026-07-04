@@ -1,11 +1,16 @@
 import 'edge.dart';
 import 'executor_binding.dart';
+import 'output_tag.dart';
 import 'protocol_descriptor.dart';
 import 'request_port.dart';
 
 /// A class that represents a workflow that can be executed.
 class Workflow {
   /// Creates a [Workflow] with the given [startExecutorId].
+  ///
+  /// Output executors may be given as plain [outputExecutorIds] (untagged
+  /// terminal outputs) or as an [outputExecutors] map associating each id
+  /// with its set of [OutputTag]s; the two are merged.
   Workflow(
     this.startExecutorId, {
     this.name,
@@ -13,13 +18,20 @@ class Workflow {
     Iterable<ExecutorBinding> executorBindings = const <ExecutorBinding>[],
     Iterable<Edge> edges = const <Edge>[],
     Iterable<String> outputExecutorIds = const <String>[],
+    Map<String, Set<OutputTag>> outputExecutors =
+        const <String, Set<OutputTag>>{},
     Iterable<RequestPortDescriptor> requestPorts =
         const <RequestPortDescriptor>[],
   }) : _executorBindings = Map<String, ExecutorBinding>.unmodifiable({
          for (final binding in executorBindings) binding.id: binding,
        }),
        _edges = List<Edge>.unmodifiable(edges),
-       _outputExecutorIds = List<String>.unmodifiable(outputExecutorIds),
+       _outputExecutors = Map<String, Set<OutputTag>>.unmodifiable({
+         for (final executorId in outputExecutorIds)
+           executorId: const <OutputTag>{},
+         for (final entry in outputExecutors.entries)
+           entry.key: Set<OutputTag>.unmodifiable(entry.value),
+       }),
        _requestPorts = List<RequestPortDescriptor>.unmodifiable(requestPorts);
 
   /// Gets the identifier of the starting executor of the workflow.
@@ -33,7 +45,7 @@ class Workflow {
 
   final Map<String, ExecutorBinding> _executorBindings;
   final List<Edge> _edges;
-  final List<String> _outputExecutorIds;
+  final Map<String, Set<OutputTag>> _outputExecutors;
   final List<RequestPortDescriptor> _requestPorts;
 
   Object? _ownerToken;
@@ -63,7 +75,15 @@ class Workflow {
   Iterable<Edge> reflectEdges() => _edges;
 
   /// Gets output executor identifiers.
-  Iterable<String> reflectOutputExecutors() => _outputExecutorIds;
+  Iterable<String> reflectOutputExecutors() => _outputExecutors.keys;
+
+  /// Gets output executor identifiers with their associated [OutputTag]s.
+  Map<String, Set<OutputTag>> reflectOutputExecutorTags() => _outputExecutors;
+
+  /// Gets the output tags registered for [executorId]; empty when the
+  /// executor is untagged or not an output executor.
+  Set<OutputTag> outputTagsFor(String executorId) =>
+      _outputExecutors[executorId] ?? const <OutputTag>{};
 
   /// Gets request ports exposed by the workflow.
   Iterable<RequestPortDescriptor> reflectPorts() => _requestPorts;
@@ -81,7 +101,7 @@ class Workflow {
 
     final producedTypes = <Type>[];
     final seenPorts = <RequestPortDescriptor>{..._requestPorts};
-    for (final outputExecutorId in _outputExecutorIds) {
+    for (final outputExecutorId in _outputExecutors.keys) {
       final binding = _executorBindings[outputExecutorId];
       if (binding == null) {
         continue;

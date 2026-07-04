@@ -109,7 +109,11 @@ class SuperStepRunner {
 
         for (final yieldedOutput in stepContext.outputs) {
           context.addEvent(
-            WorkflowOutputEvent(executorId: executor.id, data: yieldedOutput),
+            WorkflowOutputEvent(
+              executorId: executor.id,
+              data: yieldedOutput,
+              tags: context.outputTagsFor(executor.id),
+            ),
           );
         }
         for (final request in stepContext.requests) {
@@ -119,7 +123,11 @@ class SuperStepRunner {
 
         if (context.isOutputExecutor(executor.id) && output != null) {
           context.addEvent(
-            WorkflowOutputEvent(executorId: executor.id, data: output),
+            WorkflowOutputEvent(
+              executorId: executor.id,
+              data: output,
+              tags: context.outputTagsFor(executor.id),
+            ),
           );
         }
         if (output != null) {

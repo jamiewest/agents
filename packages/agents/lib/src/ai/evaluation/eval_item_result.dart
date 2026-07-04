@@ -1,3 +1,5 @@
+import 'rubric_score.dart';
+
 /// Per-item result from a Foundry evaluation run, with individual evaluator
 /// scores and error details.
 class EvalItemResult {
@@ -38,6 +40,11 @@ class EvalScoreResult {
   String name;
   double score;
   bool? passed;
+
+  /// Per-dimension breakdown emitted by rubric-based evaluators, or `null`
+  /// for non-rubric evaluators (built-in quality, safety, or agent-behavior
+  /// evaluators).
+  List<RubricScore>? dimensions;
 
   @override
   bool operator ==(Object other) {

@@ -6,6 +6,7 @@ import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/ai_agent_metadata.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
 import 'package:agents/src/abstractions/ai_context_provider.dart';
+import 'package:agents/src/abstractions/in_memory_chat_history_provider.dart';
 import 'package:agents/src/ai/chat_client/chat_client_agent.dart';
 import 'package:agents/src/ai/chat_client/chat_client_agent_options.dart';
 import 'package:agents/src/ai/chat_client/chat_client_agent_run_options.dart';
@@ -119,6 +120,40 @@ void main() {
       final agent = _makeAgent();
       final session = await agent.createSession();
       expect(session, isA<ChatClientAgentSession>());
+    });
+
+    test('serialized session round-trips stateBag values', () async {
+      final agent = _makeAgent();
+      final session = ChatClientAgentSession(conversationId: 'conv-42');
+      session.stateBag.setValue<String>('custom-key', 'custom-value');
+
+      final serialized = await agent.serializeSession(session);
+      final restored =
+          await agent.deserializeSession(serialized) as ChatClientAgentSession;
+
+      expect(restored.conversationId, 'conv-42');
+      expect(restored.stateBag.getValue<String>('custom-key'), 'custom-value');
+    });
+
+    test('in-memory chat history survives session serialization', () async {
+      final client = _ScriptedChatClient()
+        ..onGetResponse = (_, _, _) => ChatResponse.fromMessage(
+          ChatMessage.fromText(ChatRole.assistant, 'hello back'),
+        );
+      final agent = ChatClientAgent(
+        client,
+        options: ChatClientAgentOptions()..useProvidedChatClientAsIs = true,
+      );
+      final session = await agent.createSession();
+      await agent.run(session, null, message: 'hello');
+
+      final serialized = await agent.serializeSession(session);
+      final restored = await agent.deserializeSession(serialized);
+      final provider =
+          agent.chatHistoryProvider! as InMemoryChatHistoryProvider;
+      final history = provider.getMessages(restored);
+
+      expect(history.map((m) => m.text), containsAll(['hello', 'hello back']));
     });
   });
 

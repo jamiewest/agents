@@ -93,6 +93,19 @@ You have access to background agents that can perform work on your behalf.
     ];
   }
 
+  /// Returns the background tasks for [session] that are still running.
+  ///
+  /// Completed, failed, and lost tasks are terminal and are not included.
+  /// Used by `BackgroundTaskCompletionLoopEvaluator` to keep a loop agent
+  /// iterating until all background work has finished.
+  List<BackgroundTaskInfo> getIncompleteTasks(AgentSession? session) {
+    final state = _sessionState.getOrInitializeState(session);
+    return [
+      for (final task in state.tasks)
+        if (task.status == BackgroundTaskStatus.running) task,
+    ];
+  }
+
   @override
   Future<AIContext> provideAIContext(
     InvokingContext context, {

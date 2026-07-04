@@ -1,5 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'agent_session_state_bag_value.dart';
 
@@ -46,8 +47,28 @@ class AgentSessionStateBag {
   bool tryRemoveValue(String key) => _state.remove(key) != null;
 
   /// Serializes the state bag to a JSON String.
+  ///
+  /// Values that cannot be JSON-encoded (plain objects without a `toJson`)
+  /// are skipped with a debug log. Upstream C# serializes every value via
+  /// reflection-based `System.Text.Json`; Dart has no reflection, so values
+  /// must be JSON-encodable (primitives, maps, lists, or objects exposing
+  /// `toJson`) to round-trip.
   String serialize() {
-    return jsonEncode(_state.map((k, v) => MapEntry(k, v.toJson())));
+    final encodable = <String, Object?>{};
+    _state.forEach((key, value) {
+      final raw = value.toJson();
+      try {
+        jsonEncode(raw);
+        encodable[key] = raw;
+      } on Object {
+        developer.log(
+          'Skipping non-JSON-encodable session state value for key "$key" '
+          '(${raw.runtimeType}).',
+          name: 'agents.abstractions.agent_session_state_bag',
+        );
+      }
+    });
+    return jsonEncode(encodable);
   }
 
   /// Deserializes an [AgentSessionStateBag] from a JSON String.

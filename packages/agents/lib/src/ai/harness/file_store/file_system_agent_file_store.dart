@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'agent_file_store.dart';
 import 'file_search_match.dart';
 import 'file_search_result.dart';
+import 'file_store_entry.dart';
 import 'store_paths.dart';
 
 /// A file-system-backed implementation of [AgentFileStore] that stores files
@@ -108,6 +109,26 @@ class FileSystemAgentFileStore extends AgentFileStore {
         .whereType<File>()
         .map((file) => p.basename(file.path))
         .toList();
+  }
+
+  @override
+  Future<List<FileStoreEntry>> listChildrenAsync(
+    String directory, [
+    CancellationToken? cancellationToken,
+  ]) async {
+    final fullDir = resolveSafeDirectoryPath(directory);
+    final dir = _fs.directory(fullDir);
+    if (!dir.existsSync()) {
+      return [];
+    }
+
+    final entries = dir.listSync(followLinks: false);
+    return [
+      for (final entry in entries.whereType<Directory>())
+        FileStoreEntry(p.basename(entry.path), FileStoreEntry.directory),
+      for (final entry in entries.whereType<File>())
+        FileStoreEntry(p.basename(entry.path), FileStoreEntry.file),
+    ];
   }
 
   @override

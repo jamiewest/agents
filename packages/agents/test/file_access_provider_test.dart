@@ -31,13 +31,15 @@ void main() {
     test('returns tools', () async {
       final tools = await createTools();
 
-      expect(tools, hasLength(5));
+      expect(tools, hasLength(7));
       expect(
         tools.whereType<AIFunction>().map((t) => t.name),
         unorderedEquals([
           'FileAccess_SaveFile',
           'FileAccess_ReadFile',
           'FileAccess_DeleteFile',
+          'FileAccess_Replace',
+          'FileAccess_ReplaceLines',
           'FileAccess_ListFiles',
           'FileAccess_SearchFiles',
         ]),
@@ -412,6 +414,79 @@ void main() {
       final result = await provider.invoking(createInvokingContext());
 
       expect(result.instructions, contains('File Access'));
+    });
+  });
+
+  group('FileAccessProvider replace', () {
+    test('replaces a unique occurrence and reports the count', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'hello world');
+      final tools = await createTools(store);
+      final replace = getTool(tools, 'FileAccess_Replace');
+
+      final message = await replace.invoke(
+        AIFunctionArguments({
+          'fileName': 'notes.md',
+          'oldString': 'world',
+          'newString': 'dart',
+        }),
+      );
+
+      expect(message, "Replaced 1 occurrence(s) in 'notes.md'.");
+      expect(await store.readFileAsync('notes.md'), 'hello dart');
+    });
+
+    test('missing file returns a not-found message', () async {
+      final tools = await createTools();
+      final replace = getTool(tools, 'FileAccess_Replace');
+
+      final message = await replace.invoke(
+        AIFunctionArguments({
+          'fileName': 'missing.md',
+          'oldString': 'a',
+          'newString': 'b',
+        }),
+      );
+
+      expect(message, "File 'missing.md' not found.");
+    });
+
+    test('ambiguous old string without replaceAll throws', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'a a');
+      final tools = await createTools(store);
+      final replace = getTool(tools, 'FileAccess_Replace');
+
+      await expectLater(
+        () => replace.invoke(
+          AIFunctionArguments({
+            'fileName': 'notes.md',
+            'oldString': 'a',
+            'newString': 'b',
+          }),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('replace_lines applies whole-line edits', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\ntwo\nthree\n');
+      final tools = await createTools(store);
+      final replaceLines = getTool(tools, 'FileAccess_ReplaceLines');
+
+      final message = await replaceLines.invoke(
+        AIFunctionArguments({
+          'fileName': 'notes.md',
+          'edits': [
+            {'line_number': 2, 'new_line': 'TWO\n'},
+            {'line_number': 3, 'new_line': ''},
+          ],
+        }),
+      );
+
+      expect(message, "Replaced 2 line(s) in 'notes.md'.");
+      expect(await store.readFileAsync('notes.md'), 'one\nTWO\n');
     });
   });
 }

@@ -1,3 +1,4 @@
+import 'package:agents/src/ai/harness/file_store/file_store_entry.dart';
 import 'package:agents/src/ai/harness/file_store/in_memory_agent_file_store.dart';
 import 'package:test/test.dart';
 
@@ -385,6 +386,33 @@ void main() {
         store.createDirectoryAsync('../folder'),
         throwsArgumentError,
       );
+    });
+
+    test('listChildren returns directories before files', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('root.txt', 'r');
+      await store.writeFileAsync('sub/nested.txt', 'n');
+      await store.writeFileAsync('sub/deeper/leaf.txt', 'l');
+
+      final children = await store.listChildrenAsync('');
+
+      expect(children, [
+        FileStoreEntry('sub', FileStoreEntry.directory),
+        FileStoreEntry('root.txt', FileStoreEntry.file),
+      ]);
+    });
+
+    test('listChildren lists direct children of a subdirectory', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('sub/nested.txt', 'n');
+      await store.writeFileAsync('sub/deeper/leaf.txt', 'l');
+
+      final children = await store.listChildrenAsync('sub');
+
+      expect(children, [
+        FileStoreEntry('deeper', FileStoreEntry.directory),
+        FileStoreEntry('nested.txt', FileStoreEntry.file),
+      ]);
     });
   });
 }

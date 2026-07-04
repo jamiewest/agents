@@ -45,6 +45,33 @@ class ChatClientAgentOptions {
   /// rather than at the end of the full agent run.
   bool requirePerServiceCallChatHistoryPersistence = false;
 
+  /// When `true`, a `MessageInjectingChatClient` is added to the pipeline
+  /// between the `FunctionInvokingChatClient` and the inner client. This
+  /// enables external code (such as tool delegates) to inject messages into
+  /// the function execution loop via the `MessageInjectingChatClient`, which
+  /// can be resolved from the chat client using
+  /// `getService<MessageInjectingChatClient>()`.
+  ///
+  /// It is recommended to also enable
+  /// [requirePerServiceCallChatHistoryPersistence] when using message
+  /// injection so injected messages are persisted between service calls.
+  /// This option has no effect when [useProvidedChatClientAsIs] is `true`;
+  /// add the decorator manually via `useMessageInjection` in that case.
+  bool enableMessageInjection = false;
+
+  /// When `true`, a `NonApprovalRequiredFunctionBypassingChatClient`
+  /// decorator is injected above `FunctionInvokingChatClient` in the
+  /// pipeline. The decorator identifies approval requests for
+  /// non-approval-required tools, removes them from the response, and stores
+  /// them in the session. On the next request, the stored items are
+  /// automatically re-injected as approved, so the caller only needs to
+  /// handle approval requests for tools that truly require human approval.
+  ///
+  /// This option has no effect when [useProvidedChatClientAsIs] is `true`;
+  /// add the decorator manually via
+  /// `useNonApprovalRequiredFunctionBypassing` in that case.
+  bool enableNonApprovalRequiredFunctionBypassing = false;
+
   /// Creates a shallow copy of these options.
   ChatClientAgentOptions clone() => ChatClientAgentOptions()
     ..id = id
@@ -60,5 +87,8 @@ class ChatClientAgentOptions {
     ..warnOnChatHistoryProviderConflict = warnOnChatHistoryProviderConflict
     ..throwOnChatHistoryProviderConflict = throwOnChatHistoryProviderConflict
     ..requirePerServiceCallChatHistoryPersistence =
-        requirePerServiceCallChatHistoryPersistence;
+        requirePerServiceCallChatHistoryPersistence
+    ..enableMessageInjection = enableMessageInjection
+    ..enableNonApprovalRequiredFunctionBypassing =
+        enableNonApprovalRequiredFunctionBypassing;
 }

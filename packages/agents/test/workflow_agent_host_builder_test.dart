@@ -8,8 +8,12 @@ import 'package:agents/src/workflows/agent_response_update_event.dart';
 import 'package:agents/src/workflows/agent_workflow_builder.dart';
 import 'package:agents/src/workflows/ai_agent_extensions.dart';
 import 'package:agents/src/workflows/ai_agent_host_options.dart';
+import 'package:agents/src/workflows/concurrent_workflow_builder.dart';
 import 'package:agents/src/workflows/executor_instance_binding.dart';
 import 'package:agents/src/workflows/in_process_execution.dart';
+import 'package:agents/src/workflows/output_tag.dart';
+import 'package:agents/src/workflows/sequential_workflow_builder.dart';
+import 'package:agents/src/workflows/workflow_output_event_extensions.dart';
 import 'package:agents/src/workflows/specialized/aggregate_turn_messages_executor.dart';
 import 'package:agents/src/workflows/specialized/ai_agent_host_executor.dart';
 import 'package:agents/src/workflows/specialized/concurrent_end_executor.dart';
@@ -350,6 +354,157 @@ void main() {
         () => AgentWorkflowBuilder.buildConcurrent(const <AIAgent>[]),
         throwsArgumentError,
       );
+    });
+  });
+
+  group('Fluent orchestration builders', () {
+    test(
+      'SequentialWorkflowBuilder pipelines agents with default outputs',
+      () async {
+        final workflow = SequentialWorkflowBuilder([
+          _ScriptedAgent(
+            name: 'agent1',
+            onRun: (messages, options) => _assistant('one'),
+          ),
+          _ScriptedAgent(
+            name: 'agent2',
+            onRun: (messages, options) => _assistant('two'),
+          ),
+        ]).withName('Pipeline').withDescription('desc').build();
+
+        expect(workflow.name, 'Pipeline');
+        expect(workflow.description, 'desc');
+
+        final run = await inProcessExecution.runAsync(workflow, [
+          ChatMessage.fromText(ChatRole.user, 'abc'),
+        ]);
+        final outputEvents = run.outgoingEvents
+            .whereType<WorkflowOutputEvent>()
+            .toList();
+
+        final terminal = outputEvents.where((e) => !e.isIntermediate).toList();
+        final intermediate = outputEvents.where((e) => e.isIntermediate);
+        expect(terminal, hasLength(1));
+        expect((terminal.single.data as List<ChatMessage>).map((m) => m.text), [
+          'abc',
+          'one',
+          'two',
+        ]);
+        expect(intermediate.map((e) => e.executorId), ['agent1', 'agent2']);
+      },
+    );
+
+    test('withChainOnlyAgentResponses passes only prior output', () async {
+      late List<ChatMessage> agent2Saw;
+      final workflow = SequentialWorkflowBuilder([
+        _ScriptedAgent(
+          name: 'agent1',
+          onRun: (messages, options) => _assistant('one'),
+        ),
+        _ScriptedAgent(
+          name: 'agent2',
+          onRun: (messages, options) {
+            agent2Saw = messages;
+            return _assistant('two');
+          },
+        ),
+      ]).withChainOnlyAgentResponses().build();
+
+      final run = await inProcessExecution.runAsync(workflow, [
+        ChatMessage.fromText(ChatRole.user, 'abc'),
+      ]);
+      final terminal = run.outgoingEvents
+          .whereType<WorkflowOutputEvent>()
+          .where((e) => !e.isIntermediate)
+          .single;
+
+      expect(agent2Saw.map((m) => m.text), ['one']);
+      expect((terminal.data as List<ChatMessage>).map((m) => m.text), ['two']);
+    });
+
+    test('ConcurrentWorkflowBuilder fans out and aggregates via custom '
+        'aggregator', () async {
+      final workflow =
+          ConcurrentWorkflowBuilder([
+            _ScriptedAgent(
+              name: 'agent1',
+              onRun: (_, options) => _assistant('one'),
+            ),
+            _ScriptedAgent(
+              name: 'agent2',
+              onRun: (_, options) => _assistant('two'),
+            ),
+          ]).withAggregator((lists) {
+            final texts = [
+              for (final list in lists)
+                if (list.isNotEmpty) list.last.text,
+            ]..sort();
+            return [ChatMessage.fromText(ChatRole.assistant, texts.join('+'))];
+          }).build();
+
+      final run = await inProcessExecution.runAsync(workflow, [
+        ChatMessage.fromText(ChatRole.user, 'abc'),
+      ]);
+      final terminal = run.outgoingEvents
+          .whereType<WorkflowOutputEvent>()
+          .where((e) => !e.isIntermediate)
+          .single;
+
+      expect((terminal.data as List<ChatMessage>).single.text, 'one+two');
+    });
+
+    test('explicit withOutputFrom suppresses default designations', () async {
+      final agent1 = _ScriptedAgent(
+        name: 'agent1',
+        onRun: (messages, options) => _assistant('one'),
+      );
+      final workflow = SequentialWorkflowBuilder([
+        agent1,
+        _ScriptedAgent(
+          name: 'agent2',
+          onRun: (messages, options) => _assistant('two'),
+        ),
+      ]).withOutputFrom([agent1]).build();
+
+      final run = await inProcessExecution.runAsync(workflow, [
+        ChatMessage.fromText(ChatRole.user, 'abc'),
+      ]);
+      final outputEvents = run.outgoingEvents
+          .whereType<WorkflowOutputEvent>()
+          .toList();
+
+      expect(outputEvents.map((e) => e.executorId), ['agent1']);
+      expect(outputEvents.single.tags, isEmpty);
+    });
+
+    test('designating a non-participant agent throws on build', () {
+      final outsider = _ScriptedAgent(name: 'outsider');
+      final builder = SequentialWorkflowBuilder([
+        _ScriptedAgent(name: 'agent1'),
+      ]).withOutputFrom([outsider]);
+
+      expect(builder.build, throwsStateError);
+    });
+
+    test('builders validate empty agents', () {
+      expect(
+        () => SequentialWorkflowBuilder(const <AIAgent>[]).build(),
+        throwsArgumentError,
+      );
+      expect(
+        () => ConcurrentWorkflowBuilder(const <AIAgent>[]).build(),
+        throwsArgumentError,
+      );
+    });
+
+    test('OutputTag has value equality and singleton resolution', () {
+      expect(OutputTag.fromValue('intermediate'), OutputTag.intermediate);
+      expect(
+        identical(OutputTag.fromValue('intermediate'), OutputTag.intermediate),
+        isTrue,
+      );
+      expect(OutputTag.fromValue('custom'), OutputTag.fromValue('custom'));
+      expect(OutputTag.fromValue('custom'), isNot(OutputTag.intermediate));
     });
   });
 

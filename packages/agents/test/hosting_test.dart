@@ -6,8 +6,11 @@ import 'package:agents/src/abstractions/agent_session.dart';
 import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/hosting/ai_host_agent.dart';
+import 'package:agents/src/hosting/isolation_key_scoped_agent_session_store.dart';
+import 'package:agents/src/hosting/isolation_key_scoped_agent_session_store_options.dart';
 import 'package:agents/src/hosting/local/in_memory_agent_session_store.dart';
 import 'package:agents/src/hosting/noop_agent_session_store.dart';
+import 'package:agents/src/hosting/session_isolation_key_provider.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 import 'package:test/test.dart';
@@ -107,6 +110,101 @@ void main() {
       // getSession still creates a new session (nothing was persisted)
       final session = await store.getSession(agent, 'conv-1');
       expect(session, isA<_TestSession>());
+    });
+  });
+
+  group('IsolationKeyScopedAgentSessionStore', () {
+    test('scopes conversation ids with the isolation key', () async {
+      final inner = _RecordingSessionStore();
+      final store = IsolationKeyScopedAgentSessionStore(
+        inner,
+        _FixedKeyProvider('user-1'),
+      );
+      final agent = _TestAgent();
+
+      await store.saveSession(agent, 'conv-1', _TestSession(marker: 'mine'));
+      final retrieved = await store.getSession(agent, 'conv-1') as _TestSession;
+
+      expect(retrieved.marker, 'mine');
+      expect(inner.seenConversationIds, everyElement('user-1::conv-1'));
+    });
+
+    test(
+      'different isolation keys cannot see each other\'s sessions',
+      () async {
+        final inner = InMemoryAgentSessionStore();
+        final agent = _TestAgent();
+        final storeA = IsolationKeyScopedAgentSessionStore(
+          inner,
+          _FixedKeyProvider('alice'),
+        );
+        final storeB = IsolationKeyScopedAgentSessionStore(
+          inner,
+          _FixedKeyProvider('bob'),
+        );
+
+        await storeA.saveSession(
+          agent,
+          'conv-1',
+          _TestSession(marker: 'alice'),
+        );
+        final bobSession =
+            await storeB.getSession(agent, 'conv-1') as _TestSession;
+
+        expect(bobSession.marker, isNot('alice'));
+      },
+    );
+
+    test('strict mode throws when no key is available', () async {
+      final store = IsolationKeyScopedAgentSessionStore(
+        InMemoryAgentSessionStore(),
+        _FixedKeyProvider(null),
+      );
+
+      await expectLater(
+        () => store.getSession(_TestAgent(), 'conv-1'),
+        throwsStateError,
+      );
+    });
+
+    test('non-strict mode passes conversation id through unscoped', () async {
+      final inner = _RecordingSessionStore();
+      final store = IsolationKeyScopedAgentSessionStore(
+        inner,
+        null,
+        options: IsolationKeyScopedAgentSessionStoreOptions()..strict = false,
+      );
+
+      await store.getSession(_TestAgent(), 'conv-1');
+
+      expect(inner.seenConversationIds, ['conv-1']);
+    });
+
+    test('escapes separator characters in isolation keys', () async {
+      final inner = _RecordingSessionStore();
+      final store = IsolationKeyScopedAgentSessionStore(
+        inner,
+        _FixedKeyProvider(r'a:b\c'),
+      );
+
+      await store.getSession(_TestAgent(), 'conv-1');
+
+      expect(inner.seenConversationIds, [r'a\:b\\c::conv-1']);
+    });
+
+    test('getService inspects the delegation chain', () {
+      final inner = InMemoryAgentSessionStore();
+      final store = IsolationKeyScopedAgentSessionStore(
+        inner,
+        _FixedKeyProvider('key'),
+      );
+
+      expect(
+        store.getService(IsolationKeyScopedAgentSessionStore),
+        same(store),
+      );
+      expect(store.getService(InMemoryAgentSessionStore), same(inner));
+      expect(store.getService(String), isNull);
     });
   });
 
@@ -256,4 +354,49 @@ class _FakeSessionStore extends InMemoryAgentSessionStore {
     lastSaveSession = session;
     lastSaveCancellationToken = cancellationToken;
   }
+}
+
+class _RecordingSessionStore extends InMemoryAgentSessionStore {
+  final List<String> seenConversationIds = [];
+
+  @override
+  Future<AgentSession> getSession(
+    AIAgent agent,
+    String conversationId, {
+    CancellationToken? cancellationToken,
+  }) {
+    seenConversationIds.add(conversationId);
+    return super.getSession(
+      agent,
+      conversationId,
+      cancellationToken: cancellationToken,
+    );
+  }
+
+  @override
+  Future saveSession(
+    AIAgent agent,
+    String conversationId,
+    AgentSession session, {
+    CancellationToken? cancellationToken,
+  }) {
+    seenConversationIds.add(conversationId);
+    return super.saveSession(
+      agent,
+      conversationId,
+      session,
+      cancellationToken: cancellationToken,
+    );
+  }
+}
+
+class _FixedKeyProvider extends SessionIsolationKeyProvider {
+  _FixedKeyProvider(this.key);
+
+  final String? key;
+
+  @override
+  Future<String?> getSessionIsolationKey({
+    CancellationToken? cancellationToken,
+  }) async => key;
 }

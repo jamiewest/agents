@@ -17,6 +17,7 @@ import 'package:agents/src/workflows/checkpointing/json_wire_serialized_value.da
 import 'package:agents/src/workflows/checkpointing/portable_message_envelope.dart';
 import 'package:agents/src/workflows/checkpointing/session_checkpoint_cache.dart';
 import 'package:agents/src/workflows/checkpointing/workflow_info.dart';
+import 'package:agents/src/workflows/output_tag.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -71,6 +72,38 @@ void main() {
         EdgeInfo.fromJson(workflow.edges.first.toJson()),
         isA<DirectEdgeInfo>(),
       );
+    });
+
+    test('workflow info round trips tagged output executors', () {
+      final info = WorkflowInfo(
+        startExecutorId: 'start',
+        executors: const [ExecutorInfo(executorId: 'start')],
+        outputExecutors: {
+          'end': const <OutputTag>{},
+          'agent1': {OutputTag.intermediate},
+        },
+      );
+
+      final json = info.toJson();
+      expect(json['outputExecutorIds'], {
+        'end': <Object?>[],
+        'agent1': ['intermediate'],
+      });
+
+      final clone = WorkflowInfo.fromJson(json);
+      expect(clone.outputExecutors['end'], isEmpty);
+      expect(clone.outputExecutors['agent1'], {OutputTag.intermediate});
+    });
+
+    test('workflow info reads legacy array-shaped output executors', () {
+      final clone = WorkflowInfo.fromJson({
+        'startExecutorId': 'start',
+        'outputExecutorIds': ['end', 'other'],
+      });
+
+      expect(clone.outputExecutorIds, ['end', 'other']);
+      expect(clone.outputExecutors['end'], isEmpty);
+      expect(clone.outputExecutors['other'], isEmpty);
     });
 
     test('checkpoint round trips JSON-shaped payload and pending messages', () {

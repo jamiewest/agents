@@ -1,4 +1,5 @@
 import '../executor.dart';
+import '../output_tag.dart';
 import '../workflow.dart';
 import '../workflow_event.dart';
 import 'edge_map.dart';
@@ -36,6 +37,10 @@ class RunnerContext {
   /// Gets whether [executorId] is a workflow output executor.
   bool isOutputExecutor(String executorId) =>
       outputExecutorIds.contains(executorId);
+
+  /// Gets the output tags registered for [executorId].
+  Set<OutputTag> outputTagsFor(String executorId) =>
+      workflow.outputTagsFor(executorId);
 
   /// Adds [event] to the emitted events.
   void addEvent(WorkflowEvent event) => events.add(event);

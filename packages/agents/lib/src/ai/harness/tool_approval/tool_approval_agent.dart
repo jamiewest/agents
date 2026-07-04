@@ -11,27 +11,62 @@ import '../../../abstractions/provider_session_state.dart';
 import '../../../json_stubs.dart';
 import '../../agent_json_utilities.dart';
 import 'always_approve_tool_approval_response_content.dart';
+import 'tool_approval_agent_options.dart';
 import 'tool_approval_rule.dart';
 import 'tool_approval_state.dart';
 
 /// Middleware that handles standing tool-approval rules and queues approval
 /// requests so callers see at most one unresolved request at a time.
 class ToolApprovalAgent extends DelegatingAIAgent {
-  ToolApprovalAgent(
-    AIAgent? innerAgent, {
-    JsonSerializerOptions? jsonSerializerOptions,
-  }) : _jsonSerializerOptions =
-           jsonSerializerOptions ?? AgentJsonUtilities.defaultOptions,
-       _sessionState = ProviderSessionState<ToolApprovalState>(
-         (_) => ToolApprovalState(),
-         'toolApprovalState',
-         JsonSerializerOptions:
-             jsonSerializerOptions ?? AgentJsonUtilities.defaultOptions,
-       ),
-       super(innerAgent ?? (throw ArgumentError.notNull('innerAgent')));
+  ToolApprovalAgent(AIAgent? innerAgent, {ToolApprovalAgentOptions? options})
+    : _jsonSerializerOptions =
+          options?.jsonSerializerOptions ?? AgentJsonUtilities.defaultOptions,
+      _autoApprovalRules = options?.autoApprovalRules?.toList(),
+      _sessionState = ProviderSessionState<ToolApprovalState>(
+        (_) => ToolApprovalState(),
+        'toolApprovalState',
+        JsonSerializerOptions:
+            options?.jsonSerializerOptions ?? AgentJsonUtilities.defaultOptions,
+      ),
+      super(innerAgent ?? (throw ArgumentError.notNull('innerAgent')));
 
   final ProviderSessionState<ToolApprovalState> _sessionState;
   final JsonSerializerOptions _jsonSerializerOptions;
+  final List<Future<bool> Function(FunctionCallContent functionCall)>?
+  _autoApprovalRules;
+
+  /// An auto-approval rule that approves every function call.
+  ///
+  /// Add this rule to [ToolApprovalAgentOptions.autoApprovalRules] to
+  /// automatically approve all tool calls without prompting the user.
+  static Future<bool> Function(FunctionCallContent functionCall)
+  get allToolsAutoApprovalRule => _allToolsAutoApprovalRule;
+
+  static Future<bool> _allToolsAutoApprovalRule(
+    FunctionCallContent functionCall,
+  ) async => true;
+
+  /// Returns `true` when [request] is approved by one of the configured
+  /// auto-approval rules. Rules are evaluated in order; the first rule
+  /// returning `true` wins.
+  Future<bool> matchesAutoApprovalRule(
+    ToolApprovalRequestContent request,
+  ) async {
+    final rules = _autoApprovalRules;
+    if (rules == null || rules.isEmpty) {
+      return false;
+    }
+    final toolCall = _asFunctionCall(request.toolCall);
+    if (toolCall == null) {
+      return false;
+    }
+    for (final rule in rules) {
+      if (await rule(toolCall)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   @override
   Future<AgentResponse> runCore(
@@ -40,7 +75,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
   }) async {
-    final inbound = prepareInboundMessages(messages, session);
+    final inbound = await prepareInboundMessages(messages, session);
     var state = inbound.state;
     var callerMessages = inbound.callerMessages;
 
@@ -65,7 +100,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
         cancellationToken: cancellationToken,
         messages: processedMessages,
       );
-      final allAutoApproved = processAndQueueOutboundApprovalRequests(
+      final allAutoApproved = await processAndQueueOutboundApprovalRequests(
         response.messages,
         state,
         session,
@@ -85,7 +120,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
   }) async* {
-    final inbound = prepareInboundMessages(messages, session);
+    final inbound = await prepareInboundMessages(messages, session);
     var state = inbound.state;
     var callerMessages = inbound.callerMessages;
 
@@ -141,6 +176,13 @@ class ToolApprovalAgent extends DelegatingAIAgent {
               reason: 'Auto-approved by standing rule',
             ),
           );
+        } else if (await matchesAutoApprovalRule(request)) {
+          state.collectedApprovalResponses.add(
+            request.createResponse(
+              true,
+              reason: 'Auto-approved by auto-approval rule',
+            ),
+          );
         } else {
           unapproved.add(request);
         }
@@ -164,15 +206,17 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     }
   }
 
-  ({
-    ToolApprovalState state,
-    List<ChatMessage> callerMessages,
-    ToolApprovalRequestContent? nextQueuedItem,
-  })
+  Future<
+    ({
+      ToolApprovalState state,
+      List<ChatMessage> callerMessages,
+      ToolApprovalRequestContent? nextQueuedItem,
+    })
+  >
   prepareInboundMessages(
     Iterable<ChatMessage> messages,
     AgentSession? session,
-  ) {
+  ) async {
     final state = _sessionState.getOrInitializeState(session);
     final callerMessages = unwrapAlwaysApproveResponses(
       messages,
@@ -183,7 +227,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     collectApprovalResponsesFromMessages(callerMessages, state);
 
     if (state.queuedApprovalRequests.isNotEmpty) {
-      drainAutoApprovableFromQueue(state);
+      await drainAutoApprovableFromQueue(state);
       if (state.queuedApprovalRequests.isNotEmpty) {
         final next = state.queuedApprovalRequests.removeAt(0);
         _sessionState.saveState(session, state);
@@ -225,7 +269,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     }
   }
 
-  void drainAutoApprovableFromQueue(ToolApprovalState state) {
+  Future<void> drainAutoApprovableFromQueue(ToolApprovalState state) async {
     for (var i = state.queuedApprovalRequests.length - 1; i >= 0; i--) {
       final request = state.queuedApprovalRequests[i];
       if (matchesRule(request, state.rules, _jsonSerializerOptions)) {
@@ -233,6 +277,14 @@ class ToolApprovalAgent extends DelegatingAIAgent {
           request.createResponse(
             true,
             reason: 'Auto-approved by standing rule',
+          ),
+        );
+        state.queuedApprovalRequests.removeAt(i);
+      } else if (await matchesAutoApprovalRule(request)) {
+        state.collectedApprovalResponses.add(
+          request.createResponse(
+            true,
+            reason: 'Auto-approved by auto-approval rule',
           ),
         );
         state.queuedApprovalRequests.removeAt(i);
@@ -261,11 +313,11 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     return result;
   }
 
-  bool processAndQueueOutboundApprovalRequests(
+  Future<bool> processAndQueueOutboundApprovalRequests(
     List<ChatMessage> responseMessages,
     ToolApprovalState state,
     AgentSession? session,
-  ) {
+  ) async {
     final autoApproved = <ToolApprovalRequestContent>[];
     final unapproved = <ToolApprovalRequestContent>[];
 
@@ -273,6 +325,8 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       for (final content in message.contents) {
         if (content is ToolApprovalRequestContent) {
           if (matchesRule(content, state.rules, _jsonSerializerOptions)) {
+            autoApproved.add(content);
+          } else if (await matchesAutoApprovalRule(content)) {
             autoApproved.add(content);
           } else {
             unapproved.add(content);

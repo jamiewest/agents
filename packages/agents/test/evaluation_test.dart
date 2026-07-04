@@ -13,6 +13,8 @@ import 'package:agents/src/ai/evaluation/conversation_splitter.dart';
 import 'package:agents/src/ai/evaluation/eval_checks.dart';
 import 'package:agents/src/ai/evaluation/eval_item.dart';
 import 'package:agents/src/ai/evaluation/eval_item_result.dart';
+import 'package:agents/src/ai/evaluation/generated_evaluator_ref.dart';
+import 'package:agents/src/ai/evaluation/rubric_score.dart';
 import 'package:agents/src/ai/evaluation/expected_tool_call.dart';
 import 'package:agents/src/ai/evaluation/function_evaluator.dart';
 import 'package:agents/src/ai/evaluation/local_evaluator.dart';
@@ -275,6 +277,68 @@ void main() {
       expect(item.isPassed, isTrue);
       expect(item.isFailed, isFalse);
       expect(item.isError, isFalse);
+    });
+  });
+
+  group('Rubric evaluator types', () {
+    test('RubricScore has value equality', () {
+      const score = RubricScore(
+        'accuracy',
+        4,
+        applicable: true,
+        weight: 2,
+        reason: 'Mostly correct.',
+      );
+
+      expect(
+        score,
+        const RubricScore(
+          'accuracy',
+          4,
+          applicable: true,
+          weight: 2,
+          reason: 'Mostly correct.',
+        ),
+      );
+      expect(
+        score,
+        isNot(
+          const RubricScore(
+            'accuracy',
+            null,
+            applicable: false,
+            weight: 2,
+            reason: 'Not applicable.',
+          ),
+        ),
+      );
+    });
+
+    test('EvalScoreResult carries optional rubric dimensions', () {
+      final score = EvalScoreResult('rubric', 0.8, passed: true)
+        ..dimensions = const [
+          RubricScore('accuracy', 4, applicable: true, weight: 2, reason: 'ok'),
+        ];
+
+      expect(score.dimensions, hasLength(1));
+      expect(score.dimensions!.single.id, 'accuracy');
+      expect(EvalScoreResult('quality', 1).dimensions, isNull);
+    });
+
+    test('GeneratedEvaluatorRef pins versions and supports latest', () {
+      const pinned = GeneratedEvaluatorRef('policy-rubric', version: '3');
+      expect(
+        pinned,
+        const GeneratedEvaluatorRef('policy-rubric', version: '3'),
+      );
+      expect(pinned.version, '3');
+
+      final latest = GeneratedEvaluatorRef.latest(
+        'policy-rubric',
+        displayName: 'Policy',
+      );
+      expect(latest.version, isNull);
+      expect(latest.displayName, 'Policy');
     });
   });
 }

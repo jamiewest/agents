@@ -2,6 +2,7 @@ import 'package:extensions/logging.dart';
 import 'package:extensions/system.dart';
 
 import '../agent_skill.dart';
+import '../agent_skills_source_context.dart';
 import 'delegating_agent_skills_source.dart';
 
 /// A skill source decorator that removes duplicate skills by name, keeping
@@ -17,10 +18,12 @@ class DeduplicatingAgentSkillsSource extends DelegatingAgentSkillsSource {
   final Logger _logger;
 
   @override
-  Future<List<AgentSkill>> getSkills({
+  Future<List<AgentSkill>> getSkills(
+    AgentSkillsSourceContext context, {
     CancellationToken? cancellationToken,
   }) async {
     final allSkills = await innerSource.getSkills(
+      context,
       cancellationToken: cancellationToken,
     );
     final deduplicated = <AgentSkill>[];

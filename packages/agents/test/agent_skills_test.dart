@@ -14,7 +14,10 @@ import 'package:agents/src/ai/skills/agent_skill_frontmatter.dart';
 import 'package:agents/src/ai/skills/agent_skills_provider.dart';
 import 'package:agents/src/ai/skills/agent_skills_provider_builder.dart';
 import 'package:agents/src/ai/skills/agent_skills_provider_options.dart';
+import 'package:agents/src/ai/skills/agent_skills_source_context.dart';
 import 'package:agents/src/ai/skills/aggregating_agent_skills_source.dart';
+import 'package:agents/src/ai/skills/decorators/caching_agent_skills_source.dart';
+import 'package:agents/src/ai/skills/decorators/caching_agent_skills_source_options.dart';
 import 'package:agents/src/ai/skills/decorators/deduplicating_agent_skills_source.dart';
 import 'package:agents/src/ai/skills/decorators/filtering_agent_skills_source.dart';
 import 'package:agents/src/ai/skills/file/agent_file_skill.dart';
@@ -70,11 +73,11 @@ void main() {
         ]);
         final filtered = FilteringAgentSkillsSource(
           aggregate,
-          (skill) => skill.frontmatter.name != 'beta',
+          (skill, context) => skill.frontmatter.name != 'beta',
         );
         final deduplicated = DeduplicatingAgentSkillsSource(filtered);
 
-        final skills = await deduplicated.getSkills();
+        final skills = await deduplicated.getSkills(_skillsContext);
 
         expect(skills, [first]);
       },
@@ -138,33 +141,131 @@ void main() {
       );
     });
 
-    test('supports custom prompt validation and caching option', () async {
+    test('supports custom prompt validation and pipeline caching', () async {
       expect(
         () => AgentSkillsProvider(
           skills: [_skill('alpha', 'Alpha')],
           options: AgentSkillsProviderOptions()
-            ..skillsInstructionPrompt = '{skills}',
+            ..skillsInstructionPrompt = 'missing skills placeholder',
         ),
         throwsA(isA<ArgumentError>()),
       );
 
-      final source = _CountingSource([_skill('alpha', 'Alpha')]);
-      final provider = AgentSkillsProvider(
-        source: source,
+      // Caching lives in the source pipeline now: a caller-supplied source
+      // is invoked per request unless wrapped in CachingAgentSkillsSource.
+      final uncached = _CountingSource([_skill('alpha', 'Alpha')]);
+      final uncachedProvider = AgentSkillsProvider(
+        source: uncached,
         options: AgentSkillsProviderOptions()
-          ..disableCaching = false
-          ..skillsInstructionPrompt =
-              'Skills:\n{skills}\n{resource_instructions}\n{script_instructions}',
+          ..skillsInstructionPrompt = 'Skills:\n{skills}',
       );
-
-      await provider.provideAIContext(
+      await uncachedProvider.provideAIContext(
         InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
       );
-      await provider.provideAIContext(
+      await uncachedProvider.provideAIContext(
         InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
       );
+      expect(uncached.count, 2);
 
-      expect(source.count, 1);
+      final cached = _CountingSource([_skill('alpha', 'Alpha')]);
+      final cachedProvider = AgentSkillsProvider(
+        source: CachingAgentSkillsSource(cached),
+      );
+      await cachedProvider.provideAIContext(
+        InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
+      );
+      await cachedProvider.provideAIContext(
+        InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
+      );
+      expect(cached.count, 1);
+    });
+
+    test('builder caches by default and disableCaching opts out', () async {
+      final cachedSource = _CountingSource([_skill('alpha', 'Alpha')]);
+      final cachedProvider = AgentSkillsProviderBuilder()
+          .useSource(cachedSource)
+          .build();
+      await cachedProvider.provideAIContext(
+        InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
+      );
+      await cachedProvider.provideAIContext(
+        InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
+      );
+      expect(cachedSource.count, 1);
+
+      final uncachedSource = _CountingSource([_skill('alpha', 'Alpha')]);
+      final uncachedProvider = AgentSkillsProviderBuilder()
+          .useSource(uncachedSource)
+          .disableCaching()
+          .build();
+      await uncachedProvider.provideAIContext(
+        InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
+      );
+      await uncachedProvider.provideAIContext(
+        InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
+      );
+      expect(uncachedSource.count, 2);
+    });
+
+    test('build disposes owned pipeline when provider is disposed', () {
+      final source = _CountingSource([_skill('alpha', 'Alpha')]);
+      AgentSkillsProviderBuilder().useSource(source).build().dispose();
+
+      expect(source.disposed, isTrue);
+    });
+
+    test('tools are approval-wrapped unless disabled', () async {
+      final skill = _skill('planning', 'Planning skill')
+        ..addResource('guide', 'A guide', value: 'resource text')
+        ..addScript('echo', () => 'script result');
+
+      final guarded = await AgentSkillsProvider(skills: [skill])
+          .provideAIContext(
+            InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
+          );
+      expect(guarded.tools, everyElement(isA<ApprovalRequiredAIFunction>()));
+
+      final open =
+          await AgentSkillsProvider(
+            skills: [skill],
+            options: AgentSkillsProviderOptions()
+              ..disableLoadSkillApproval = true
+              ..disableReadSkillResourceApproval = true
+              ..disableRunSkillScriptApproval = true,
+          ).provideAIContext(
+            InvokingContext(_TestAgent(), _TestSession(), null, AIContext()),
+          );
+      expect(
+        open.tools,
+        everyElement(isNot(isA<ApprovalRequiredAIFunction>())),
+      );
+    });
+
+    test('auto-approval rules match skill tool names', () async {
+      expect(
+        await AgentSkillsProvider.readOnlyToolsAutoApprovalRule(
+          FunctionCallContent(callId: 'c1', name: 'load_skill'),
+        ),
+        isTrue,
+      );
+      expect(
+        await AgentSkillsProvider.readOnlyToolsAutoApprovalRule(
+          FunctionCallContent(callId: 'c2', name: 'run_skill_script'),
+        ),
+        isFalse,
+      );
+      expect(
+        await AgentSkillsProvider.allToolsAutoApprovalRule(
+          FunctionCallContent(callId: 'c3', name: 'run_skill_script'),
+        ),
+        isTrue,
+      );
+      expect(
+        await AgentSkillsProvider.allToolsAutoApprovalRule(
+          FunctionCallContent(callId: 'c4', name: 'other_tool'),
+        ),
+        isFalse,
+      );
     });
 
     test('builder composes sources filter and deduplication', () async {
@@ -174,7 +275,7 @@ void main() {
             _skill('alpha', 'Duplicate'),
             _skill('beta', 'Beta'),
           ])
-          .useFilter((skill) => skill.frontmatter.name != 'beta')
+          .useFilter((skill, context) => skill.frontmatter.name != 'beta')
           .build();
 
       final context = await provider.provideAIContext(
@@ -218,7 +319,7 @@ Use the file skill.
             }) async => 'ran ${script.name}',
       );
 
-      final skills = await source.getSkills();
+      final skills = await source.getSkills(_skillsContext);
       final skill = skills.single as AgentFileSkill;
 
       expect(skill.frontmatter.name, 'file-skill');
@@ -271,13 +372,15 @@ Use the depth skill.
         '${skillDir.path}/references/nested/guide.md',
       ).writeAsStringSync('guide');
 
-      final shallow = await AgentFileSkillsSource([root.path]).getSkills();
+      final shallow = await AgentFileSkillsSource([
+        root.path,
+      ]).getSkills(_skillsContext);
       expect(shallow.single.resources, isEmpty);
 
       final deep = await AgentFileSkillsSource(
         [root.path],
         options: AgentFileSkillsSourceOptions()..resourceSearchDepth = 2,
-      ).getSkills();
+      ).getSkills(_skillsContext);
       expect(deep.single.resources!.single.name, 'references/nested/guide.md');
     });
 
@@ -295,10 +398,119 @@ content
 
       final source = AgentFileSkillsSource([root.path]);
 
-      expect(await source.getSkills(), isEmpty);
+      expect(await source.getSkills(_skillsContext), isEmpty);
+    });
+
+    test('applies script and resource filters', () async {
+      final root = await Directory.systemTemp.createTemp(
+        'agent_skills_filter_',
+      );
+      addTearDown(() => root.deleteSync(recursive: true));
+      final skillDir = Directory('${root.path}/filter-skill')..createSync();
+      File('${skillDir.path}/SKILL.md').writeAsStringSync('''
+---
+name: filter-skill
+description: Filter skill
+---
+Use the filter skill.
+''');
+      Directory('${skillDir.path}/references').createSync();
+      File('${skillDir.path}/references/keep.md').writeAsStringSync('keep');
+      File('${skillDir.path}/references/drop.md').writeAsStringSync('drop');
+      Directory('${skillDir.path}/scripts').createSync();
+      File('${skillDir.path}/scripts/keep.sh').writeAsStringSync('echo keep');
+      File('${skillDir.path}/scripts/drop.sh').writeAsStringSync('echo drop');
+
+      final source = AgentFileSkillsSource(
+        [root.path],
+        scriptRunner:
+            (
+              skill,
+              script,
+              arguments,
+              serviceProvider, {
+              cancellationToken,
+            }) async => '',
+        options: AgentFileSkillsSourceOptions()
+          ..resourceFilter = ((ctx) =>
+              !ctx.relativeFilePath.endsWith('drop.md'))
+          ..scriptFilter = ((ctx) => !ctx.relativeFilePath.endsWith('drop.sh')),
+      );
+
+      final skill =
+          (await source.getSkills(_skillsContext)).single as AgentFileSkill;
+      expect(skill.resources.map((r) => r.name), ['references/keep.md']);
+      expect(skill.scripts.map((s) => s.name), ['scripts/keep.sh']);
+    });
+  });
+
+  group('CachingAgentSkillsSource', () {
+    test('caches the inner result across calls', () async {
+      final inner = _CountingSource([_skill('alpha', 'Alpha')]);
+      final caching = CachingAgentSkillsSource(inner);
+
+      await caching.getSkills(_skillsContext);
+      await caching.getSkills(_skillsContext);
+
+      expect(inner.count, 1);
+    });
+
+    test('concurrent callers share a single in-flight fetch', () async {
+      final inner = _CountingSource([_skill('alpha', 'Alpha')]);
+      final caching = CachingAgentSkillsSource(inner);
+
+      final results = await Future.wait([
+        caching.getSkills(_skillsContext),
+        caching.getSkills(_skillsContext),
+      ]);
+
+      expect(inner.count, 1);
+      expect(results[0], same(results[1]));
+    });
+
+    test('refreshInterval of zero re-fetches every call', () async {
+      final inner = _CountingSource([_skill('alpha', 'Alpha')]);
+      final caching = CachingAgentSkillsSource(
+        inner,
+        options: CachingAgentSkillsSourceOptions()
+          ..refreshInterval = Duration.zero,
+      );
+
+      await caching.getSkills(_skillsContext);
+      await caching.getSkills(_skillsContext);
+
+      expect(inner.count, 2);
+    });
+
+    test('caches per isolation key', () async {
+      final inner = _CountingSource([_skill('alpha', 'Alpha')]);
+      var key = 'a';
+      final caching = CachingAgentSkillsSource(
+        inner,
+        options: CachingAgentSkillsSourceOptions()
+          ..cacheIsolationKeySelector = (_) => key,
+      );
+
+      await caching.getSkills(_skillsContext);
+      await caching.getSkills(_skillsContext);
+      expect(inner.count, 1);
+
+      key = 'b';
+      await caching.getSkills(_skillsContext);
+      expect(inner.count, 2);
+    });
+
+    test('dispose disposes the inner source and rejects further calls', () {
+      final inner = _CountingSource([_skill('alpha', 'Alpha')]);
+      final caching = CachingAgentSkillsSource(inner)..dispose();
+
+      expect(inner.disposed, isTrue);
+      expect(caching.getSkills(_skillsContext), throwsStateError);
     });
   });
 }
+
+final _skillsContext = AgentSkillsSourceContext(_TestAgent(), null);
 
 AgentInlineSkill _skill(String name, String description) {
   return AgentInlineSkill(
@@ -312,13 +524,22 @@ class _CountingSource extends AgentInMemorySkillsSource {
   _CountingSource(super.skills);
 
   int count = 0;
+  bool disposed = false;
 
   @override
-  Future<List<AgentInlineSkill>> getSkills({
+  void dispose() {
+    disposed = true;
+    super.dispose();
+  }
+
+  @override
+  Future<List<AgentInlineSkill>> getSkills(
+    AgentSkillsSourceContext context, {
     CancellationToken? cancellationToken,
   }) async {
     count++;
     return (await super.getSkills(
+      context,
       cancellationToken: cancellationToken,
     )).cast<AgentInlineSkill>();
   }

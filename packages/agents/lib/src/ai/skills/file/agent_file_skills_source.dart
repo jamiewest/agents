@@ -7,10 +7,13 @@ import 'package:file/file.dart';
 import 'package:file/local.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../func_typedefs.dart';
 import '../agent_skill.dart';
 import '../agent_skill_frontmatter.dart';
 import '../agent_skills_source.dart';
+import '../agent_skills_source_context.dart';
 import 'agent_file_skill.dart';
+import 'agent_file_skill_filter_context.dart';
 import 'agent_file_skill_resource.dart';
 import 'agent_file_skill_script.dart';
 import 'agent_file_skill_script_runner.dart';
@@ -58,6 +61,8 @@ class AgentFileSkillsSource extends AgentSkillsSource {
       );
     }
     _resourceSearchDepth = resourceSearchDepth;
+    _scriptFilter = options?.scriptFilter;
+    _resourceFilter = options?.resourceFilter;
   }
 
   static const String skillFileName = 'SKILL.md';
@@ -95,9 +100,12 @@ class AgentFileSkillsSource extends AgentSkillsSource {
   final AgentFileSkillScriptRunner? _scriptRunner;
   final FileSystem _fs;
   final Logger _logger;
+  late final Func<AgentFileSkillFilterContext, bool>? _scriptFilter;
+  late final Func<AgentFileSkillFilterContext, bool>? _resourceFilter;
 
   @override
-  Future<List<AgentSkill>> getSkills({
+  Future<List<AgentSkill>> getSkills(
+    AgentSkillsSourceContext context, {
     CancellationToken? cancellationToken,
   }) async {
     final discoveredPaths = discoverSkillDirectories(_skillPaths, _fs);
@@ -307,6 +315,13 @@ class AgentFileSkillsSource extends AgentSkillsSource {
       final relativePath = normalizePath(
         resolvedFilePath.substring(skillDirectoryFullPath.length),
       );
+      final resourceFilter = _resourceFilter;
+      if (resourceFilter != null &&
+          !resourceFilter(
+            AgentFileSkillFilterContext(skillName, relativePath),
+          )) {
+        continue;
+      }
       resources.add(
         AgentFileSkillResource(relativePath, resolvedFilePath, fs: _fs),
       );
@@ -345,6 +360,13 @@ class AgentFileSkillsSource extends AgentSkillsSource {
         final relativePath = normalizePath(
           resolvedFilePath.substring(skillDirectoryFullPath.length),
         );
+        final scriptFilter = _scriptFilter;
+        if (scriptFilter != null &&
+            !scriptFilter(
+              AgentFileSkillFilterContext(skillName, relativePath),
+            )) {
+          continue;
+        }
         scripts.add(
           AgentFileSkillScript(
             relativePath,

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:agents/src/ai/harness/file_store/file_store_entry.dart';
 import 'package:agents/src/ai/harness/file_store/file_system_agent_file_store.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -224,6 +225,30 @@ void main() {
         final results = await store.searchFilesAsync('no-dir', 'anything');
 
         expect(results, isEmpty);
+      });
+    });
+
+    group('list children', () {
+      test('returns directories before files, direct children only', () async {
+        await store.writeFileAsync('root.txt', 'r');
+        await store.writeFileAsync('sub/nested.txt', 'n');
+        await store.writeFileAsync('sub/deeper/leaf.txt', 'l');
+
+        final children = await store.listChildrenAsync('');
+        expect(children, [
+          FileStoreEntry('sub', FileStoreEntry.directory),
+          FileStoreEntry('root.txt', FileStoreEntry.file),
+        ]);
+
+        final subChildren = await store.listChildrenAsync('sub');
+        expect(subChildren, [
+          FileStoreEntry('deeper', FileStoreEntry.directory),
+          FileStoreEntry('nested.txt', FileStoreEntry.file),
+        ]);
+      });
+
+      test('non-existent directory returns empty', () async {
+        expect(await store.listChildrenAsync('missing'), isEmpty);
       });
     });
   });
