@@ -47,6 +47,7 @@ class TextSearchProvider extends MessageAIContextProvider {
     _sessionState = ProviderSessionState<TextSearchProviderState>(
       (_) => TextSearchProviderState(),
       resolvedOptions.stateKey ?? runtimeType.toString(),
+      stateRehydrator: TextSearchProviderState.fromJson,
       JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
     );
     _logger = loggerFactory?.createLogger('TextSearchProvider');
@@ -317,6 +318,23 @@ class TextSearchProviderState {
 
   /// List of recent message texts retained for multi-turn search context.
   List<String> recentMessagesText;
+
+  /// Encodes this state to a JSON-compatible map so the session bag can
+  /// serialize it.
+  Map<String, Object?> toJson() => {'recentMessagesText': recentMessagesText};
+
+  /// Rebuilds the state from a raw JSON-decoded value produced by [toJson].
+  static TextSearchProviderState fromJson(Object? json) {
+    if (json is Map) {
+      return TextSearchProviderState(
+        recentMessagesText: [
+          for (final text in json['recentMessagesText'] as List? ?? const [])
+            if (text is String) text,
+        ],
+      );
+    }
+    return TextSearchProviderState();
+  }
 }
 
 /// Represents a single retrieved text search result.

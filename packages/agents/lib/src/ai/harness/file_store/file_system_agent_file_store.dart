@@ -145,6 +145,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
     String directory,
     String regexPattern, [
     String? filePattern,
+    bool recursive = false,
     CancellationToken? cancellationToken,
   ]) async {
     final fullDir = resolveSafeDirectoryPath(directory);
@@ -159,8 +160,13 @@ class FileSystemAgentFileStore extends AgentFileStore {
         : null;
     final results = <FileSearchResult>[];
 
-    for (final file in dir.listSync(followLinks: false).whereType<File>()) {
-      final fileName = p.basename(file.path);
+    final files = dir
+        .listSync(recursive: recursive, followLinks: false)
+        .whereType<File>();
+    for (final file in files) {
+      final fileName = p
+          .relative(file.path, from: dir.path)
+          .replaceAll(r'\', '/');
       if (!StorePaths.matchesGlob(fileName, matcher)) {
         continue;
       }

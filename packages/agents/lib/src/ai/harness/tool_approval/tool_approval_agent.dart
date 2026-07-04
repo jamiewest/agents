@@ -25,6 +25,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       _sessionState = ProviderSessionState<ToolApprovalState>(
         (_) => ToolApprovalState(),
         'toolApprovalState',
+        stateRehydrator: ToolApprovalState.fromJson,
         JsonSerializerOptions:
             options?.jsonSerializerOptions ?? AgentJsonUtilities.defaultOptions,
       ),

@@ -11,6 +11,8 @@ import '../../../abstractions/ai_context_provider.dart';
 import '../../../abstractions/provider_session_state.dart';
 import '../../agent_json_utilities.dart';
 import '../file_store/agent_file_store.dart';
+import '../file_store/file_editor.dart';
+import '../file_store/file_line_edit.dart';
 import '../file_store/file_search_result.dart';
 import '../file_store/store_paths.dart';
 import 'file_list_entry.dart';
@@ -42,9 +44,32 @@ class FileMemoryProvider extends AIContextProvider implements Disposable {
     _sessionState = ProviderSessionState<FileMemoryState>(
       stateInitializer ?? (_) => FileMemoryState(),
       runtimeType.toString(),
+      stateRehydrator: FileMemoryState.fromJson,
       JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
     );
   }
+
+  /// The name of the tool that writes a memory file.
+  static const String writeToolName = 'file_memory_write';
+
+  /// The name of the tool that reads a memory file.
+  static const String readFileToolName = 'file_memory_read';
+
+  /// The name of the tool that deletes a memory file.
+  static const String deleteFileToolName = 'file_memory_delete';
+
+  /// The name of the tool that lists memory files.
+  static const String lsToolName = 'file_memory_ls';
+
+  /// The name of the tool that searches memory file contents.
+  static const String grepToolName = 'file_memory_grep';
+
+  /// The name of the tool that replaces occurrences of a substring within a
+  /// memory file.
+  static const String replaceToolName = 'file_memory_replace';
+
+  /// The name of the tool that replaces whole lines within a memory file.
+  static const String replaceLinesToolName = 'file_memory_replace_lines';
 
   static const String descriptionSuffix = '_description.md';
   static const String memoryIndexFileName = 'memories.md';
@@ -52,16 +77,16 @@ class FileMemoryProvider extends AIContextProvider implements Disposable {
 
   static const String defaultInstructions = '''
 ## File Based Memory
-You have access to a session-scoped, file-based memory system via the `FileMemory_*` tools for storing and retrieving information across interactions.
+You have access to a session-scoped, file-based memory system via the `file_memory_*` tools for storing and retrieving information across interactions.
 These files act as your working memory for the current session and are isolated from other sessions.
 Use these tools to store plans, memories, processing results, or downloaded data.
 
 - Use descriptive file names (e.g., "projectarchitecture.md", "userpreferences.md").
-- Include a description when saving a file to help with future discovery.
-- Before starting new tasks, use FileMemory_ListFiles and FileMemory_SearchFiles to check for relevant existing memories.
-- Keep memories up-to-date by overwriting files when information changes.
+- Include a description when writing a file to help with future discovery.
+- Before starting new tasks, use file_memory_ls and file_memory_grep to check for relevant existing memories to avoid duplicate work.
+- Keep memories up-to-date by overwriting files when information changes, or by using file_memory_replace and file_memory_replace_lines to make small edits.
 - When you receive large amounts of data (e.g., downloaded web pages, API responses, research results),
-  save them to files if they will be required later, so that they are not lost when older context is compacted or truncated.
+  write them to files if they will be required later, so that they are not lost when older context is compacted or truncated.
   This ensures important data remains accessible across long-running sessions.
 ''';
 
@@ -108,8 +133,9 @@ Use these tools to store plans, memories, processing results, or downloaded data
       aiContext.messages = [
         ChatMessage.fromText(
           ChatRole.user,
-          'The following is your memory index - a list of files you have previously saved. '
-          'You can read any of these files using the FileMemory_ReadFile tool.\n\n'
+          'The following is your memory index — a list of files you have '
+          'previously written. You can read any of these files using the '
+          'file_memory_read tool.\n\n'
           '$indexContent',
         ),
       ];
@@ -205,14 +231,80 @@ Use these tools to store plans, memories, processing results, or downloaded data
     });
   }
 
+  /// Replace occurrences of a string in a memory file. Fails when the target
+  /// string is absent, or when it is ambiguous and [replaceAll] is `false`.
+  Future<String> replaceAsync(
+    String fileName,
+    String oldString,
+    String newString, {
+    bool replaceAll = false,
+    CancellationToken? cancellationToken,
+  }) async {
+    final normalized = StorePaths.normalizeRelativePath(fileName);
+    _validateMemoryFileName(normalized, fileName);
+
+    final state = _sessionState.getOrInitializeState(
+      AIAgent.currentRunContext?.session,
+    );
+    final path = combinePaths(state.workingFolder, normalized);
+
+    return _writeLock.withResource(() async {
+      final content = await _fileStore.readFileAsync(path, cancellationToken);
+      if (content == null) {
+        return "File '$fileName' not found.";
+      }
+
+      final (newContent, count) = FileEditor.applyReplace(
+        content,
+        oldString,
+        newString,
+        replaceAll: replaceAll,
+      );
+      await _fileStore.writeFileAsync(path, newContent, cancellationToken);
+      return "Replaced $count occurrence(s) in '$fileName'.";
+    });
+  }
+
+  /// Replace lines in a memory file. Each edit targets a 1-based line number
+  /// with literal replacement text; an empty replacement deletes the line.
+  Future<String> replaceLinesAsync(
+    String fileName,
+    List<FileLineEdit> edits, {
+    CancellationToken? cancellationToken,
+  }) async {
+    final normalized = StorePaths.normalizeRelativePath(fileName);
+    _validateMemoryFileName(normalized, fileName);
+
+    final state = _sessionState.getOrInitializeState(
+      AIAgent.currentRunContext?.session,
+    );
+    final path = combinePaths(state.workingFolder, normalized);
+
+    return _writeLock.withResource(() async {
+      final content = await _fileStore.readFileAsync(path, cancellationToken);
+      if (content == null) {
+        return "File '$fileName' not found.";
+      }
+
+      final newContent = FileEditor.applyReplaceLines(content, edits);
+      await _fileStore.writeFileAsync(path, newContent, cancellationToken);
+      return "Replaced ${edits.length} line(s) in '$fileName'.";
+    });
+  }
+
   /// List all memory files with their descriptions (if available).
-  /// Description files are not shown separately.
+  /// Description files are not shown separately. Optionally filter file
+  /// names with a [globPattern].
   Future<List<FileListEntry>> listFilesAsync({
+    String? globPattern,
     CancellationToken? cancellationToken,
   }) async {
     final state = _sessionState.getOrInitializeState(
       AIAgent.currentRunContext?.session,
     );
+    final matcher = globPattern == null || globPattern.trim().isEmpty
+        ? null
+        : StorePaths.createGlobMatcher(globPattern);
     final fileNames = await _fileStore.listFilesAsync(
       state.workingFolder,
       cancellationToken,
@@ -232,6 +324,10 @@ Use these tools to store plans, memories, processing results, or downloaded data
       }
 
       if (isInternalFile(file)) {
+        continue;
+      }
+
+      if (!StorePaths.matchesGlob(file, matcher)) {
         continue;
       }
 
@@ -273,6 +369,7 @@ Use these tools to store plans, memories, processing results, or downloaded data
       state.workingFolder,
       regexPattern,
       pattern,
+      false,
       cancellationToken,
     );
 
@@ -282,12 +379,12 @@ Use these tools to store plans, memories, processing results, or downloaded data
   List<AITool> createTools() {
     return [
       AIFunctionFactory.create(
-        name: 'FileMemory_SaveFile',
+        name: writeToolName,
         description:
-            'Save a memory file with the given name and content. Overwrites the file if it already exists. Include a description for large files to provide a summary that helps with discovery.',
+            'Write a memory file with the given name and content. Overwrites the file if it already exists. Include a description for large files to provide a summary that helps with discovery.',
         parametersSchema: _objectSchema(
           {
-            'fileName': 'The name of the file to save.',
+            'fileName': 'The name of the file to write.',
             'content': 'The content to write to the file.',
             'description':
                 'An optional description of the file contents for discovery.',
@@ -304,7 +401,7 @@ Use these tools to store plans, memories, processing results, or downloaded data
         },
       ),
       AIFunctionFactory.create(
-        name: 'FileMemory_ReadFile',
+        name: readFileToolName,
         description:
             'Read the content of a memory file by name. Returns the file content or a message indicating the file was not found.',
         parametersSchema: _objectSchema({
@@ -318,7 +415,7 @@ Use these tools to store plans, memories, processing results, or downloaded data
         },
       ),
       AIFunctionFactory.create(
-        name: 'FileMemory_DeleteFile',
+        name: deleteFileToolName,
         description:
             'Delete a memory file by name. Also removes its companion description file if one exists.',
         parametersSchema: _objectSchema({
@@ -332,22 +429,29 @@ Use these tools to store plans, memories, processing results, or downloaded data
         },
       ),
       AIFunctionFactory.create(
-        name: 'FileMemory_ListFiles',
+        name: lsToolName,
         description:
-            'List all memory files with their descriptions (if available). Description files are not shown separately.',
+            'List all memory files with their descriptions (if available). Optionally filter file names with a globPattern (e.g. "*.md"). Internal files (description sidecars and the memory index) are not shown.',
+        parametersSchema: _objectSchema({
+          'globPattern':
+              'An optional glob pattern matched against file names to filter the listing.',
+        }, required: const []),
         callback: (arguments, {cancellationToken}) {
-          return listFilesAsync(cancellationToken: cancellationToken);
+          return listFilesAsync(
+            globPattern: _getOptionalString(arguments, 'globPattern'),
+            cancellationToken: cancellationToken,
+          );
         },
       ),
       AIFunctionFactory.create(
-        name: 'FileMemory_SearchFiles',
+        name: grepToolName,
         description:
-            'Search memory file contents using a regular expression pattern (case-insensitive). Optionally filter which files to search using a glob pattern (e.g., "*.md", "research*"). Returns matching file names, content snippets, and matching lines with line numbers.',
+            'Search memory file contents using a regular expression pattern (case-insensitive). Optionally filter which files to search using a globPattern (e.g., "*.md", "research*"). Returns matching file names, content snippets, and matching lines with line numbers.',
         parametersSchema: _objectSchema(
           {
             'regexPattern':
                 'A regular expression pattern to match against file contents.',
-            'filePattern':
+            'globPattern':
                 'An optional glob pattern to filter which files are searched.',
           },
           required: ['regexPattern'],
@@ -355,12 +459,113 @@ Use these tools to store plans, memories, processing results, or downloaded data
         callback: (arguments, {cancellationToken}) {
           return searchFilesAsync(
             _getRequiredString(arguments, 'regexPattern'),
-            filePattern: _getOptionalString(arguments, 'filePattern'),
+            filePattern: _getOptionalString(arguments, 'globPattern'),
+            cancellationToken: cancellationToken,
+          );
+        },
+      ),
+      AIFunctionFactory.create(
+        name: replaceToolName,
+        description:
+            'Replace occurrences of oldString with newString in a memory file. Fails if oldString is not found, or if it occurs more than once and replaceAll is false. Returns the number of occurrences replaced.',
+        parametersSchema: _objectSchema(
+          {
+            'fileName': 'The name of the file to modify.',
+            'oldString': 'The substring to find and replace.',
+            'newString': 'The replacement text.',
+            'replaceAll':
+                'When true, replace every occurrence; otherwise fail unless exactly one occurrence exists.',
+          },
+          required: ['fileName', 'oldString', 'newString'],
+        ),
+        callback: (arguments, {cancellationToken}) {
+          return replaceAsync(
+            _getRequiredString(arguments, 'fileName'),
+            _getRequiredString(arguments, 'oldString'),
+            _getRequiredString(arguments, 'newString'),
+            replaceAll: _getOptionalBool(arguments, 'replaceAll') ?? false,
+            cancellationToken: cancellationToken,
+          );
+        },
+      ),
+      AIFunctionFactory.create(
+        name: replaceLinesToolName,
+        description:
+            'Replace lines in a memory file. Provide a list of edits, each with a 1-based line_number and a literal new_line (include your own trailing newline); an empty new_line deletes the line, including its line break. Fails on out-of-range or duplicate line numbers.',
+        parametersSchema: const {
+          'type': 'object',
+          'properties': {
+            'fileName': {'description': 'The name of the file to modify.'},
+            'edits': {
+              'type': 'array',
+              'description':
+                  'The list of 1-based line numbers and their literal replacement text.',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'line_number': {
+                    'type': 'integer',
+                    'description': '1-based line number to replace.',
+                  },
+                  'new_line': {
+                    'type': 'string',
+                    'description':
+                        'Literal replacement text for the line; empty deletes the line.',
+                  },
+                },
+                'required': ['line_number', 'new_line'],
+              },
+            },
+          },
+          'required': ['fileName', 'edits'],
+        },
+        callback: (arguments, {cancellationToken}) {
+          return replaceLinesAsync(
+            _getRequiredString(arguments, 'fileName'),
+            _getLineEdits(arguments, 'edits'),
             cancellationToken: cancellationToken,
           );
         },
       ),
     ];
+  }
+
+  /// Throws when [normalized] refers to an internal system file (description
+  /// sidecars and the memory index).
+  static void _validateMemoryFileName(String normalized, String fileName) {
+    if (isInternalFile(normalized)) {
+      throw ArgumentError(
+        'The provided file name is reserved by the system for internal use. '
+            'Please choose a different file name.',
+        'fileName',
+      );
+    }
+  }
+
+  static List<FileLineEdit> _getLineEdits(
+    AIFunctionArguments arguments,
+    String name,
+  ) {
+    final value = arguments[name];
+    if (value is List) {
+      return [
+        for (final entry in value)
+          if (entry is Map)
+            FileLineEdit.fromJson(entry.cast<String, Object?>()),
+      ];
+    }
+    throw ArgumentError.value(value, name, 'Expected a list of line edits.');
+  }
+
+  static bool? _getOptionalBool(AIFunctionArguments arguments, String name) {
+    final value = arguments[name];
+    if (value == null) {
+      return null;
+    }
+    if (value is bool) {
+      return value;
+    }
+    throw ArgumentError.value(value, name, 'Expected a boolean value.');
   }
 
   /// Rebuilds the `memories.md` index file by listing all user files in the

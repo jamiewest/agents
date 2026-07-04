@@ -18,4 +18,19 @@ class ToolApprovalRule {
   /// of arguments. Argument values are stored as their JSON-serialized string
   /// representations for reliable comparison.
   Map<String, String>? arguments;
+
+  /// Encodes this rule to a JSON-compatible map so the session bag can
+  /// serialize it.
+  Map<String, Object?> toJson() => {
+    'toolName': toolName,
+    if (arguments != null) 'arguments': arguments,
+  };
+
+  /// Creates a [ToolApprovalRule] from a JSON-decoded map produced by
+  /// [toJson].
+  static ToolApprovalRule fromJson(Map<String, Object?> json) =>
+      ToolApprovalRule(
+        toolName: json['toolName'] as String? ?? '',
+        arguments: (json['arguments'] as Map?)?.cast<String, String>(),
+      );
 }

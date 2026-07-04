@@ -44,15 +44,17 @@ void main() {
     test('returns tools and instructions', () async {
       final (tools, _, _) = await createTools();
 
-      expect(tools, hasLength(5));
+      expect(tools, hasLength(7));
       expect(
         tools.whereType<AIFunction>().map((t) => t.name),
         unorderedEquals([
-          'FileMemory_SaveFile',
-          'FileMemory_ReadFile',
-          'FileMemory_DeleteFile',
-          'FileMemory_ListFiles',
-          'FileMemory_SearchFiles',
+          'file_memory_write',
+          'file_memory_read',
+          'file_memory_delete',
+          'file_memory_ls',
+          'file_memory_grep',
+          'file_memory_replace',
+          'file_memory_replace_lines',
         ]),
       );
     });
@@ -80,7 +82,7 @@ void main() {
     test('creates file', () async {
       final store = InMemoryAgentFileStore();
       final (tools, _, session) = await createTools(store);
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       await invokeWithRunContext(
         saveFile,
@@ -98,7 +100,7 @@ void main() {
     test('with description creates both files', () async {
       final store = InMemoryAgentFileStore();
       final (tools, _, session) = await createTools(store);
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       await invokeWithRunContext(
         saveFile,
@@ -123,7 +125,7 @@ void main() {
     test('without description deletes stale description', () async {
       final store = InMemoryAgentFileStore();
       final (tools, _, session) = await createTools(store);
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       await invokeWithRunContext(
         saveFile,
@@ -152,7 +154,7 @@ void main() {
         store,
         (_) => FileMemoryState()..workingFolder = 'session123',
       );
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       await invokeWithRunContext(
         saveFile,
@@ -173,7 +175,7 @@ void main() {
 
     test('returns confirmation', () async {
       final (tools, _, session) = await createTools();
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       final result = await invokeWithRunContext(
         saveFile,
@@ -190,7 +192,7 @@ void main() {
       final store = InMemoryAgentFileStore();
       await store.writeFileAsync('notes.md', 'Stored content');
       final (tools, _, session) = await createTools(store);
-      final readFile = getTool(tools, 'FileMemory_ReadFile');
+      final readFile = getTool(tools, 'file_memory_read');
 
       final result = await invokeWithRunContext(
         readFile,
@@ -203,7 +205,7 @@ void main() {
 
     test('non-existent returns not found message', () async {
       final (tools, _, session) = await createTools();
-      final readFile = getTool(tools, 'FileMemory_ReadFile');
+      final readFile = getTool(tools, 'file_memory_read');
 
       final result = await invokeWithRunContext(
         readFile,
@@ -223,7 +225,7 @@ void main() {
       final store = InMemoryAgentFileStore();
       await store.writeFileAsync('notes.md', 'Content');
       final (tools, _, session) = await createTools(store);
-      final deleteFile = getTool(tools, 'FileMemory_DeleteFile');
+      final deleteFile = getTool(tools, 'file_memory_delete');
 
       final result = await invokeWithRunContext(
         deleteFile,
@@ -243,7 +245,7 @@ void main() {
       await store.writeFileAsync('notes.md', 'Content');
       await store.writeFileAsync('notes_description.md', 'Description');
       final (tools, _, session) = await createTools(store);
-      final deleteFile = getTool(tools, 'FileMemory_DeleteFile');
+      final deleteFile = getTool(tools, 'file_memory_delete');
 
       await invokeWithRunContext(
         deleteFile,
@@ -263,7 +265,7 @@ void main() {
       await store.writeFileAsync('notes_description.md', 'A description');
       await store.writeFileAsync('other.md', 'Other content');
       final (tools, _, session) = await createTools(store);
-      final listFiles = getTool(tools, 'FileMemory_ListFiles');
+      final listFiles = getTool(tools, 'file_memory_ls');
 
       final result = await invokeWithRunContext(
         listFiles,
@@ -284,7 +286,7 @@ void main() {
       await store.writeFileAsync('notes.md', 'Content');
       await store.writeFileAsync('notes_description.md', 'Desc');
       final (tools, _, session) = await createTools(store);
-      final listFiles = getTool(tools, 'FileMemory_ListFiles');
+      final listFiles = getTool(tools, 'file_memory_ls');
 
       final result = await invokeWithRunContext(
         listFiles,
@@ -306,13 +308,13 @@ void main() {
         'Important research findings about AI',
       );
       final (tools, _, session) = await createTools(store);
-      final searchFiles = getTool(tools, 'FileMemory_SearchFiles');
+      final searchFiles = getTool(tools, 'file_memory_grep');
 
       final result = await invokeWithRunContext(
         searchFiles,
         AIFunctionArguments({
           'regexPattern': 'research findings',
-          'filePattern': '',
+          'globPattern': '',
         }),
         session,
       );
@@ -328,13 +330,13 @@ void main() {
       await store.writeFileAsync('notes.md', 'Important data');
       await store.writeFileAsync('data.txt', 'Important data');
       final (tools, _, session) = await createTools(store);
-      final searchFiles = getTool(tools, 'FileMemory_SearchFiles');
+      final searchFiles = getTool(tools, 'file_memory_grep');
 
       final result = await invokeWithRunContext(
         searchFiles,
         AIFunctionArguments({
           'regexPattern': 'Important',
-          'filePattern': '*.md',
+          'globPattern': '*.md',
         }),
         session,
       );
@@ -350,7 +352,7 @@ void main() {
       await store.writeFileAsync('notes_description.md', 'Match sidecar');
       await store.writeFileAsync('memories.md', 'Match index');
       final (tools, _, session) = await createTools(store);
-      final searchFiles = getTool(tools, 'FileMemory_SearchFiles');
+      final searchFiles = getTool(tools, 'file_memory_grep');
 
       final result = await invokeWithRunContext(
         searchFiles,
@@ -406,7 +408,7 @@ void main() {
   group('FileMemoryProvider path traversal protection', () {
     test('save file path traversal throws', () async {
       final (tools, _, session) = await createTools();
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       await expectLater(
         invokeWithRunContext(
@@ -424,7 +426,7 @@ void main() {
 
     test('save file absolute path throws', () async {
       final (tools, _, session) = await createTools();
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       await expectLater(
         invokeWithRunContext(
@@ -442,7 +444,7 @@ void main() {
 
     test('save file drive-rooted path throws', () async {
       final (tools, _, session) = await createTools();
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       await expectLater(
         invokeWithRunContext(
@@ -460,7 +462,7 @@ void main() {
     test('save file double dots in file name allowed', () async {
       final store = InMemoryAgentFileStore();
       final (tools, _, session) = await createTools(store);
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       await invokeWithRunContext(
         saveFile,
@@ -473,7 +475,7 @@ void main() {
 
     test('reserved internal file name throws', () async {
       final (tools, _, session) = await createTools();
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       await expectLater(
         invokeWithRunContext(
@@ -493,7 +495,7 @@ void main() {
     test('save file creates memory index', () async {
       final store = InMemoryAgentFileStore();
       final (tools, _, session) = await createTools(store);
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       await invokeWithRunContext(
         saveFile,
@@ -512,7 +514,7 @@ void main() {
     test('save file with description index includes description', () async {
       final store = InMemoryAgentFileStore();
       final (tools, _, session) = await createTools(store);
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       await invokeWithRunContext(
         saveFile,
@@ -532,8 +534,8 @@ void main() {
     test('delete file updates memory index', () async {
       final store = InMemoryAgentFileStore();
       final (tools, _, session) = await createTools(store);
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
-      final deleteFile = getTool(tools, 'FileMemory_DeleteFile');
+      final saveFile = getTool(tools, 'file_memory_write');
+      final deleteFile = getTool(tools, 'file_memory_delete');
 
       await invokeWithRunContext(
         saveFile,
@@ -561,7 +563,7 @@ void main() {
     test('memory index capped at 50 entries', () async {
       final store = InMemoryAgentFileStore();
       final (tools, _, session) = await createTools(store);
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
 
       for (var i = 0; i < 55; i++) {
         await invokeWithRunContext(
@@ -586,8 +588,8 @@ void main() {
     test('list files hides memory index', () async {
       final store = InMemoryAgentFileStore();
       final (tools, _, session) = await createTools(store);
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
-      final listFiles = getTool(tools, 'FileMemory_ListFiles');
+      final saveFile = getTool(tools, 'file_memory_write');
+      final listFiles = getTool(tools, 'file_memory_ls');
       await invokeWithRunContext(
         saveFile,
         AIFunctionArguments({'fileName': 'notes.md', 'content': 'Content'}),
@@ -612,7 +614,7 @@ void main() {
       final initResult = await provider.invoking(
         createInvokingContext(session: session),
       );
-      final saveFile = getTool(initResult.tools!, 'FileMemory_SaveFile');
+      final saveFile = getTool(initResult.tools!, 'file_memory_write');
       await invokeWithRunContext(
         saveFile,
         AIFunctionArguments({
@@ -662,7 +664,7 @@ void main() {
     test('concurrent saves produce consistent index', () async {
       final store = InMemoryAgentFileStore();
       final (tools, _, session) = await createTools(store);
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
+      final saveFile = getTool(tools, 'file_memory_write');
       const fileCount = 20;
 
       await Future.wait(
@@ -690,8 +692,8 @@ void main() {
     test('concurrent save and delete produce consistent index', () async {
       final store = InMemoryAgentFileStore();
       final (tools, _, session) = await createTools(store);
-      final saveFile = getTool(tools, 'FileMemory_SaveFile');
-      final deleteFile = getTool(tools, 'FileMemory_DeleteFile');
+      final saveFile = getTool(tools, 'file_memory_write');
+      final deleteFile = getTool(tools, 'file_memory_delete');
 
       for (var i = 0; i < 5; i++) {
         await invokeWithRunContext(
@@ -743,7 +745,7 @@ void main() {
       final result = await provider.invoking(
         createInvokingContext(session: session),
       );
-      final saveFile = getTool(result.tools!, 'FileMemory_SaveFile');
+      final saveFile = getTool(result.tools!, 'file_memory_write');
       provider.dispose();
 
       await expectLater(
@@ -756,6 +758,67 @@ void main() {
           session,
         ),
         throwsStateError,
+      );
+    });
+  });
+
+  group('FileMemoryProvider replace', () {
+    test('replaces content in a memory file', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'hello world');
+      final (tools, _, session) = await createTools(store);
+      final replace = getTool(tools, 'file_memory_replace');
+
+      final message = await invokeWithRunContext(
+        replace,
+        AIFunctionArguments({
+          'fileName': 'notes.md',
+          'oldString': 'world',
+          'newString': 'memory',
+        }),
+        session,
+      );
+
+      expect(message, "Replaced 1 occurrence(s) in 'notes.md'.");
+      expect(await store.readFileAsync('notes.md'), 'hello memory');
+    });
+
+    test('replace_lines edits a memory file by line', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('plan.md', 'one\ntwo\nthree\n');
+      final (tools, _, session) = await createTools(store);
+      final replaceLines = getTool(tools, 'file_memory_replace_lines');
+
+      final message = await invokeWithRunContext(
+        replaceLines,
+        AIFunctionArguments({
+          'fileName': 'plan.md',
+          'edits': [
+            {'line_number': 2, 'new_line': 'TWO\n'},
+          ],
+        }),
+        session,
+      );
+
+      expect(message, "Replaced 1 line(s) in 'plan.md'.");
+      expect(await store.readFileAsync('plan.md'), 'one\nTWO\nthree\n');
+    });
+
+    test('rejects internal file names', () async {
+      final (tools, _, session) = await createTools();
+      final replace = getTool(tools, 'file_memory_replace');
+
+      await expectLater(
+        () => invokeWithRunContext(
+          replace,
+          AIFunctionArguments({
+            'fileName': 'memories.md',
+            'oldString': 'a',
+            'newString': 'b',
+          }),
+          session,
+        ),
+        throwsArgumentError,
       );
     });
   });

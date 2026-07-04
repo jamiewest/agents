@@ -112,6 +112,7 @@ class InMemoryAgentFileStore extends AgentFileStore {
     String directory,
     String regexPattern, [
     String? filePattern,
+    bool recursive = false,
     CancellationToken? cancellationToken,
   ]) async {
     var prefix = StorePaths.normalizeRelativePath(directory, isDirectory: true);
@@ -131,7 +132,7 @@ class InMemoryAgentFileStore extends AgentFileStore {
       }
 
       final relativeName = file.path.substring(prefix.length);
-      if (relativeName.contains('/')) {
+      if (!recursive && relativeName.contains('/')) {
         continue;
       }
 

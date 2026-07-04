@@ -11,6 +11,7 @@ import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
 import 'package:agents/src/ai/harness/file_access/file_access_provider.dart';
 import 'package:agents/src/ai/harness/file_access/file_access_provider_options.dart';
+import 'package:agents/src/ai/harness/file_store/file_store_entry.dart';
 import 'package:agents/src/ai/harness/file_store/in_memory_agent_file_store.dart';
 import 'package:agents/src/abstractions/invoking_context.dart';
 
@@ -35,13 +36,13 @@ void main() {
       expect(
         tools.whereType<AIFunction>().map((t) => t.name),
         unorderedEquals([
-          'FileAccess_SaveFile',
-          'FileAccess_ReadFile',
-          'FileAccess_DeleteFile',
-          'FileAccess_Replace',
-          'FileAccess_ReplaceLines',
-          'FileAccess_ListFiles',
-          'FileAccess_SearchFiles',
+          'file_access_write',
+          'file_access_read',
+          'file_access_delete',
+          'file_access_replace',
+          'file_access_replace_lines',
+          'file_access_ls',
+          'file_access_grep',
         ]),
       );
     });
@@ -53,7 +54,7 @@ void main() {
 
       expect(result.instructions, isNotNull);
       expect(result.instructions, contains('File Access'));
-      expect(result.instructions, contains('FileAccess_'));
+      expect(result.instructions, contains('file_access_'));
       expect(
         result.instructions,
         contains('persist beyond the current session'),
@@ -81,7 +82,7 @@ void main() {
     test('creates file', () async {
       final store = InMemoryAgentFileStore();
       final tools = await createTools(store);
-      final saveFile = getTool(tools, 'FileAccess_SaveFile');
+      final saveFile = getTool(tools, 'file_access_write');
 
       await saveFile.invoke(
         AIFunctionArguments({
@@ -96,7 +97,7 @@ void main() {
     test('does not create description sidecar', () async {
       final store = InMemoryAgentFileStore();
       final tools = await createTools(store);
-      final saveFile = getTool(tools, 'FileAccess_SaveFile');
+      final saveFile = getTool(tools, 'file_access_write');
 
       await saveFile.invoke(
         AIFunctionArguments({
@@ -115,7 +116,7 @@ void main() {
     test('existing file without overwrite returns error', () async {
       final store = InMemoryAgentFileStore();
       final tools = await createTools(store);
-      final saveFile = getTool(tools, 'FileAccess_SaveFile');
+      final saveFile = getTool(tools, 'file_access_write');
       await saveFile.invoke(
         AIFunctionArguments({'fileName': 'notes.md', 'content': 'Original'}),
       );
@@ -134,7 +135,7 @@ void main() {
     test('existing file with overwrite succeeds', () async {
       final store = InMemoryAgentFileStore();
       final tools = await createTools(store);
-      final saveFile = getTool(tools, 'FileAccess_SaveFile');
+      final saveFile = getTool(tools, 'file_access_write');
       await saveFile.invoke(
         AIFunctionArguments({'fileName': 'notes.md', 'content': 'Original'}),
       );
@@ -152,13 +153,16 @@ void main() {
 
     test('returns confirmation', () async {
       final tools = await createTools();
-      final saveFile = getTool(tools, 'FileAccess_SaveFile');
+      final saveFile = getTool(tools, 'file_access_write');
 
       final result = await saveFile.invoke(
         AIFunctionArguments({'fileName': 'test.md', 'content': 'Content'}),
       );
 
-      expect(result, isA<String>().having((s) => s, 'text', contains('saved')));
+      expect(
+        result,
+        isA<String>().having((s) => s, 'text', contains('written')),
+      );
     });
   });
 
@@ -167,7 +171,7 @@ void main() {
       final store = InMemoryAgentFileStore();
       await store.writeFileAsync('notes.md', 'Stored content');
       final tools = await createTools(store);
-      final readFile = getTool(tools, 'FileAccess_ReadFile');
+      final readFile = getTool(tools, 'file_access_read');
 
       final result = await readFile.invoke(
         AIFunctionArguments({'fileName': 'notes.md'}),
@@ -178,7 +182,7 @@ void main() {
 
     test('non-existent returns not found message', () async {
       final tools = await createTools();
-      final readFile = getTool(tools, 'FileAccess_ReadFile');
+      final readFile = getTool(tools, 'file_access_read');
 
       final result = await readFile.invoke(
         AIFunctionArguments({'fileName': 'nonexistent.md'}),
@@ -196,7 +200,7 @@ void main() {
       final store = InMemoryAgentFileStore();
       await store.writeFileAsync('notes.md', 'Content');
       final tools = await createTools(store);
-      final deleteFile = getTool(tools, 'FileAccess_DeleteFile');
+      final deleteFile = getTool(tools, 'file_access_delete');
 
       final result = await deleteFile.invoke(
         AIFunctionArguments({'fileName': 'notes.md'}),
@@ -211,7 +215,7 @@ void main() {
 
     test('non-existent returns not found', () async {
       final tools = await createTools();
-      final deleteFile = getTool(tools, 'FileAccess_DeleteFile');
+      final deleteFile = getTool(tools, 'file_access_delete');
 
       final result = await deleteFile.invoke(
         AIFunctionArguments({'fileName': 'missing.md'}),
@@ -230,12 +234,15 @@ void main() {
       await store.writeFileAsync('notes.md', 'Content');
       await store.writeFileAsync('data.txt', 'Data');
       final tools = await createTools(store);
-      final listFiles = getTool(tools, 'FileAccess_ListFiles');
+      final listFiles = getTool(tools, 'file_access_ls');
 
       final result = await listFiles.invoke(AIFunctionArguments());
 
-      expect(result, isA<List<String>>());
-      expect(result as List<String>, unorderedEquals(['data.txt', 'notes.md']));
+      expect(result, isA<List<FileStoreEntry>>());
+      expect(
+        (result as List<FileStoreEntry>).map((e) => e.name),
+        unorderedEquals(['data.txt', 'notes.md']),
+      );
     });
 
     test('does not filter description files', () async {
@@ -243,20 +250,20 @@ void main() {
       await store.writeFileAsync('notes.md', 'Content');
       await store.writeFileAsync('notes_description.md', 'Description');
       final tools = await createTools(store);
-      final listFiles = getTool(tools, 'FileAccess_ListFiles');
+      final listFiles = getTool(tools, 'file_access_ls');
 
       final result = await listFiles.invoke(AIFunctionArguments());
 
-      expect(result as List<String>, hasLength(2));
+      expect(result as List<FileStoreEntry>, hasLength(2));
     });
 
     test('empty store returns empty list', () async {
       final tools = await createTools();
-      final listFiles = getTool(tools, 'FileAccess_ListFiles');
+      final listFiles = getTool(tools, 'file_access_ls');
 
       final result = await listFiles.invoke(AIFunctionArguments());
 
-      expect(result as List<String>, isEmpty);
+      expect(result as List<FileStoreEntry>, isEmpty);
     });
   });
 
@@ -268,12 +275,12 @@ void main() {
         'Important research findings about AI',
       );
       final tools = await createTools(store);
-      final searchFiles = getTool(tools, 'FileAccess_SearchFiles');
+      final searchFiles = getTool(tools, 'file_access_grep');
 
       final result = await searchFiles.invoke(
         AIFunctionArguments({
           'regexPattern': 'research findings',
-          'filePattern': '',
+          'globPattern': '',
         }),
       );
 
@@ -288,12 +295,12 @@ void main() {
       await store.writeFileAsync('notes.md', 'Important data');
       await store.writeFileAsync('data.txt', 'Important data');
       final tools = await createTools(store);
-      final searchFiles = getTool(tools, 'FileAccess_SearchFiles');
+      final searchFiles = getTool(tools, 'file_access_grep');
 
       final result = await searchFiles.invoke(
         AIFunctionArguments({
           'regexPattern': 'Important',
-          'filePattern': '*.md',
+          'globPattern': '*.md',
         }),
       );
 
@@ -306,7 +313,7 @@ void main() {
       final store = InMemoryAgentFileStore();
       await store.writeFileAsync('notes.md', 'No matching content here');
       final tools = await createTools(store);
-      final searchFiles = getTool(tools, 'FileAccess_SearchFiles');
+      final searchFiles = getTool(tools, 'file_access_grep');
 
       final result = await searchFiles.invoke(
         AIFunctionArguments({'regexPattern': 'nonexistent pattern xyz'}),
@@ -319,7 +326,7 @@ void main() {
   group('FileAccessProvider path traversal protection', () {
     test('save file path traversal throws', () async {
       final tools = await createTools();
-      final saveFile = getTool(tools, 'FileAccess_SaveFile');
+      final saveFile = getTool(tools, 'file_access_write');
 
       await expectLater(
         saveFile.invoke(
@@ -334,7 +341,7 @@ void main() {
 
     test('save file absolute path throws', () async {
       final tools = await createTools();
-      final saveFile = getTool(tools, 'FileAccess_SaveFile');
+      final saveFile = getTool(tools, 'file_access_write');
 
       await expectLater(
         saveFile.invoke(
@@ -349,7 +356,7 @@ void main() {
 
     test('save file drive-rooted path throws', () async {
       final tools = await createTools();
-      final saveFile = getTool(tools, 'FileAccess_SaveFile');
+      final saveFile = getTool(tools, 'file_access_write');
 
       await expectLater(
         saveFile.invoke(
@@ -365,7 +372,7 @@ void main() {
     test('save file double dots in file name allowed', () async {
       final store = InMemoryAgentFileStore();
       final tools = await createTools(store);
-      final saveFile = getTool(tools, 'FileAccess_SaveFile');
+      final saveFile = getTool(tools, 'file_access_write');
 
       await saveFile.invoke(
         AIFunctionArguments({'fileName': 'notes..md', 'content': 'Content'}),
@@ -376,7 +383,7 @@ void main() {
 
     test('read file path traversal throws', () async {
       final tools = await createTools();
-      final readFile = getTool(tools, 'FileAccess_ReadFile');
+      final readFile = getTool(tools, 'file_access_read');
 
       await expectLater(
         readFile.invoke(AIFunctionArguments({'fileName': '../../etc/passwd'})),
@@ -386,7 +393,7 @@ void main() {
 
     test('delete file path traversal throws', () async {
       final tools = await createTools();
-      final deleteFile = getTool(tools, 'FileAccess_DeleteFile');
+      final deleteFile = getTool(tools, 'file_access_delete');
 
       await expectLater(
         deleteFile.invoke(AIFunctionArguments({'fileName': '../escape.md'})),
@@ -422,7 +429,7 @@ void main() {
       final store = InMemoryAgentFileStore();
       await store.writeFileAsync('notes.md', 'hello world');
       final tools = await createTools(store);
-      final replace = getTool(tools, 'FileAccess_Replace');
+      final replace = getTool(tools, 'file_access_replace');
 
       final message = await replace.invoke(
         AIFunctionArguments({
@@ -438,7 +445,7 @@ void main() {
 
     test('missing file returns a not-found message', () async {
       final tools = await createTools();
-      final replace = getTool(tools, 'FileAccess_Replace');
+      final replace = getTool(tools, 'file_access_replace');
 
       final message = await replace.invoke(
         AIFunctionArguments({
@@ -455,7 +462,7 @@ void main() {
       final store = InMemoryAgentFileStore();
       await store.writeFileAsync('notes.md', 'a a');
       final tools = await createTools(store);
-      final replace = getTool(tools, 'FileAccess_Replace');
+      final replace = getTool(tools, 'file_access_replace');
 
       await expectLater(
         () => replace.invoke(
@@ -473,7 +480,7 @@ void main() {
       final store = InMemoryAgentFileStore();
       await store.writeFileAsync('notes.md', 'one\ntwo\nthree\n');
       final tools = await createTools(store);
-      final replaceLines = getTool(tools, 'FileAccess_ReplaceLines');
+      final replaceLines = getTool(tools, 'file_access_replace_lines');
 
       final message = await replaceLines.invoke(
         AIFunctionArguments({
@@ -489,10 +496,105 @@ void main() {
       expect(await store.readFileAsync('notes.md'), 'one\nTWO\n');
     });
   });
+
+  group('FileAccessProvider approval and options', () {
+    test('all tools are approval-wrapped by default', () async {
+      final tools = await createTools();
+
+      expect(tools, everyElement(isA<ApprovalRequiredAIFunction>()));
+    });
+
+    test('approval can be disabled per group', () async {
+      final tools = await createTools(
+        null,
+        FileAccessProviderOptions()..disableReadOnlyToolApproval = true,
+      );
+
+      final readOnly = [
+        'file_access_read',
+        'file_access_ls',
+        'file_access_grep',
+      ];
+      for (final tool in tools.whereType<AIFunction>()) {
+        if (readOnly.contains(tool.name)) {
+          expect(tool, isNot(isA<ApprovalRequiredAIFunction>()));
+        } else {
+          expect(tool, isA<ApprovalRequiredAIFunction>());
+        }
+      }
+    });
+
+    test('disableWriteTools exposes only the read-only tools', () async {
+      final tools = await createTools(
+        null,
+        FileAccessProviderOptions()..disableWriteTools = true,
+      );
+
+      expect(
+        tools.whereType<AIFunction>().map((t) => t.name),
+        unorderedEquals([
+          'file_access_read',
+          'file_access_ls',
+          'file_access_grep',
+        ]),
+      );
+    });
+
+    test('grep searches recursively and re-roots to the store root', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('reports/2024/summary.md', 'FINDING here');
+      await store.writeFileAsync('notes.md', 'FINDING there');
+      final tools = await createTools(store);
+      final grep = getTool(tools, 'file_access_grep');
+
+      final all =
+          await grep.invoke(AIFunctionArguments({'regexPattern': 'FINDING'}))
+              as List;
+      expect(
+        all.map((r) => r.fileName),
+        unorderedEquals(['notes.md', 'reports/2024/summary.md']),
+      );
+
+      final scoped =
+          await grep.invoke(
+                AIFunctionArguments({
+                  'regexPattern': 'FINDING',
+                  'directory': 'reports',
+                }),
+              )
+              as List;
+      expect(scoped.map((r) => r.fileName), ['reports/2024/summary.md']);
+    });
+
+    test('ls lists a subdirectory and filters with a glob', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('reports/summary.md', 's');
+      await store.writeFileAsync('reports/data.txt', 'd');
+      final tools = await createTools(store);
+      final ls = getTool(tools, 'file_access_ls');
+
+      final entries =
+          await ls.invoke(
+                AIFunctionArguments({
+                  'directory': 'reports',
+                  'globPattern': '*.md',
+                }),
+              )
+              as List<FileStoreEntry>;
+
+      expect(entries.map((e) => e.name), ['summary.md']);
+    });
+  });
 }
 
-Future<Iterable<AITool>> createTools([InMemoryAgentFileStore? store]) async {
-  final provider = FileAccessProvider(store ?? InMemoryAgentFileStore());
+Future<Iterable<AITool>> createTools([
+  InMemoryAgentFileStore? store,
+  FileAccessProviderOptions? options,
+]) async {
+  final provider = FileAccessProvider(
+    store ?? InMemoryAgentFileStore(),
+    options: options,
+  );
   final result = await provider.invoking(createInvokingContext());
   return result.tools!;
 }

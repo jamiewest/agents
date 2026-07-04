@@ -516,6 +516,7 @@ export 'src/a2a/extensions/a2a_agent_card_extensions.dart';
 
 // A2A hosting (server-side bridge)
 export 'src/hosting/a2a/a2a_agent_handler.dart';
+export 'src/hosting/a2a/a2a_hosting_json_utilities.dart';
 export 'src/hosting/a2a/a2a_run_decision_context.dart';
 export 'src/hosting/a2a/a2a_server_registration_options.dart';
 export 'src/hosting/a2a/a2a_server_service_collection_extensions.dart';

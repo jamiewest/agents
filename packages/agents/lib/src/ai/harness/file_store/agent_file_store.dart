@@ -54,10 +54,16 @@ abstract class AgentFileStore {
   ]);
 
   /// Searches for files whose content matches a regular expression pattern.
+  ///
+  /// When [recursive] is `true`, files in subdirectories of [directory] are
+  /// searched as well; result file names are paths relative to [directory]
+  /// (using forward slashes). [filePattern] is a glob matched against each
+  /// file's relative path.
   Future<List<FileSearchResult>> searchFilesAsync(
     String directory,
     String regexPattern, [
     String? filePattern,
+    bool recursive = false,
     CancellationToken? cancellationToken,
   ]);
 

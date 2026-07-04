@@ -22,4 +22,11 @@ class TodoItem {
     if (description != null) 'description': description,
     'isComplete': isComplete,
   };
+
+  /// Creates a [TodoItem] from a JSON-decoded map produced by [toJson].
+  static TodoItem fromJson(Map<String, Object?> json) => TodoItem()
+    ..id = (json['id'] as num?)?.toInt() ?? 0
+    ..title = json['title'] as String? ?? ''
+    ..description = json['description'] as String?
+    ..isComplete = json['isComplete'] as bool? ?? false;
 }

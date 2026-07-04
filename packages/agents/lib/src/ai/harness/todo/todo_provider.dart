@@ -40,6 +40,7 @@ class TodoProvider extends AIContextProvider implements Disposable {
     _sessionState = ProviderSessionState<TodoState>(
       (_) => TodoState(),
       runtimeType.toString(),
+      stateRehydrator: TodoState.fromJson,
       JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
     );
   }

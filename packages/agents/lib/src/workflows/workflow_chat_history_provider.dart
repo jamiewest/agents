@@ -4,6 +4,7 @@ import 'package:extensions/system.dart';
 
 import '../abstractions/agent_session.dart';
 import '../abstractions/chat_history_provider.dart';
+import '../abstractions/chat_message_json_converter.dart';
 import '../abstractions/invoked_context.dart';
 import '../abstractions/provider_session_state.dart';
 
@@ -17,6 +18,7 @@ class WorkflowChatHistoryProvider extends ChatHistoryProvider {
     : _sessionState = ProviderSessionState<_StoreState>(
         (_) => _StoreState(),
         'WorkflowChatHistoryProvider',
+        stateRehydrator: _StoreState.fromJson,
       );
 
   final ProviderSessionState<_StoreState> _sessionState;
@@ -75,4 +77,18 @@ class WorkflowChatHistoryProvider extends ChatHistoryProvider {
 class _StoreState {
   int bookmark = 0;
   List<ChatMessage> messages = [];
+
+  Map<String, Object?> toJson() => {
+    'bookmark': bookmark,
+    'messages': ChatMessageJsonConverter.encodeList(messages),
+  };
+
+  static _StoreState fromJson(Object? json) {
+    final state = _StoreState();
+    if (json is Map) {
+      state.bookmark = (json['bookmark'] as num?)?.toInt() ?? 0;
+      state.messages = ChatMessageJsonConverter.decodeList(json['messages']);
+    }
+    return state;
+  }
 }
