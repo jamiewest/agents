@@ -13,13 +13,21 @@ import 'sembast_database.dart';
 /// [openSembastDatabase]. Each collection maps to one sembast store.
 class SembastRecordStore extends RecordStore {
   /// Creates a [SembastRecordStore] over an already-opening [database].
-  SembastRecordStore(Future<sembast.Database> database) : _database = database;
+  ///
+  /// A store created this way does not know how to recreate its database,
+  /// so [clearAll] is unsupported; use [SembastRecordStore.open] when the
+  /// full-reset path matters.
+  SembastRecordStore(Future<sembast.Database> database)
+    : _database = database,
+      _name = null;
 
   /// Creates a [SembastRecordStore] over the platform-default database.
   SembastRecordStore.open({String name = 'agents_app.db'})
-    : _database = openSembastDatabase(name: name);
+    : _database = openSembastDatabase(name: name),
+      _name = name;
 
-  final Future<sembast.Database> _database;
+  Future<sembast.Database> _database;
+  final String? _name;
 
   static sembast.StoreRef<String, Map<String, Object?>> _store(
     String collection,
@@ -84,6 +92,24 @@ class SembastRecordStore extends RecordStore {
   Future<void> deleteWhere(String collection, RecordQuery query) async {
     final database = await _database;
     await _store(collection).delete(database, finder: _finder(query));
+  }
+
+  @override
+  Future<void> clearAll() async {
+    final name = _name;
+    if (name == null) {
+      throw UnsupportedError(
+        'clearAll requires a store created with SembastRecordStore.open, '
+        'which knows the database name needed to delete and recreate it.',
+      );
+    }
+    // Sembast cannot enumerate its stores, so the only complete wipe is to
+    // delete the database itself and reopen an empty one. Watch streams
+    // created before the reset stay bound to the closed database.
+    final database = await _database;
+    await database.close();
+    await deleteSembastDatabase(name: name);
+    _database = openSembastDatabase(name: name);
   }
 
   static sembast.Finder? _finder(RecordQuery? query) {

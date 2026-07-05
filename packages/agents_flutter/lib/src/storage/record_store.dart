@@ -34,6 +34,13 @@ abstract class RecordStore {
 
   /// Deletes every record in [collection] matching [query].
   Future<void> deleteWhere(String collection, RecordQuery query);
+
+  /// Permanently deletes every record in every collection.
+  ///
+  /// Intended for full app-data resets. Active [watch] streams are not
+  /// guaranteed to survive the reset; callers should treat the application
+  /// state as requiring a restart afterwards.
+  Future<void> clearAll();
 }
 
 /// A record returned from a [RecordStore] query.

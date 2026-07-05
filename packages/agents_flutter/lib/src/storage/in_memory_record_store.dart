@@ -75,6 +75,15 @@ class InMemoryRecordStore extends RecordStore {
   }
 
   @override
+  Future<void> clearAll() async {
+    final collections = _collections.keys.toList();
+    _collections.clear();
+    for (final collection in collections) {
+      _changes.add(collection);
+    }
+  }
+
+  @override
   Future<void> deleteWhere(String collection, RecordQuery query) async {
     final matches = _query(collection, query);
     final records = _collection(collection);

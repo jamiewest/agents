@@ -10,3 +10,11 @@ Future<Database> openPlatformDatabase(String name) async {
   final directory = await getApplicationSupportDirectory();
   return databaseFactoryIo.openDatabase('${directory.path}/$name');
 }
+
+/// Deletes the file-backed sembast database named [name].
+///
+/// The database must be closed first.
+Future<void> deletePlatformDatabase(String name) async {
+  final directory = await getApplicationSupportDirectory();
+  await databaseFactoryIo.deleteDatabase('${directory.path}/$name');
+}
