@@ -4,6 +4,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:math';
+
 import 'package:a2a/a2a.dart' show A2AClient;
 import 'package:agents/agents.dart';
 import 'package:extensions/ai.dart';
@@ -192,10 +194,25 @@ class ConfiguredAgentFactory {
     if (access != null && access.enableFileAccess) {
       toolApprovalOptions = _applyFileAccessPolicy(options, access);
     }
-    final effectiveMaxOutputTokens =
+    var effectiveMaxOutputTokens =
         agent.maxOutputTokens ??
         options.chatOptions?.maxOutputTokens ??
         _maxOutputTokens;
+    // Local GGUF models have a real, small context window; the factory-wide
+    // default (sized for hosted frontier models) would never trigger
+    // compaction, letting long conversations overflow n_ctx and fail at the
+    // native layer. Derive the harness budget from the model's configured
+    // context size instead, and keep the output reservation within it.
+    var maxContextWindowTokens = _maxContextWindowTokens;
+    if (source.providerType == ProviderType.localLlama) {
+      maxContextWindowTokens =
+          int.tryParse(model.settings['llama.contextSize']?.trim() ?? '') ??
+          8192;
+      effectiveMaxOutputTokens = min(
+        effectiveMaxOutputTokens,
+        maxContextWindowTokens ~/ 4,
+      );
+    }
     options
       ..id = agent.id
       ..name = agent.name
@@ -209,7 +226,7 @@ class ConfiguredAgentFactory {
       );
 
     AIAgent result = chatClient.asFlutterHarnessAgent(
-      _maxContextWindowTokens,
+      maxContextWindowTokens,
       effectiveMaxOutputTokens,
       options: options,
     );

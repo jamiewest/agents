@@ -58,15 +58,21 @@ List<ChatMessage> messagesWithInstructions(
   return <ChatMessage>[system(trimmed), ...list];
 }
 
-/// Moves text-only AI-context-provider messages into the system instructions.
+/// Repositions text-only AI-context-provider messages as one runtime-context
+/// turn just before the latest external user message.
 ///
 /// Harness context providers sometimes contribute transient status messages
 /// using a `user` role, for example the todo provider's current todo list.
 /// Rendering those messages as ordinary trailing user turns changes the
-/// perceived latest user request for small local chat models. The messages are
-/// already tagged with source attribution, so keep their information available
-/// to the model as runtime context while preserving the external/chat-history
-/// message order exactly.
+/// perceived latest user request for small local chat models.
+///
+/// They must not be merged into the system instructions either: that text
+/// sits at the very top of the rendered prompt, so any change to it (a todo
+/// update, per-turn memory recall) invalidates the entire llama.cpp KV-cache
+/// prefix and forces a full re-prefill of the whole conversation every turn.
+/// Placing the volatile context after the stable history keeps the prefix
+/// reusable while the model still reads the context right before the actual
+/// request.
 ({Iterable<ChatMessage> messages, String? instructions})
 messagesWithRuntimeContext(
   Iterable<ChatMessage> messages,
@@ -93,18 +99,22 @@ messagesWithRuntimeContext(
     return (messages: retained, instructions: instructions);
   }
 
-  final mergedInstructions = StringBuffer();
-  final trimmedInstructions = instructions?.trim();
-  if (trimmedInstructions != null && trimmedInstructions.isNotEmpty) {
-    mergedInstructions
-      ..write(trimmedInstructions)
-      ..write('\n\n');
-  }
-  mergedInstructions
-    ..write('Runtime context:\n')
-    ..write(runtimeContext.join('\n\n'));
+  final contextMessage = ChatMessage(
+    role: ChatRole.user,
+    contents: <AIContent>[
+      TextContent('Runtime context:\n${runtimeContext.join('\n\n')}'),
+    ],
+  );
 
-  return (messages: retained, instructions: mergedInstructions.toString());
+  var insertAt = retained.length;
+  for (var i = retained.length - 1; i >= 0; i--) {
+    if (retained[i].role == ChatRole.user) {
+      insertAt = i;
+      break;
+    }
+  }
+  final result = [...retained]..insert(insertAt, contextMessage);
+  return (messages: result, instructions: instructions);
 }
 
 /// Builds the engine-neutral structured view of [messages] passed to

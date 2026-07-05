@@ -44,24 +44,31 @@ final class _RecordingSession implements LlamaSession {
 
 void main() {
   group('messagesWithRuntimeContext', () {
-    test('folds text-only provider messages into runtime context', () {
-      final prepared = messagesWithRuntimeContext([
-        ChatMessage.fromText(ChatRole.user, 'Hi'),
-        ChatMessage.fromText(
-          ChatRole.user,
-          '### Current todo list\n- none yet',
-        ).withAgentRequestMessageSource(
-          AgentRequestMessageSourceType.aiContextProvider,
-          sourceId: 'TodoProvider',
-        ),
-      ], 'You are helpful.');
+    test(
+      'repositions text-only provider messages before the latest user turn',
+      () {
+        final prepared = messagesWithRuntimeContext([
+          ChatMessage.fromText(ChatRole.user, 'Hi'),
+          ChatMessage.fromText(
+            ChatRole.user,
+            '### Current todo list\n- none yet',
+          ).withAgentRequestMessageSource(
+            AgentRequestMessageSourceType.aiContextProvider,
+            sourceId: 'TodoProvider',
+          ),
+        ], 'You are helpful.');
 
-      expect(prepared.messages, hasLength(1));
-      expect(prepared.messages.single.text, 'Hi');
-      expect(prepared.instructions, contains('Runtime context:'));
-      expect(prepared.instructions, contains('[TodoProvider]'));
-      expect(prepared.instructions, contains('### Current todo list'));
-    });
+        // Volatile provider state stays out of the instructions so the
+        // rendered system prompt (the KV-cache prefix) is turn-stable.
+        expect(prepared.instructions, 'You are helpful.');
+        final messages = prepared.messages.toList();
+        expect(messages, hasLength(2));
+        expect(messages.first.text, contains('Runtime context:'));
+        expect(messages.first.text, contains('[TodoProvider]'));
+        expect(messages.first.text, contains('### Current todo list'));
+        expect(messages.last.text, 'Hi');
+      },
+    );
 
     test(
       'keeps provider messages with non-text content in the message list',
