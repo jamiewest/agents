@@ -44,6 +44,19 @@ class InMemoryRecordStore extends RecordStore {
   }
 
   @override
+  Future<void> putAll(
+    String collection,
+    Map<String, Map<String, Object?>> records,
+  ) async {
+    if (records.isEmpty) return;
+    final target = _collection(collection);
+    for (final entry in records.entries) {
+      target[entry.key] = Map<String, Object?>.of(entry.value);
+    }
+    _changes.add(collection);
+  }
+
+  @override
   Future<void> delete(String collection, String id) async {
     _collection(collection).remove(id);
     _changes.add(collection);

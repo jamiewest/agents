@@ -133,17 +133,21 @@ class FlutterChatHistoryProvider extends ChatHistoryProvider {
     final sessionId = _sessionIdResolver();
     final now = DateTime.now().toUtc().toIso8601String();
 
-    for (final message in newMessages) {
-      await _store.put(_collection, _newRecordId(), {
-        ChatMessageRecords.conversationIdField: conversationId,
-        ChatMessageRecords.sessionIdField: sessionId,
-        ChatMessageRecords.seqField: seq++,
-        if (message.role != ChatRole.user && _senderAgentId != null)
-          ChatMessageRecords.senderAgentIdField: _senderAgentId,
-        ChatMessageRecords.createdAtField: now,
-        ChatMessageRecords.messageField: ChatMessageCodec.encode(message),
-      });
-    }
+    // One batched write per turn: tool-calling turns produce several
+    // messages, and committing them individually costs one storage
+    // transaction each (a disk sync, or an IndexedDB round trip on web).
+    await _store.putAll(_collection, {
+      for (final message in newMessages)
+        _newRecordId(): {
+          ChatMessageRecords.conversationIdField: conversationId,
+          ChatMessageRecords.sessionIdField: sessionId,
+          ChatMessageRecords.seqField: seq++,
+          if (message.role != ChatRole.user && _senderAgentId != null)
+            ChatMessageRecords.senderAgentIdField: _senderAgentId,
+          ChatMessageRecords.createdAtField: now,
+          ChatMessageRecords.messageField: ChatMessageCodec.encode(message),
+        },
+    });
   }
 
   Future<int> _nextSeq() async {
@@ -162,11 +166,12 @@ class FlutterChatHistoryProvider extends ChatHistoryProvider {
     return (latest.single.value[ChatMessageRecords.seqField]! as int) + 1;
   }
 
+  static final Random _random = Random.secure();
+
   static String _newRecordId() {
-    final random = Random.secure();
     final suffix = List.generate(
       16,
-      (_) => random.nextInt(16).toRadixString(16),
+      (_) => _random.nextInt(16).toRadixString(16),
     ).join();
     return '${DateTime.now().microsecondsSinceEpoch}-$suffix';
   }

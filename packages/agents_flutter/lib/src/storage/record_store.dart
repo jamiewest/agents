@@ -20,6 +20,20 @@ abstract class RecordStore {
   /// Inserts or replaces the record with [id] in [collection].
   Future<void> put(String collection, String id, Map<String, Object?> record);
 
+  /// Inserts or replaces every entry of [records] in [collection].
+  ///
+  /// Backends that support batching override this to commit all entries in
+  /// one transaction — one disk sync or IndexedDB round trip instead of one
+  /// per record. The default writes them sequentially through [put].
+  Future<void> putAll(
+    String collection,
+    Map<String, Map<String, Object?>> records,
+  ) async {
+    for (final entry in records.entries) {
+      await put(collection, entry.key, entry.value);
+    }
+  }
+
   /// Deletes the record with [id] from [collection] if it exists.
   Future<void> delete(String collection, String id);
 

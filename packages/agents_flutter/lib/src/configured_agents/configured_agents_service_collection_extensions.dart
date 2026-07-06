@@ -32,6 +32,11 @@ extension ConfiguredAgentsServiceCollectionExtensions on ServiceCollection {
   /// The harness settings are passed to [ConfiguredAgentFactory] for every
   /// saved agent it creates. Saved-agent metadata and chat settings override
   /// shared harness defaults for that agent.
+  ///
+  /// When [logAgentTraffic] is true, every built agent is wrapped in an
+  /// `AgentTrafficLoggingAgent` using the registered [LoggerFactory], so
+  /// each run produces a single request/response summary log record (never
+  /// one per streamed update).
   ServiceCollection addConfiguredAgents({
     int maxContextWindowTokens = defaultFlutterHarnessMaxContextWindowTokens,
     int maxOutputTokens = defaultConfiguredAgentMaxOutputTokens,
@@ -41,6 +46,7 @@ extension ConfiguredAgentsServiceCollectionExtensions on ServiceCollection {
     ConfiguredChatClientFactory Function(ServiceProvider sp)? chatClientFactory,
     KeyValueStore Function(ServiceProvider sp)? keyValueStore,
     SecretStore Function(ServiceProvider sp)? secretStore,
+    bool logAgentTraffic = false,
   }) {
     tryAddSingleton<KeyValueStore>(
       (sp) => keyValueStore?.call(sp) ?? SharedPreferencesKeyValueStore(),
@@ -70,6 +76,9 @@ extension ConfiguredAgentsServiceCollectionExtensions on ServiceCollection {
         maxOutputTokens: maxOutputTokens,
         configureHarness: configureHarness,
         configureHarnessForScope: configureHarnessForScope?.call(sp),
+        loggerFactory: logAgentTraffic
+            ? sp.getRequiredService<LoggerFactory>()
+            : null,
       ),
     );
     return this;
@@ -103,6 +112,7 @@ extension ConfiguredAgentsFlutterBuilderExtensions on FlutterBuilder {
     ConfiguredChatClientFactory Function(ServiceProvider sp)? chatClientFactory,
     KeyValueStore Function(ServiceProvider sp)? keyValueStore,
     SecretStore Function(ServiceProvider sp)? secretStore,
+    bool logAgentTraffic = false,
   }) {
     services.addConfiguredAgents(
       maxContextWindowTokens: maxContextWindowTokens,
@@ -112,6 +122,7 @@ extension ConfiguredAgentsFlutterBuilderExtensions on FlutterBuilder {
       chatClientFactory: chatClientFactory,
       keyValueStore: keyValueStore,
       secretStore: secretStore,
+      logAgentTraffic: logAgentTraffic,
     );
     return this;
   }

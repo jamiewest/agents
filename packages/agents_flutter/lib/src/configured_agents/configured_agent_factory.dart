@@ -9,12 +9,14 @@ import 'dart:math';
 import 'package:a2a/a2a.dart' show A2AClient;
 import 'package:agents/agents.dart';
 import 'package:extensions/ai.dart';
+import 'package:extensions/logging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../chat_client_flutter_extensions.dart';
 import '../flutter_harness_agent_options.dart';
 import '../flutter_harness_service_collection_extensions.dart';
+import '../logging/agent_traffic_logging_agent.dart';
 import 'agent_scope.dart';
 import 'configured_agent_exception.dart';
 import 'configured_agents_manager.dart';
@@ -70,11 +72,13 @@ class ConfiguredAgentFactory {
     int maxOutputTokens = defaultConfiguredAgentMaxOutputTokens,
     void Function(FlutterHarnessAgentOptions options)? configureHarness,
     ConfigureHarnessForScope? configureHarnessForScope,
+    LoggerFactory? loggerFactory,
   }) : _chatClientFactory = chatClientFactory,
        _maxContextWindowTokens = maxContextWindowTokens,
        _maxOutputTokens = maxOutputTokens,
        _configureHarness = configureHarness,
-       _configureHarnessForScope = configureHarnessForScope;
+       _configureHarnessForScope = configureHarnessForScope,
+       _loggerFactory = loggerFactory;
 
   final ConfiguredAgentsManager _manager;
   final ConfiguredChatClientFactory _chatClientFactory;
@@ -82,6 +86,21 @@ class ConfiguredAgentFactory {
   final int _maxOutputTokens;
   final void Function(FlutterHarnessAgentOptions options)? _configureHarness;
   final ConfigureHarnessForScope? _configureHarnessForScope;
+  final LoggerFactory? _loggerFactory;
+
+  /// Wraps [agent] in an [AgentTrafficLoggingAgent] when the factory was
+  /// given a [LoggerFactory]; otherwise returns [agent] unchanged.
+  ///
+  /// Applied as the outermost decorator so the logged duration covers the
+  /// whole run, including tool approval and background-agent loops.
+  AIAgent _withTrafficLogging(AIAgent agent) {
+    final loggerFactory = _loggerFactory;
+    if (loggerFactory == null) return agent;
+    return AgentTrafficLoggingAgent(
+      agent,
+      loggerFactory.createLogger(agentTrafficLogCategory),
+    );
+  }
 
   /// Resolves the saved agent with [agentId].
   ///
@@ -158,7 +177,9 @@ class ConfiguredAgentFactory {
     }
 
     if (source.providerType == ProviderType.network) {
-      return _createNetworkAgent(agent, model, source, bearer: apiKey);
+      return _withTrafficLogging(
+        _createNetworkAgent(agent, model, source, bearer: apiKey),
+      );
     }
 
     final chatClient = _chatClientFactory.createChatClient(
@@ -247,7 +268,7 @@ class ConfiguredAgentFactory {
           ..excludeOnBehalfOfMessages = true,
       );
     }
-    return result;
+    return _withTrafficLogging(result);
   }
 
   /// Applies the saved file access policy from [access] to [options].

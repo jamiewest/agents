@@ -51,6 +51,21 @@ class SembastRecordStore extends RecordStore {
   }
 
   @override
+  Future<void> putAll(
+    String collection,
+    Map<String, Map<String, Object?>> records,
+  ) async {
+    if (records.isEmpty) return;
+    final database = await _database;
+    final store = _store(collection);
+    await database.transaction((transaction) async {
+      for (final entry in records.entries) {
+        await store.record(entry.key).put(transaction, entry.value);
+      }
+    });
+  }
+
+  @override
   Future<void> delete(String collection, String id) async {
     final database = await _database;
     await _store(collection).record(id).delete(database);
