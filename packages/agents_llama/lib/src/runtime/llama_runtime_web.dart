@@ -3,16 +3,25 @@
 import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:web/web.dart' as web;
 
 import '../models/model_spec.dart';
+import 'gguf_split.dart';
 import 'llama_runtime_api.dart';
 import 'stop_sequence_filter.dart';
 
 const String _wasmAssetBase = 'assets/packages/agents_llama/lib/assets/wasm';
 const int _maxWebModelBytes = 0x7fffffff;
+
+/// OPFS directory holding oversized models downloaded by this runtime.
+///
+/// Models at or under the wasm32 per-file limit go through wllama's own
+/// URL cache instead; only files that must be staged as client-side
+/// splits land here (keyed by URL, reused across sessions).
+const String _largeModelCacheDir = 'agents_llama_large_models';
 
 /// Creates the wllama runtime for Flutter web.
 LlamaRuntime createLlamaRuntime() => WebLlamaRuntime();
@@ -64,64 +73,219 @@ final class WebLlamaRuntime implements LlamaRuntime {
     final selectedLocalPath = localPath?.trim();
     final selectedMmprojPath = localMmprojPath?.trim();
     if (selectedLocalPath != null && selectedLocalPath.isNotEmpty) {
-      final blobs = <web.Blob>[await _fetchBlob(selectedLocalPath)];
+      final blobs = <web.Blob>[
+        ...await _asLoadableParts(await _fetchBlob(selectedLocalPath)),
+      ];
       if (selectedMmprojPath != null && selectedMmprojPath.isNotEmpty) {
         // wllama identifies the projector blob by its GGUF metadata
         // (general.architecture == "clip"), so order does not matter.
         blobs.add(await _fetchBlob(selectedMmprojPath));
       }
-      await instance.callMethodVarArgs<JSPromise<JSAny?>>('loadModel'.toJS, [
-        blobs.toJS,
+      await _loadFromBlobs(instance, blobs, spec);
+      return _WebLlamaSession(instance, spec.contextSize);
+    }
+
+    // A single file of 2 GiB or more cannot be staged in wasm32, so it
+    // is downloaded once into OPFS and split client-side into the same
+    // multi-file layout `llama-gguf-split` would produce. Smaller
+    // models keep wllama's own URL download cache.
+    final contentLength = await _fetchContentLength(spec.modelUrl);
+    if (contentLength != null && contentLength > _maxWebModelBytes) {
+      final model = await _cachedLargeModel(
+        spec.modelUrl,
+        contentLength,
+        onProgress,
+      );
+      final blobs = <web.Blob>[
+        ...await _asLoadableParts(model),
+        if (spec.mmprojUrl != null) await _fetchBlob(spec.mmprojUrl.toString()),
+      ];
+      await _loadFromBlobs(instance, blobs, spec);
+      return _WebLlamaSession(instance, spec.contextSize);
+    }
+
+    await instance.callMethodVarArgs<JSPromise<JSAny?>>(
+      'loadModelFromUrl'.toJS,
+      [
+        <String, Object?>{
+          'url': spec.modelUrl.toString(),
+          if (spec.mmprojUrl != null) 'mmprojUrl': spec.mmprojUrl.toString(),
+        }.jsify(),
         <String, Object?>{
           'n_ctx': spec.contextSize,
           'n_gpu_layers': spec.gpuLayers,
+          'useCache': true,
+          if (onProgress != null)
+            'progressCallback': _createProgressCallback(onProgress),
         }.jsify(),
-      ]).toDart;
-    } else {
-      await _validateModelUrlForWeb(spec.modelUrl);
-
-      await instance.callMethodVarArgs<JSPromise<JSAny?>>(
-        'loadModelFromUrl'.toJS,
-        [
-          <String, Object?>{
-            'url': spec.modelUrl.toString(),
-            if (spec.mmprojUrl != null) 'mmprojUrl': spec.mmprojUrl.toString(),
-          }.jsify(),
-          <String, Object?>{
-            'n_ctx': spec.contextSize,
-            'n_gpu_layers': spec.gpuLayers,
-            'useCache': true,
-            if (onProgress != null)
-              'progressCallback': _createProgressCallback(onProgress),
-          }.jsify(),
-        ],
-      ).toDart;
-    }
+      ],
+    ).toDart;
 
     return _WebLlamaSession(instance, spec.contextSize);
   }
 
-  static Future<web.Blob> _fetchBlob(String objectUrl) async {
-    final response = await web.window
-        .callMethodVarArgs<JSPromise<web.Response>>('fetch'.toJS, [
-          objectUrl.toJS,
-        ])
-        .toDart;
-    return response.blob().toDart;
+  static Future<void> _loadFromBlobs(
+    JSObject instance,
+    List<web.Blob> blobs,
+    ModelSpec spec,
+  ) async {
+    await instance.callMethodVarArgs<JSPromise<JSAny?>>('loadModel'.toJS, [
+      blobs.toJS,
+      <String, Object?>{
+        'n_ctx': spec.contextSize,
+        'n_gpu_layers': spec.gpuLayers,
+      }.jsify(),
+    ]).toDart;
   }
 
-  static Future<void> _validateModelUrlForWeb(Uri modelUrl) async {
-    final contentLength = await _fetchContentLength(modelUrl);
-    if (contentLength == null || contentLength <= _maxWebModelBytes) {
-      return;
+  /// Returns [model] as the blob list wllama can stage: the blob itself
+  /// when it fits the wasm32 per-file limit, otherwise GGUF splits
+  /// composed of a rewritten header plus zero-copy slices of [model].
+  static Future<List<web.Blob>> _asLoadableParts(web.Blob model) async {
+    if (model.size <= _maxWebModelBytes) return [model];
+
+    // The header (metadata plus tensor infos) must be parsed whole; its
+    // size is unknown up front, so read a growing prefix. Tokenizer
+    // metadata dominates and rarely passes a few tens of megabytes.
+    var prefixLength = 8 * 1024 * 1024;
+    const maxPrefixLength = 1024 * 1024 * 1024;
+    while (true) {
+      prefixLength = math.min(prefixLength, model.size);
+      final prefix = (await model.slice(0, prefixLength).arrayBuffer().toDart)
+          .toDart
+          .asUint8List();
+      final result = planGgufSplit(
+        headerPrefix: prefix,
+        totalBytes: model.size,
+      );
+      switch (result) {
+        case GgufSplitPlan(:final parts):
+          return [
+            for (final part in parts)
+              web.Blob(
+                [
+                  part.headerBytes.toJS,
+                  model.slice(part.dataStart, part.dataEnd),
+                ].toJS,
+              ),
+          ];
+        case GgufSplitNeedsLargerPrefix():
+          if (prefixLength >= model.size || prefixLength >= maxPrefixLength) {
+            throw UnsupportedError(
+              'The GGUF header could not be parsed for client-side '
+              'splitting. Use a pre-split GGUF (a file ending in '
+              '-00001-of-00002.gguf) or run the native app.',
+            );
+          }
+          prefixLength *= 8;
+        case GgufSplitUnsupported(:final reason):
+          throw UnsupportedError(
+            'This ${_formatBytes(model.size)} GGUF cannot be loaded on '
+            'web: $reason Use a pre-split GGUF (a file ending in '
+            '-00001-of-00002.gguf) or run the native app.',
+          );
+      }
+    }
+  }
+
+  /// Downloads an oversized model into OPFS (reusing a previous copy of
+  /// the same size) and returns it as a disk-backed [web.Blob].
+  ///
+  /// Falls back to an in-memory fetch when OPFS is unavailable — the
+  /// model then loads but is re-downloaded next session.
+  static Future<web.Blob> _cachedLargeModel(
+    Uri modelUrl,
+    int contentLength,
+    LlamaLoadProgress? onProgress,
+  ) async {
+    final web.FileSystemDirectoryHandle cacheDir;
+    try {
+      final opfs = await web.window.navigator.storage.getDirectory().toDart;
+      cacheDir = await opfs
+          .getDirectoryHandle(
+            _largeModelCacheDir,
+            web.FileSystemGetDirectoryOptions(create: true),
+          )
+          .toDart;
+    } catch (_) {
+      final response = await _fetchOk(modelUrl.toString());
+      return response.blob().toDart;
     }
 
-    throw UnsupportedError(
-      'The GGUF model at $modelUrl is ${_formatBytes(contentLength)}, which '
-      'is too large for the web local llama runtime. Use a split GGUF and '
-      'enter the first shard URL, for example a file ending in '
-      '-00001-of-00002.gguf, or run the native app.',
-    );
+    final name = _cacheFileName(modelUrl);
+    try {
+      final existing = await cacheDir.getFileHandle(name).toDart;
+      final file = await existing.getFile().toDart;
+      if (file.size == contentLength) return file;
+    } catch (_) {
+      // Nothing cached yet.
+    }
+
+    final handle = await cacheDir
+        .getFileHandle(name, web.FileSystemGetFileOptions(create: true))
+        .toDart;
+    final writable = await handle.createWritable().toDart;
+    try {
+      final response = await _fetchOk(modelUrl.toString());
+      final body = response.body;
+      if (body == null) {
+        throw StateError('The model download returned no body.');
+      }
+      final reader = body.getReader() as web.ReadableStreamDefaultReader;
+      var received = 0;
+      while (true) {
+        final chunk = await reader.read().toDart;
+        if (chunk.done) break;
+        final value = chunk.value as JSObject;
+        received += value.getProperty<JSNumber>('byteLength'.toJS).toDartInt;
+        await writable.write(value).toDart;
+        onProgress?.call((received / contentLength).clamp(0, 1).toDouble());
+      }
+    } finally {
+      await writable.close().toDart;
+    }
+
+    // Ask the browser not to evict the copy under storage pressure.
+    try {
+      await web.window.navigator.storage.persist().toDart;
+    } catch (_) {
+      // Best-effort only.
+    }
+    return (await handle.getFile().toDart);
+  }
+
+  /// A stable OPFS-safe cache name for [modelUrl].
+  static String _cacheFileName(Uri modelUrl) {
+    final url = modelUrl.toString();
+    // djb2 kept within 32 bits; the multiplier is small enough that the
+    // intermediate stays exact in JS doubles on the web backend.
+    var hash = 5381;
+    for (final unit in url.codeUnits) {
+      hash = (hash * 33 + unit) & 0xffffffff;
+    }
+    final tail = modelUrl.pathSegments.isEmpty
+        ? 'model'
+        : modelUrl.pathSegments.last;
+    var safeTail = tail.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
+    if (safeTail.length > 64) safeTail = safeTail.substring(0, 64);
+    return '${hash.toRadixString(16)}-$safeTail';
+  }
+
+  static Future<web.Response> _fetchOk(String url) async {
+    final response = await web.window
+        .callMethodVarArgs<JSPromise<web.Response>>('fetch'.toJS, [url.toJS])
+        .toDart;
+    if (!response.ok) {
+      throw StateError(
+        'The model download failed with HTTP ${response.status}.',
+      );
+    }
+    return response;
+  }
+
+  static Future<web.Blob> _fetchBlob(String objectUrl) async {
+    final response = await _fetchOk(objectUrl);
+    return response.blob().toDart;
   }
 
   static Future<int?> _fetchContentLength(Uri modelUrl) async {
