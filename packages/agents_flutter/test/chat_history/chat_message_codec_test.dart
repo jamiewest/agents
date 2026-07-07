@@ -105,6 +105,51 @@ void main() {
       expect(result.result, 'opaque-result');
     });
 
+    test('round-trips usage content', () {
+      final message = ChatMessage(
+        role: ChatRole.assistant,
+        contents: [
+          TextContent('answer'),
+          UsageContent(
+            UsageDetails(
+              inputTokenCount: 120,
+              outputTokenCount: 45,
+              totalTokenCount: 165,
+              cachedInputTokenCount: 80,
+              reasoningTokenCount: 12,
+            ),
+          ),
+        ],
+      );
+
+      final decoded = ChatMessageCodec.decode(
+        _jsonRoundTrip(ChatMessageCodec.encode(message)),
+      );
+
+      final usage = decoded!.contents.whereType<UsageContent>().single;
+      expect(usage.details.inputTokenCount, 120);
+      expect(usage.details.outputTokenCount, 45);
+      expect(usage.details.totalTokenCount, 165);
+      expect(usage.details.cachedInputTokenCount, 80);
+      expect(usage.details.reasoningTokenCount, 12);
+      expect(decoded.text, 'answer');
+    });
+
+    test('tolerates usage payloads with missing counts', () {
+      final decoded = ChatMessageCodec.decode({
+        'v': 1,
+        'role': 'assistant',
+        'contents': [
+          {'kind': 'usage', 'input': 5},
+        ],
+      });
+
+      final usage = decoded!.contents.whereType<UsageContent>().single;
+      expect(usage.details.inputTokenCount, 5);
+      expect(usage.details.outputTokenCount, isNull);
+      expect(usage.details.totalTokenCount, isNull);
+    });
+
     test('returns null for unknown schema versions and corrupt maps', () {
       expect(ChatMessageCodec.decode({'v': 99, 'role': 'user'}), isNull);
       expect(ChatMessageCodec.decode({'v': 1}), isNull);

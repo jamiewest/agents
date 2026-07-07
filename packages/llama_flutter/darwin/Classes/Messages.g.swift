@@ -401,6 +401,13 @@ struct TokenEvent: Hashable {
   var text: String? = nil
   var done: Bool
   var error: String? = nil
+  /// Number of prompt tokens fed to the model, set on the `done` event.
+  var promptTokenCount: Int64? = nil
+  /// Prompt tokens served from the reused KV-cache prefix, set on the
+  /// `done` event.
+  var cachedTokenCount: Int64? = nil
+  /// Number of tokens generated, set on the `done` event.
+  var generatedTokenCount: Int64? = nil
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -409,12 +416,18 @@ struct TokenEvent: Hashable {
     let text: String? = nilOrValue(pigeonVar_list[1])
     let done = pigeonVar_list[2] as! Bool
     let error: String? = nilOrValue(pigeonVar_list[3])
+    let promptTokenCount: Int64? = nilOrValue(pigeonVar_list[4])
+    let cachedTokenCount: Int64? = nilOrValue(pigeonVar_list[5])
+    let generatedTokenCount: Int64? = nilOrValue(pigeonVar_list[6])
 
     return TokenEvent(
       sessionId: sessionId,
       text: text,
       done: done,
-      error: error
+      error: error,
+      promptTokenCount: promptTokenCount,
+      cachedTokenCount: cachedTokenCount,
+      generatedTokenCount: generatedTokenCount
     )
   }
   func toList() -> [Any?] {
@@ -423,13 +436,16 @@ struct TokenEvent: Hashable {
       text,
       done,
       error,
+      promptTokenCount,
+      cachedTokenCount,
+      generatedTokenCount,
     ]
   }
   static func == (lhs: TokenEvent, rhs: TokenEvent) -> Bool {
     if Swift.type(of: lhs) != Swift.type(of: rhs) {
       return false
     }
-    return deepEqualsMessages(lhs.sessionId, rhs.sessionId) && deepEqualsMessages(lhs.text, rhs.text) && deepEqualsMessages(lhs.done, rhs.done) && deepEqualsMessages(lhs.error, rhs.error)
+    return deepEqualsMessages(lhs.sessionId, rhs.sessionId) && deepEqualsMessages(lhs.text, rhs.text) && deepEqualsMessages(lhs.done, rhs.done) && deepEqualsMessages(lhs.error, rhs.error) && deepEqualsMessages(lhs.promptTokenCount, rhs.promptTokenCount) && deepEqualsMessages(lhs.cachedTokenCount, rhs.cachedTokenCount) && deepEqualsMessages(lhs.generatedTokenCount, rhs.generatedTokenCount)
   }
 
   func hash(into hasher: inout Hasher) {
@@ -438,6 +454,9 @@ struct TokenEvent: Hashable {
     deepHashMessages(value: text, hasher: &hasher)
     deepHashMessages(value: done, hasher: &hasher)
     deepHashMessages(value: error, hasher: &hasher)
+    deepHashMessages(value: promptTokenCount, hasher: &hasher)
+    deepHashMessages(value: cachedTokenCount, hasher: &hasher)
+    deepHashMessages(value: generatedTokenCount, hasher: &hasher)
   }
 }
 

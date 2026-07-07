@@ -1,4 +1,3 @@
-// ignore_for_file: non_constant_identifier_names
 // Hide conflicting names from the a2a package:
 // • Logger  — re-exported from darto via a2a_server, conflicts with extensions
 // • A2AAgent — a2a's own marker base class, conflicts with our A2AAgent
@@ -98,7 +97,7 @@ final class A2AAgent extends AIAgent {
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async {
     if (session is! A2AAgentSession) {
@@ -113,7 +112,7 @@ final class A2AAgent extends AIAgent {
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => A2AAgentSession.deserialize(serializedState as String);
 

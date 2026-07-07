@@ -135,12 +135,25 @@ class TokenEvent {
     this.text,
     required this.done,
     this.error,
+    this.promptTokenCount,
+    this.cachedTokenCount,
+    this.generatedTokenCount,
   });
 
   int sessionId;
   String? text;
   bool done;
   String? error;
+
+  /// Number of prompt tokens fed to the model, set on the `done` event.
+  int? promptTokenCount;
+
+  /// Prompt tokens served from the reused KV-cache prefix, set on the
+  /// `done` event.
+  int? cachedTokenCount;
+
+  /// Number of tokens generated, set on the `done` event.
+  int? generatedTokenCount;
 }
 
 /// Control surface implemented natively (Swift) and called from Dart.

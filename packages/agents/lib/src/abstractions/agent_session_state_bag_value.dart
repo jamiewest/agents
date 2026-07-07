@@ -1,4 +1,3 @@
-// ignore_for_file: non_constant_identifier_names
 /// Stores a single value in an [AgentSessionStateBag].
 ///
 /// Values are held as deserialized objects and serialized to JSON on demand.
@@ -11,7 +10,7 @@ class AgentSessionStateBagValue {
   ///
   /// Returns a `(found, value)` record. `found` is `false` if the stored
   /// value cannot be cast to [T].
-  (bool, T?) tryReadDeserializedValue<T>({Object? JsonSerializerOptions}) {
+  (bool, T?) tryReadDeserializedValue<T>({Object? jsonSerializerOptions}) {
     final v = _value;
     if (v == null) return (true, null);
     if (v is T) return (true, v as T);
@@ -19,7 +18,7 @@ class AgentSessionStateBagValue {
   }
 
   /// Reads the stored value as type [T], throwing if the cast fails.
-  T? readDeserializedValue<T>({Object? JsonSerializerOptions}) {
+  T? readDeserializedValue<T>({Object? jsonSerializerOptions}) {
     final v = _value;
     if (v == null) return null;
     if (v is T) return v as T;
@@ -30,14 +29,14 @@ class AgentSessionStateBagValue {
   void setDeserialized<T>(
     T? value,
     Type valueType,
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
   ) {
     _value = value;
   }
 
   /// Serializes the stored value to a JSON-compatible Object.
   ///
-  /// Note: `JsonSerializerOptions` accepted by the write methods is not applied
+  /// Note: `jsonSerializerOptions` accepted by the write methods is not applied
   /// here — `dart:convert` has no equivalent customisation hook, so the raw
   /// value is returned and `jsonEncode` is applied by the caller when needed.
   Object? toJson() => _value;

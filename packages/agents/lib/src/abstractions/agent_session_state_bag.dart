@@ -1,4 +1,3 @@
-// ignore_for_file: non_constant_identifier_names
 import 'dart:convert';
 import 'dart:developer' as developer;
 
@@ -18,27 +17,27 @@ class AgentSessionStateBag {
   /// Tries to get a value of type [T] for the given [key].
   ///
   /// Returns `(true, value)` if found and castable; `(false, null)` otherwise.
-  (bool, T?) tryGetValue<T>(String key, {Object? JsonSerializerOptions}) {
+  (bool, T?) tryGetValue<T>(String key, {Object? jsonSerializerOptions}) {
     final stateValue = _state[key];
     if (stateValue == null) return (false, null);
     return stateValue.tryReadDeserializedValue<T>(
-      JsonSerializerOptions: JsonSerializerOptions,
+      jsonSerializerOptions: jsonSerializerOptions,
     );
   }
 
   /// Returns the value of type [T] for the given [key], or `null`.
-  T? getValue<T>(String key, {Object? JsonSerializerOptions}) {
+  T? getValue<T>(String key, {Object? jsonSerializerOptions}) {
     final stateValue = _state[key];
     if (stateValue == null) return null;
     return stateValue.readDeserializedValue<T>(
-      JsonSerializerOptions: JsonSerializerOptions,
+      jsonSerializerOptions: jsonSerializerOptions,
     );
   }
 
   /// Stores a value of type [T] under the given [key].
-  void setValue<T>(String key, T? value, {Object? JsonSerializerOptions}) {
+  void setValue<T>(String key, T? value, {Object? jsonSerializerOptions}) {
     _state.putIfAbsent(key, () => AgentSessionStateBagValue(value));
-    _state[key]!.setDeserialized<T>(value, T, JsonSerializerOptions);
+    _state[key]!.setDeserialized<T>(value, T, jsonSerializerOptions);
   }
 
   /// Removes the value for the given [key].

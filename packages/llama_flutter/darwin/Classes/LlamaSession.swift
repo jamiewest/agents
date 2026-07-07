@@ -6,10 +6,20 @@
 import Foundation
 import llama
 
+/// Token accounting for a completed generation run.
+struct GenerationStats {
+  /// Prompt tokens fed to the model (including the reused prefix).
+  let promptTokenCount: Int
+  /// Prompt tokens served from the reused KV-cache prefix.
+  let cachedTokenCount: Int
+  /// Tokens generated.
+  let generatedTokenCount: Int
+}
+
 /// Outcome callbacks for a single generation run.
 struct GenerationCallbacks {
   let onToken: (String) -> Void
-  let onDone: () -> Void
+  let onDone: (GenerationStats) -> Void
   let onError: (String) -> Void
 }
 
@@ -425,7 +435,8 @@ final class LlamaSession {
         }
         runSpeculativeMtp(
           request: request, draft: draft, sampler: sampler,
-          promptTokens: promptTokens, callbacks: callbacks)
+          promptTokens: promptTokens, reusedPromptTokens: reused,
+          callbacks: callbacks)
         return
       }
       // The draft cache mirrors the main one at every commit point (the
@@ -446,7 +457,8 @@ final class LlamaSession {
       draftCacheStale = false
       runSpeculative(
         request: request, draft: draft, sampler: sampler,
-        promptTokens: promptTokens, callbacks: callbacks)
+        promptTokens: promptTokens, reusedPromptTokens: reused,
+        callbacks: callbacks)
       return
     }
 
@@ -465,7 +477,11 @@ final class LlamaSession {
       if images.isEmpty {
         cachedTokens = decoded
       }
-      callbacks.onDone()
+      callbacks.onDone(
+        GenerationStats(
+          promptTokenCount: nPast,
+          cachedTokenCount: reused,
+          generatedTokenCount: generated))
     }
 
     while generated < request.maxTokens {
@@ -513,7 +529,8 @@ final class LlamaSession {
   private func runSpeculative(
     request: GenerationRequest, draft: DraftModel,
     sampler: UnsafeMutablePointer<llama_sampler>,
-    promptTokens: [llama_token], callbacks: GenerationCallbacks
+    promptTokens: [llama_token], reusedPromptTokens: Int,
+    callbacks: GenerationCallbacks
   ) {
     let nCtx = Int(llama_n_ctx(context))
     var emitter = TokenEmitter(
@@ -530,7 +547,11 @@ final class LlamaSession {
     var decoded = promptTokens
     func finish() {
       cachedTokens = decoded
-      callbacks.onDone()
+      callbacks.onDone(
+        GenerationStats(
+          promptTokenCount: promptTokens.count,
+          cachedTokenCount: reusedPromptTokens,
+          generatedTokenCount: generated))
     }
 
     // The drafter always drafts greedily; the requested temperature applies
@@ -673,7 +694,8 @@ final class LlamaSession {
   private func runSpeculativeMtp(
     request: GenerationRequest, draft: DraftModel,
     sampler: UnsafeMutablePointer<llama_sampler>,
-    promptTokens: [llama_token], callbacks: GenerationCallbacks
+    promptTokens: [llama_token], reusedPromptTokens: Int,
+    callbacks: GenerationCallbacks
   ) {
     let nCtx = Int(llama_n_ctx(context))
     var emitter = TokenEmitter(
@@ -687,7 +709,11 @@ final class LlamaSession {
     var decoded = promptTokens
     func finish() {
       cachedTokens = decoded
-      callbacks.onDone()
+      callbacks.onDone(
+        GenerationStats(
+          promptTokenCount: promptTokens.count,
+          cachedTokenCount: reusedPromptTokens,
+          generatedTokenCount: generated))
     }
 
     let nEmbd = draft.nEmbd

@@ -246,6 +246,7 @@ class LlamaChatClient extends ChatClient {
       ),
     );
 
+    LlamaGenerationStats? stats;
     var tokens = session.generate(
       prompt.text,
       maxTokens: maxTokens,
@@ -256,6 +257,7 @@ class LlamaChatClient extends ChatClient {
       stopSequences: prompt.stopSequences,
       images: prompt.images.isEmpty ? null : prompt.images,
       turns: prompt.images.isEmpty ? null : chatTurnsFromMessages(prepared),
+      onStats: (reported) => stats = reported,
     );
     if (cancellationToken != null) {
       tokens = tokens.takeWhile(
@@ -264,6 +266,23 @@ class LlamaChatClient extends ChatClient {
     }
 
     yield* activeFormat.decode(tokens);
+
+    // The runtime reports token accounting on the done event, after the
+    // token stream has drained; surface it the way cloud clients do, as a
+    // trailing usage-only update.
+    final reported = stats;
+    if (reported != null) {
+      yield ChatResponseUpdate(
+        role: ChatRole.assistant,
+        usage: UsageDetails(
+          inputTokenCount: reported.promptTokenCount,
+          outputTokenCount: reported.generatedTokenCount,
+          totalTokenCount:
+              reported.promptTokenCount + reported.generatedTokenCount,
+          cachedInputTokenCount: reported.cachedTokenCount,
+        ),
+      );
+    }
   }
 
   @override
@@ -274,11 +293,13 @@ class LlamaChatClient extends ChatClient {
   }) async {
     final text = StringBuffer();
     final extras = <AIContent>[];
+    UsageDetails? usage;
     await for (final update in getStreamingResponse(
       messages: messages,
       options: options,
       cancellationToken: cancellationToken,
     )) {
+      if (update.usage != null) usage = update.usage;
       for (final content in update.contents) {
         if (content is TextContent) {
           text.write(content.text);
@@ -297,6 +318,7 @@ class LlamaChatClient extends ChatClient {
           ],
         ),
       ],
+      usage: usage,
     );
   }
 

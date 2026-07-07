@@ -148,14 +148,14 @@ class _EchoAgent extends AIAgent {
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => '{}';
 
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => _EchoSession();
 

@@ -48,7 +48,7 @@ class ChatHistoryMemoryProvider extends MessageAIContextProvider
     _sessionState = ProviderSessionState<State>(
       stateInitializer,
       resolvedOptions.stateKey ?? runtimeType.toString(),
-      JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
+      jsonSerializerOptions: AgentJsonUtilities.defaultOptions,
     );
 
     final maxResults = resolvedOptions.maxResults;

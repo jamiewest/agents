@@ -1,4 +1,3 @@
-// ignore_for_file: non_constant_identifier_names
 import 'package:agents/src/abstractions/agent_run_options.dart';
 import 'package:agents/src/abstractions/agent_session.dart';
 import 'package:agents/src/abstractions/agent_session_state_bag.dart';

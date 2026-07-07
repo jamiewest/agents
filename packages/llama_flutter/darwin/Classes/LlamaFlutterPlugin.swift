@@ -96,8 +96,13 @@ public final class LlamaFlutterPlugin: NSObject, FlutterPlugin, LlamaHostApi {
           self?.streamHandler.send(
             TokenEvent(sessionId: sessionId, text: text, done: false))
         },
-        onDone: { [weak self] in
-          self?.streamHandler.send(TokenEvent(sessionId: sessionId, done: true))
+        onDone: { [weak self] stats in
+          self?.streamHandler.send(
+            TokenEvent(
+              sessionId: sessionId, done: true,
+              promptTokenCount: Int64(stats.promptTokenCount),
+              cachedTokenCount: Int64(stats.cachedTokenCount),
+              generatedTokenCount: Int64(stats.generatedTokenCount)))
         },
         onError: { [weak self] message in
           self?.streamHandler.send(

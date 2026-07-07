@@ -93,14 +93,14 @@ class _StubAgent extends AIAgent {
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
-    Object? JsonSerializerOptions, // ignore: non_constant_identifier_names
+    Object? jsonSerializerOptions, // ignore: non_constant_identifier_names
     CancellationToken? cancellationToken,
   }) async => '{}';
 
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
-    Object? JsonSerializerOptions, // ignore: non_constant_identifier_names
+    Object? jsonSerializerOptions, // ignore: non_constant_identifier_names
     CancellationToken? cancellationToken,
   }) async => _StubSession();
 

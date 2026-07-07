@@ -347,6 +347,9 @@ class TokenEvent {
     this.text,
     required this.done,
     this.error,
+    this.promptTokenCount,
+    this.cachedTokenCount,
+    this.generatedTokenCount,
   });
 
   int sessionId;
@@ -357,12 +360,25 @@ class TokenEvent {
 
   String? error;
 
+  /// Number of prompt tokens fed to the model, set on the `done` event.
+  int? promptTokenCount;
+
+  /// Prompt tokens served from the reused KV-cache prefix, set on the
+  /// `done` event.
+  int? cachedTokenCount;
+
+  /// Number of tokens generated, set on the `done` event.
+  int? generatedTokenCount;
+
   List<Object?> _toList() {
     return <Object?>[
       sessionId,
       text,
       done,
       error,
+      promptTokenCount,
+      cachedTokenCount,
+      generatedTokenCount,
     ];
   }
 
@@ -376,6 +392,9 @@ class TokenEvent {
       text: result[1] as String?,
       done: result[2]! as bool,
       error: result[3] as String?,
+      promptTokenCount: result[4] as int?,
+      cachedTokenCount: result[5] as int?,
+      generatedTokenCount: result[6] as int?,
     );
   }
 
@@ -388,7 +407,7 @@ class TokenEvent {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(sessionId, other.sessionId) && _deepEquals(text, other.text) && _deepEquals(done, other.done) && _deepEquals(error, other.error);
+    return _deepEquals(sessionId, other.sessionId) && _deepEquals(text, other.text) && _deepEquals(done, other.done) && _deepEquals(error, other.error) && _deepEquals(promptTokenCount, other.promptTokenCount) && _deepEquals(cachedTokenCount, other.cachedTokenCount) && _deepEquals(generatedTokenCount, other.generatedTokenCount);
   }
 
   @override

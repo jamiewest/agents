@@ -69,7 +69,7 @@ class AgentModeProvider extends AIContextProvider {
       (_) => AgentModeState()..currentMode = _defaultMode,
       runtimeType.toString(),
       stateRehydrator: AgentModeState.fromJson,
-      JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
+      jsonSerializerOptions: AgentJsonUtilities.defaultOptions,
     );
   }
 

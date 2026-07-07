@@ -352,6 +352,7 @@ final class _WebLlamaSession implements LlamaSession {
     List<String> stopSequences = const <String>[],
     List<Uint8List>? images,
     List<LlamaChatTurn>? turns,
+    LlamaStatsCallback? onStats,
   }) {
     final isImageTurn = images != null && images.isNotEmpty;
     if (isImageTurn) {
@@ -415,7 +416,18 @@ final class _WebLlamaSession implements LlamaSession {
               if (abortSignal != null) 'abortSignal': abortSignal,
             }.jsify()
             as JSObject;
+    // Token accounting: wllama invokes onData once per generated token, and
+    // its tokenizer sizes the prompt. The count runs concurrently with the
+    // generation and is best-effort — a tokenize failure only skips stats,
+    // never the generation. Image turns approximate: the count covers the
+    // rendered text prompt, not mtmd image tokens.
+    var generatedCount = 0;
+    final promptTokenCount = onStats == null
+        ? Future<int?>.value()
+        : _countPromptTokens(prompt);
+
     options['onData'] = ((JSObject chunk) {
+      generatedCount++;
       final text = isImageTurn ? _chatChunkText(chunk) : _chunkText(chunk);
       if (text.isNotEmpty && !controller.isClosed) {
         controller.add(text);
@@ -427,7 +439,19 @@ final class _WebLlamaSession implements LlamaSession {
       _wllama
           .callMethod<JSPromise<JSAny?>>(method.toJS, options)
           .toDart
-          .then((_) {
+          .then((_) async {
+            if (onStats != null) {
+              final promptTokens = await promptTokenCount;
+              if (promptTokens != null) {
+                onStats(
+                  LlamaGenerationStats(
+                    promptTokenCount: promptTokens,
+                    cachedTokenCount: 0,
+                    generatedTokenCount: generatedCount,
+                  ),
+                );
+              }
+            }
             if (!controller.isClosed) controller.close();
           })
           .catchError((Object error, StackTrace stackTrace) {
@@ -440,6 +464,19 @@ final class _WebLlamaSession implements LlamaSession {
     );
 
     return StopSequenceFilter(stopSequences).bind(controller.stream);
+  }
+
+  /// Sizes [prompt] with wllama's tokenizer; null when tokenization fails.
+  Future<int?> _countPromptTokens(String prompt) async {
+    try {
+      final result = await _wllama
+          .callMethod<JSPromise<JSAny?>>('tokenize'.toJS, prompt.toJS)
+          .toDart;
+      final tokens = result as JSObject?;
+      return tokens?.getProperty<JSNumber?>('length'.toJS)?.toDartInt;
+    } on Object {
+      return null;
+    }
   }
 
   bool _supportsImageInput() =>

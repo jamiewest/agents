@@ -1,4 +1,3 @@
-// ignore_for_file: non_constant_identifier_names
 import 'package:agents/src/abstractions/agent_response.dart';
 import 'package:agents/src/abstractions/agent_response_update.dart';
 import 'package:agents/src/abstractions/agent_run_options.dart';
@@ -230,7 +229,7 @@ class _TestAgent extends AIAgent {
   @override
   Future<AgentSession> deserializeSessionCore(
     serializedState, {
-    JsonSerializerOptions,
+    jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => _TestSession();
 
@@ -263,7 +262,7 @@ class _TestAgent extends AIAgent {
   @override
   Future serializeSessionCore(
     AgentSession session, {
-    JsonSerializerOptions,
+    jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => {};
 }

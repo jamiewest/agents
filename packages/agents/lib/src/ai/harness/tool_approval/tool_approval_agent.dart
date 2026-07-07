@@ -26,7 +26,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
         (_) => ToolApprovalState(),
         'toolApprovalState',
         stateRehydrator: ToolApprovalState.fromJson,
-        JsonSerializerOptions:
+        jsonSerializerOptions:
             options?.jsonSerializerOptions ?? AgentJsonUtilities.defaultOptions,
       ),
       super(innerAgent ?? (throw ArgumentError.notNull('innerAgent')));

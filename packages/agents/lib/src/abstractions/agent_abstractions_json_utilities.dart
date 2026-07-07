@@ -3,7 +3,7 @@
 class AgentAbstractionsJsonUtilities {
   AgentAbstractionsJsonUtilities._();
 
-  /// A sentinel Object passed as `JsonSerializerOptions` when the caller
+  /// A sentinel Object passed as `jsonSerializerOptions` when the caller
   /// wants default serialization (i.e., plain `dart:convert` `jsonEncode` /
   /// `jsonDecode` with no custom converters).
   static const Object defaultOptions = _DefaultOptions();

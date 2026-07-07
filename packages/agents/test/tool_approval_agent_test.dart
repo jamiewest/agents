@@ -543,8 +543,7 @@ class _ScriptedAgent extends AIAgent {
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
-    // ignore: non_constant_identifier_names
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async {
     return _TestSession();
@@ -585,8 +584,7 @@ class _ScriptedAgent extends AIAgent {
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
-    // ignore: non_constant_identifier_names
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async {
     return null;

@@ -33,7 +33,7 @@ class CompactionProvider extends AIContextProvider {
     _sessionState = ProviderSessionState<State>(
       (_) => State(),
       resolvedStateKey,
-      JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
+      jsonSerializerOptions: AgentJsonUtilities.defaultOptions,
     );
   }
 

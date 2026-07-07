@@ -10,10 +10,11 @@ import 'package:extensions/ai.dart';
 /// Encodes and decodes framework [ChatMessage]s as JSON-compatible maps.
 ///
 /// Persists the content kinds that matter for resuming model context —
-/// text, function calls, function results, and data/attachment references —
-/// so a restored conversation replays tool use faithfully. Content kinds the
-/// codec does not understand are dropped with a debug log rather than
-/// failing the whole message.
+/// text, function calls, function results, data/attachment references, and
+/// token usage — so a restored conversation replays tool use faithfully and
+/// keeps per-message usage detail. Content kinds the codec does not
+/// understand are dropped with a debug log rather than failing the whole
+/// message.
 class ChatMessageCodec {
   ChatMessageCodec._();
 
@@ -93,6 +94,17 @@ class ChatMessageCodec {
           'mediaType': ?mediaType,
           'name': ?name,
         },
+        UsageContent(:final details) => {
+          'kind': 'usage',
+          if (details.inputTokenCount != null) 'input': details.inputTokenCount,
+          if (details.outputTokenCount != null)
+            'output': details.outputTokenCount,
+          if (details.totalTokenCount != null) 'total': details.totalTokenCount,
+          if (details.cachedInputTokenCount != null)
+            'cached': details.cachedInputTokenCount,
+          if (details.reasoningTokenCount != null)
+            'reasoning': details.reasoningTokenCount,
+        },
         _ => _logDropped(content),
       };
 
@@ -117,6 +129,15 @@ class ChatMessageCodec {
           callId: json['callId']! as String,
           name: json['name'] as String?,
           result: json['result'],
+        ),
+        'usage' => UsageContent(
+          UsageDetails(
+            inputTokenCount: json['input'] as int?,
+            outputTokenCount: json['output'] as int?,
+            totalTokenCount: json['total'] as int?,
+            cachedInputTokenCount: json['cached'] as int?,
+            reasoningTokenCount: json['reasoning'] as int?,
+          ),
         ),
         'data' => switch (json['uri']) {
           final String uri => DataContent.fromUri(

@@ -21,7 +21,7 @@ class ProviderSessionState<TState> {
     this._stateInitializer,
     this.stateKey, {
     TState Function(Object? rawJson)? stateRehydrator,
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
   }) : _stateRehydrator = stateRehydrator;
 
   final TState Function(AgentSession?) _stateInitializer;

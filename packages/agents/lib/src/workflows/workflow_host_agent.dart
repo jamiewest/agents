@@ -56,8 +56,7 @@ class WorkflowHostAgent extends AIAgent {
   @override
   Future<String> serializeSessionCore(
     AgentSession session, {
-    // ignore: non_constant_identifier_names
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async {
     cancellationToken?.throwIfCancellationRequested();
@@ -71,8 +70,7 @@ class WorkflowHostAgent extends AIAgent {
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedSession, {
-    // ignore: non_constant_identifier_names
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async {
     cancellationToken?.throwIfCancellationRequested();

@@ -252,16 +252,14 @@ class _FakeAgent extends AIAgent {
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
-    // ignore: non_constant_identifier_names
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => session.stateBag.serialize();
 
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
-    // ignore: non_constant_identifier_names
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => _FakeSession();
 

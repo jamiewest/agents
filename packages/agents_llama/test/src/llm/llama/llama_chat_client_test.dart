@@ -11,10 +11,15 @@ class _TestFunction extends AIFunctionDeclaration {
 }
 
 final class _RecordingSession implements LlamaSession {
+  _RecordingSession({this.stats});
+
   String? prompt;
   Iterable<Uint8List>? images;
   Iterable<String>? stopSequences;
   List<LlamaChatTurn>? turns;
+
+  /// Stats reported through `onStats` after the token stream, when set.
+  final LlamaGenerationStats? stats;
 
   @override
   Stream<String> generate(
@@ -27,11 +32,13 @@ final class _RecordingSession implements LlamaSession {
     List<String> stopSequences = const <String>[],
     List<Uint8List>? images,
     List<LlamaChatTurn>? turns,
+    LlamaStatsCallback? onStats,
   }) {
     this.prompt = prompt;
     this.stopSequences = stopSequences;
     this.images = images;
     this.turns = turns;
+    if (stats != null) onStats?.call(stats!);
     return Stream<String>.value('Hello!');
   }
 
@@ -239,6 +246,79 @@ void main() {
       );
 
       expect(session.prompt, contains('<|im_start|>'));
+    });
+  });
+
+  group('usage reporting', () {
+    test('emits a trailing usage-only update from runtime stats', () async {
+      final session = _RecordingSession(
+        stats: const LlamaGenerationStats(
+          promptTokenCount: 100,
+          cachedTokenCount: 60,
+          generatedTokenCount: 25,
+        ),
+      );
+      final client = LlamaChatClient(
+        sessionProvider: () async => session,
+        format: const Lfm2ChatFormat(),
+        contextSize: 4096,
+      );
+
+      final updates = await client
+          .getStreamingResponse(
+            messages: [ChatMessage.fromText(ChatRole.user, 'Hi')],
+          )
+          .toList();
+
+      final usage = updates.last.usage;
+      expect(usage, isNotNull);
+      expect(usage!.inputTokenCount, 100);
+      expect(usage.outputTokenCount, 25);
+      expect(usage.totalTokenCount, 125);
+      expect(usage.cachedInputTokenCount, 60);
+    });
+
+    test(
+      'getResponse folds the trailing usage into ChatResponse.usage',
+      () async {
+        final session = _RecordingSession(
+          stats: const LlamaGenerationStats(
+            promptTokenCount: 40,
+            cachedTokenCount: 0,
+            generatedTokenCount: 8,
+          ),
+        );
+        final client = LlamaChatClient(
+          sessionProvider: () async => session,
+          format: const Lfm2ChatFormat(),
+          contextSize: 4096,
+        );
+
+        final response = await client.getResponse(
+          messages: [ChatMessage.fromText(ChatRole.user, 'Hi')],
+        );
+
+        expect(response.usage?.inputTokenCount, 40);
+        expect(response.usage?.outputTokenCount, 8);
+        expect(response.text, 'Hello!');
+      },
+    );
+
+    test('emits no usage update when the runtime reports none', () async {
+      final session = _RecordingSession();
+      final client = LlamaChatClient(
+        sessionProvider: () async => session,
+        format: const Lfm2ChatFormat(),
+        contextSize: 4096,
+      );
+
+      final updates = await client
+          .getStreamingResponse(
+            messages: [ChatMessage.fromText(ChatRole.user, 'Hi')],
+          )
+          .toList();
+
+      expect(updates.every((u) => u.usage == null), isTrue);
     });
   });
 }

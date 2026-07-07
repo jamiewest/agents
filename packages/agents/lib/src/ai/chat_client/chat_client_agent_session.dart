@@ -23,8 +23,7 @@ class ChatClientAgentSession extends AgentSession {
   /// Creates a [ChatClientAgentSession] from previously serialized JSON state.
   static ChatClientAgentSession deserialize(
     String serializedState, {
-    // ignore: non_constant_identifier_names
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
   }) {
     final map = jsonDecode(serializedState) as Map<String, dynamic>;
     final bagJson = map['stateBag'];
@@ -39,8 +38,7 @@ class ChatClientAgentSession extends AgentSession {
   /// Serializes this session to a JSON String, including the [stateBag] so
   /// provider state (such as in-memory chat history) round-trips. Mirrors the
   /// upstream C# shape `{conversationId, stateBag}`.
-  // ignore: non_constant_identifier_names
-  String serialize({Object? JsonSerializerOptions}) => jsonEncode({
+  String serialize({Object? jsonSerializerOptions}) => jsonEncode({
     'conversationId': conversationId,
     'stateBag': jsonDecode(stateBag.serialize()),
   });

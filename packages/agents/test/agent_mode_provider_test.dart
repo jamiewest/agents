@@ -385,8 +385,7 @@ class TestAgent extends AIAgent {
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
-    // ignore: non_constant_identifier_names
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async {
     return {};
@@ -395,8 +394,7 @@ class TestAgent extends AIAgent {
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
-    // ignore: non_constant_identifier_names
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async {
     return TestSession();

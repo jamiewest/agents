@@ -54,12 +54,12 @@ class BackgroundAgentsProvider extends AIContextProvider {
       (_) => BackgroundAgentState(),
       runtimeType.toString(),
       stateRehydrator: BackgroundAgentState.fromJson,
-      JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
+      jsonSerializerOptions: AgentJsonUtilities.defaultOptions,
     );
     _runtimeSessionState = ProviderSessionState<BackgroundAgentRuntimeState>(
       (_) => BackgroundAgentRuntimeState(),
       '${runtimeType}_Runtime',
-      JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
+      jsonSerializerOptions: AgentJsonUtilities.defaultOptions,
     );
   }
 

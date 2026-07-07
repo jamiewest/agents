@@ -9,7 +9,7 @@ import 'dart:typed_data';
 import 'src/llama_isolate.dart';
 import 'src/messages.g.dart';
 
-export 'src/llama_isolate.dart' show LlamaException;
+export 'src/llama_isolate.dart' show LlamaException, LlamaGenerationStats;
 
 /// A loaded model session, returned by [LlamaFlutter.loadModel].
 class LlamaSession {
@@ -33,6 +33,9 @@ class LlamaSession {
   /// [topK] and [topP] add the corresponding sampler stages ahead of
   /// temperature sampling; null leaves each stage out. [seed] makes sampling
   /// reproducible; null draws a random seed.
+  ///
+  /// [onStats] is invoked once when generation completes, with the run's
+  /// prompt/cached/generated token counts.
   Stream<String> generate(
     String prompt, {
     int maxTokens = 256,
@@ -42,6 +45,7 @@ class LlamaSession {
     int? seed,
     List<String> stopSequences = const <String>[],
     List<Uint8List>? images,
+    void Function(LlamaGenerationStats)? onStats,
   }) {
     return _isolate.generate(
       GenerationRequest(
@@ -55,6 +59,7 @@ class LlamaSession {
         stopSequences: stopSequences,
         images: images,
       ),
+      onStats: onStats,
     );
   }
 

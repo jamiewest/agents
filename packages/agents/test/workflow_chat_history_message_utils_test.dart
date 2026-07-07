@@ -1,4 +1,3 @@
-// ignore_for_file: non_constant_identifier_names
 import 'package:agents/src/abstractions/agent_response.dart';
 import 'package:agents/src/abstractions/agent_response_update.dart';
 import 'package:agents/src/abstractions/agent_run_options.dart';
@@ -442,14 +441,14 @@ class _SimpleAgent extends AIAgent {
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => '{}';
 
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedSession, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => _TestSession();
 

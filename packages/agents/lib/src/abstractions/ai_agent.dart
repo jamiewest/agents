@@ -1,4 +1,3 @@
-// ignore_for_file: non_constant_identifier_names
 import 'dart:math';
 
 import 'package:extensions/ai.dart';
@@ -63,12 +62,12 @@ abstract class AIAgent {
   /// Serializes an agent session to a JSON-compatible map.
   Future<dynamic> serializeSession(
     AgentSession session, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) {
     return serializeSessionCore(
       session,
-      JsonSerializerOptions: JsonSerializerOptions,
+      jsonSerializerOptions: jsonSerializerOptions,
       cancellationToken: cancellationToken,
     );
   }
@@ -76,19 +75,19 @@ abstract class AIAgent {
   /// Core implementation of session serialization.
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   });
 
   /// Deserializes an agent session from a previously serialized state.
   Future<AgentSession> deserializeSession(
     dynamic serializedState, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) {
     return deserializeSessionCore(
       serializedState,
-      JsonSerializerOptions: JsonSerializerOptions,
+      jsonSerializerOptions: jsonSerializerOptions,
       cancellationToken: cancellationToken,
     );
   }
@@ -96,7 +95,7 @@ abstract class AIAgent {
   /// Core implementation of session deserialization.
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   });
 

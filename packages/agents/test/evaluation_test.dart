@@ -403,7 +403,7 @@ class _TestAgent extends AIAgent {
   @override
   Future<AgentSession> deserializeSessionCore(
     serializedState, {
-    JsonSerializerOptions,
+    jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => _TestSession();
 
@@ -432,7 +432,7 @@ class _TestAgent extends AIAgent {
   @override
   Future serializeSessionCore(
     AgentSession session, {
-    JsonSerializerOptions,
+    jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => {};
 }

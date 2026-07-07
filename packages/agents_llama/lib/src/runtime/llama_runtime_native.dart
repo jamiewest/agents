@@ -63,6 +63,7 @@ final class _NativeLlamaSession implements LlamaSession {
     List<String> stopSequences = const <String>[],
     List<Uint8List>? images,
     List<LlamaChatTurn>? turns,
+    LlamaStatsCallback? onStats,
   }) => _inner.generate(
     prompt,
     maxTokens: maxTokens,
@@ -72,6 +73,15 @@ final class _NativeLlamaSession implements LlamaSession {
     seed: seed,
     stopSequences: stopSequences,
     images: images,
+    onStats: onStats == null
+        ? null
+        : (stats) => onStats(
+            LlamaGenerationStats(
+              promptTokenCount: stats.promptTokenCount,
+              cachedTokenCount: stats.cachedTokenCount,
+              generatedTokenCount: stats.generatedTokenCount,
+            ),
+          ),
   );
 
   @override

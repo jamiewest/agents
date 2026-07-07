@@ -6,6 +6,25 @@ import 'package:flutter/services.dart';
 import 'llama_worker.dart';
 import 'messages.g.dart';
 
+/// Token accounting for one completed generation run.
+class LlamaGenerationStats {
+  /// Creates a [LlamaGenerationStats].
+  const LlamaGenerationStats({
+    required this.promptTokenCount,
+    required this.cachedTokenCount,
+    required this.generatedTokenCount,
+  });
+
+  /// Prompt tokens fed to the model (including the reused prefix).
+  final int promptTokenCount;
+
+  /// Prompt tokens served from the reused KV-cache prefix.
+  final int cachedTokenCount;
+
+  /// Tokens generated.
+  final int generatedTokenCount;
+}
+
 /// Owns the worker isolate and routes commands/replies between it and the
 /// main isolate. One instance backs a single [LlamaFlutter] facade.
 class LlamaIsolate {
@@ -15,6 +34,8 @@ class LlamaIsolate {
   final Map<int, Completer<int>> _stateOps = <int, Completer<int>>{};
   final Map<int, StreamController<String>> _generations =
       <int, StreamController<String>>{};
+  final Map<int, void Function(LlamaGenerationStats)> _statsCallbacks =
+      <int, void Function(LlamaGenerationStats)>{};
 
   /// Generations requested while the same session's previous run was still in
   /// flight, started once that run's `done` event arrives. Tokens carry only a
@@ -35,7 +56,9 @@ class LlamaIsolate {
 
     final token = RootIsolateToken.instance;
     if (token == null) {
-      throw StateError('RootIsolateToken unavailable; call from the root isolate.');
+      throw StateError(
+        'RootIsolateToken unavailable; call from the root isolate.',
+      );
     }
 
     _fromWorker.listen(_handleMessage);
@@ -65,7 +88,13 @@ class LlamaIsolate {
   ///
   /// If the session's previous run is still in flight it is cancelled, and
   /// the new run starts only once its `done` event arrives (see [_pending]).
-  Stream<String> generate(GenerationRequest request) {
+  ///
+  /// [onStats] is invoked once with the run's token accounting when the
+  /// native side reports it on the `done` event.
+  Stream<String> generate(
+    GenerationRequest request, {
+    void Function(LlamaGenerationStats)? onStats,
+  }) {
     late final StreamController<String> controller;
     controller = StreamController<String>(
       onCancel: () {
@@ -79,10 +108,15 @@ class LlamaIsolate {
 
     if (_generations.containsKey(request.sessionId)) {
       _pending.remove(request.sessionId)?.controller.close();
-      _pending[request.sessionId] = (request: request, controller: controller);
+      _pending[request.sessionId] = (
+        request: request,
+        controller: controller,
+        onStats: onStats,
+      );
       _commands!.send(CancelCommand(request.sessionId));
     } else {
       _generations[request.sessionId] = controller;
+      if (onStats != null) _statsCallbacks[request.sessionId] = onStats;
       _commands!.send(GenerateCommand(request));
     }
     return controller.stream;
@@ -96,11 +130,7 @@ class LlamaIsolate {
   ///
   /// Resolves to the snapshot's token count. Worker commands are serviced in
   /// order, so a state operation issued before a [generate] runs before it.
-  Future<int> sessionState(
-    int sessionId,
-    String path, {
-    required bool save,
-  }) {
+  Future<int> sessionState(int sessionId, String path, {required bool save}) {
     final requestId = _nextRequestId++;
     final completer = Completer<int>();
     _stateOps[requestId] = completer;
@@ -110,6 +140,7 @@ class LlamaIsolate {
 
   Future<void> disposeSession(int sessionId) async {
     _generations.remove(sessionId)?.close();
+    _statsCallbacks.remove(sessionId);
     _pending.remove(sessionId)?.controller.close();
     _commands!.send(DisposeCommand(sessionId));
   }
@@ -164,10 +195,26 @@ class LlamaIsolate {
     }
     if (event.done) {
       _generations.remove(event.sessionId);
+      final onStats = _statsCallbacks.remove(event.sessionId);
+      if (onStats != null &&
+          event.error == null &&
+          event.promptTokenCount != null &&
+          event.generatedTokenCount != null) {
+        onStats(
+          LlamaGenerationStats(
+            promptTokenCount: event.promptTokenCount!,
+            cachedTokenCount: event.cachedTokenCount ?? 0,
+            generatedTokenCount: event.generatedTokenCount!,
+          ),
+        );
+      }
       controller.close();
       final pending = _pending.remove(event.sessionId);
       if (pending != null) {
         _generations[event.sessionId] = pending.controller;
+        if (pending.onStats != null) {
+          _statsCallbacks[event.sessionId] = pending.onStats!;
+        }
         _commands!.send(GenerateCommand(pending.request));
       }
     }
@@ -178,6 +225,7 @@ class LlamaIsolate {
 typedef _PendingGeneration = ({
   GenerationRequest request,
   StreamController<String> controller,
+  void Function(LlamaGenerationStats)? onStats,
 });
 
 /// Thrown when native model loading or generation fails.

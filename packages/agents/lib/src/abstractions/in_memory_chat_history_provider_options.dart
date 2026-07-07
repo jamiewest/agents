@@ -1,4 +1,3 @@
-// ignore_for_file: non_constant_identifier_names
 import 'package:extensions/ai.dart';
 
 import 'agent_session.dart';
@@ -27,7 +26,7 @@ class InMemoryChatHistoryProviderOptions {
 
   /// Optional JSON serializer options (reserved for future use; Dart uses
   /// `dart:convert` by default).
-  Object? JsonSerializerOptions;
+  Object? jsonSerializerOptions;
 
   /// Optional filter applied to request messages before storage.
   Iterable<ChatMessage> Function(Iterable<ChatMessage>)?

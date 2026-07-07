@@ -23,7 +23,7 @@ class InMemoryChatHistoryProvider extends ChatHistoryProvider {
             ((_) => InMemoryChatHistoryProviderState()),
         options?.stateKey ?? 'InMemoryChatHistoryProvider',
         stateRehydrator: InMemoryChatHistoryProviderState.fromJson,
-        JsonSerializerOptions: options?.JsonSerializerOptions,
+        jsonSerializerOptions: options?.jsonSerializerOptions,
       ),
       chatReducer = options?.chatReducer,
       reducerTriggerEvent =

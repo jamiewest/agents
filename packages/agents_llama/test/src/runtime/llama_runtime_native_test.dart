@@ -19,6 +19,7 @@ final class _FakeNativeSession implements native.LlamaSession {
     int? seed,
     List<String> stopSequences = const <String>[],
     List<Uint8List>? images,
+    void Function(native.LlamaGenerationStats)? onStats,
   }) => const Stream<String>.empty();
 
   @override

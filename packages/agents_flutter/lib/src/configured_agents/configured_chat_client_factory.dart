@@ -8,6 +8,7 @@ import 'package:extensions/ai.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import 'agent_scope.dart';
 import 'configured_agent_exception.dart';
 import 'model_profile/open_ai_compatible_chat_client.dart';
 import 'model_profile/open_ai_model_profile.dart';
@@ -55,12 +56,16 @@ class ConfiguredChatClientFactory {
   /// Builds a chat client for [model] hosted by [source], authenticating with
   /// [apiKey].
   ///
-  /// Supply [httpClient] to inject a fake transport in tests.
+  /// Supply [httpClient] to inject a fake transport in tests. [scope]
+  /// identifies the conversation the client serves; this base factory does
+  /// not use it, but decorating subclasses rely on it to attribute each
+  /// model call (for example, usage tracking).
   ChatClient createChatClient({
     required ModelSourceConfig source,
     required ModelConfig model,
     String? apiKey,
     http.Client? httpClient,
+    AgentScope? scope,
   }) {
     final endpoint = source.endpoint;
     final hasEndpoint = endpoint != null && endpoint.isNotEmpty;

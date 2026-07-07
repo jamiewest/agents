@@ -48,7 +48,7 @@ class TextSearchProvider extends MessageAIContextProvider {
       (_) => TextSearchProviderState(),
       resolvedOptions.stateKey ?? runtimeType.toString(),
       stateRehydrator: TextSearchProviderState.fromJson,
-      JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
+      jsonSerializerOptions: AgentJsonUtilities.defaultOptions,
     );
     _logger = loggerFactory?.createLogger('TextSearchProvider');
     _recentMessageMemoryLimit = resolvedOptions.recentMessageMemoryLimit;

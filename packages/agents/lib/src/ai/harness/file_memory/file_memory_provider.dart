@@ -45,7 +45,7 @@ class FileMemoryProvider extends AIContextProvider implements Disposable {
       stateInitializer ?? (_) => FileMemoryState(),
       runtimeType.toString(),
       stateRehydrator: FileMemoryState.fromJson,
-      JsonSerializerOptions: AgentJsonUtilities.defaultOptions,
+      jsonSerializerOptions: AgentJsonUtilities.defaultOptions,
     );
   }
 

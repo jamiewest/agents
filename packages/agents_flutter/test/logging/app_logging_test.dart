@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // The session-serialization overrides must repeat the upstream
-// `JsonSerializerOptions` named parameter.
+// `jsonSerializerOptions` named parameter.
 // ignore_for_file: non_constant_identifier_names
 
 import 'package:agents/agents.dart';
@@ -237,14 +237,14 @@ class _FakeAgent extends AIAgent {
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => null;
 
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async => _FakeSession();
 

@@ -360,8 +360,7 @@ final class ChatClientAgent extends AIAgent {
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
-    // ignore: non_constant_identifier_names
-    dynamic JsonSerializerOptions,
+    dynamic jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async {
     if (session is ChatClientAgentSession) {
@@ -373,8 +372,7 @@ final class ChatClientAgent extends AIAgent {
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
-    // ignore: non_constant_identifier_names
-    dynamic JsonSerializerOptions,
+    dynamic jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) async {
     if (serializedState is String) {

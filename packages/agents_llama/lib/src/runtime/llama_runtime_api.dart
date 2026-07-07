@@ -30,6 +30,28 @@ class LlamaChatTurn {
   final List<Uint8List> images;
 }
 
+/// Token accounting for one completed generation run, engine-neutral.
+class LlamaGenerationStats {
+  /// Creates a [LlamaGenerationStats].
+  const LlamaGenerationStats({
+    required this.promptTokenCount,
+    required this.cachedTokenCount,
+    required this.generatedTokenCount,
+  });
+
+  /// Prompt tokens fed to the model (including any reused cache prefix).
+  final int promptTokenCount;
+
+  /// Prompt tokens served from a reused KV-cache prefix.
+  final int cachedTokenCount;
+
+  /// Tokens generated.
+  final int generatedTokenCount;
+}
+
+/// Invoked once per generation with the run's token accounting.
+typedef LlamaStatsCallback = void Function(LlamaGenerationStats stats);
+
 /// A loaded llama-family model session.
 ///
 /// Implementations must yield text with stop sequences removed and terminate at
@@ -40,6 +62,9 @@ abstract interface class LlamaSession {
   /// [turns] is an optional structured view of the same conversation, used by
   /// runtimes whose multimodal path is message-level; runtimes that consume
   /// the rendered [prompt] directly ignore it.
+  ///
+  /// [onStats] is invoked once with the run's token accounting when the
+  /// engine reports it; engines that cannot count tokens may never call it.
   Stream<String> generate(
     String prompt, {
     int maxTokens = 256,
@@ -50,6 +75,7 @@ abstract interface class LlamaSession {
     List<String> stopSequences = const <String>[],
     List<Uint8List>? images,
     List<LlamaChatTurn>? turns,
+    LlamaStatsCallback? onStats,
   });
 
   /// Requests cancellation of any in-flight generation.

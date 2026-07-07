@@ -187,6 +187,7 @@ class ConfiguredAgentFactory {
       model: model,
       apiKey: apiKey,
       httpClient: httpClient,
+      scope: scope,
     );
 
     final options = FlutterHarnessAgentOptions();

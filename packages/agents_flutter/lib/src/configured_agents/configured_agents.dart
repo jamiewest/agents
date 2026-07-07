@@ -27,3 +27,4 @@ export 'storage/in_memory_secret_store.dart';
 export 'storage/key_value_store.dart';
 export 'storage/secret_store.dart';
 export 'storage/shared_preferences_key_value_store.dart';
+export 'usage_tracking_chat_client.dart';

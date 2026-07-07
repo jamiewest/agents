@@ -1,4 +1,3 @@
-// ignore_for_file: non_constant_identifier_names
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
@@ -40,12 +39,12 @@ abstract class DelegatingAIAgent extends AIAgent {
   @override
   Future<dynamic> serializeSessionCore(
     AgentSession session, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) {
     return innerAgent.serializeSession(
       session,
-      JsonSerializerOptions: JsonSerializerOptions,
+      jsonSerializerOptions: jsonSerializerOptions,
       cancellationToken: cancellationToken,
     );
   }
@@ -53,12 +52,12 @@ abstract class DelegatingAIAgent extends AIAgent {
   @override
   Future<AgentSession> deserializeSessionCore(
     dynamic serializedState, {
-    Object? JsonSerializerOptions,
+    Object? jsonSerializerOptions,
     CancellationToken? cancellationToken,
   }) {
     return innerAgent.deserializeSession(
       serializedState,
-      JsonSerializerOptions: JsonSerializerOptions,
+      jsonSerializerOptions: jsonSerializerOptions,
       cancellationToken: cancellationToken,
     );
   }
