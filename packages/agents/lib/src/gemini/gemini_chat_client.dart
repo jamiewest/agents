@@ -238,49 +238,23 @@ final class GeminiChatClient implements ChatClient {
   }
 
   Map<String, Object?> _toInlineDataPart(DataContent content) {
-    if (content.data != null) {
-      final mediaType = content.mediaType;
-      if (mediaType == null || mediaType.isEmpty) {
-        throw UnsupportedError('Gemini inline data requires a media type.');
-      }
-      return {
-        'inlineData': {
-          'mimeType': mediaType,
-          'data': base64Encode(content.data!),
-        },
-      };
+    // DataContent.fromUri parses data: URIs (extensions >= 0.5.0), so any
+    // data-URI-backed content arrives here with raw bytes populated.
+    final data = content.data;
+    if (data == null) {
+      throw UnsupportedError(
+        'Gemini DataContent must contain raw bytes or a base64 data URI.',
+      );
     }
 
-    final uri = content.uri;
-    if (uri != null && uri.startsWith('data:')) {
-      final parsed = _parseDataUri(uri);
-      return {
-        'inlineData': {'mimeType': parsed.mediaType, 'data': parsed.base64Data},
-      };
+    final mediaType = content.mediaType;
+    if (mediaType == null || mediaType.isEmpty) {
+      throw UnsupportedError('Gemini inline data requires a media type.');
     }
 
-    throw UnsupportedError(
-      'Gemini DataContent must contain raw bytes or a base64 data URI.',
-    );
-  }
-
-  _ParsedDataUri _parseDataUri(String uri) {
-    final comma = uri.indexOf(',');
-    if (comma <= 5) {
-      throw UnsupportedError('Invalid data URI for Gemini inline data.');
-    }
-
-    final metadata = uri.substring(5, comma);
-    final data = uri.substring(comma + 1);
-    final parts = metadata.split(';');
-    final mediaType = parts.first.isEmpty
-        ? 'application/octet-stream'
-        : parts.first;
-    if (!parts.contains('base64')) {
-      throw UnsupportedError('Gemini data URIs must be base64 encoded.');
-    }
-
-    return _ParsedDataUri(mediaType: mediaType, base64Data: data);
+    return {
+      'inlineData': {'mimeType': mediaType, 'data': base64Encode(data)},
+    };
   }
 
   void _ensureTextOnly(ChatMessage message) {
@@ -921,13 +895,6 @@ final class _PendingFunctionCall {
           ? {_thoughtSignatureKey: thoughtSignature}
           : null;
   }
-}
-
-final class _ParsedDataUri {
-  const _ParsedDataUri({required this.mediaType, required this.base64Data});
-
-  final String mediaType;
-  final String base64Data;
 }
 
 final class _AbortTrigger {

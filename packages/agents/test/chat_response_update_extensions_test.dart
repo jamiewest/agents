@@ -1,9 +1,12 @@
-import 'package:agents/src/ai/chat_client/chat_response_update_extensions.dart';
 import 'package:extensions/ai.dart';
 import 'package:test/test.dart';
 
+/// Contract tests for the `toChatResponse` accumulation behavior that
+/// `ChatClientAgent` and related decorators depend on. The implementation
+/// lives in `package:extensions/ai.dart` (extensions >= 0.5.0), which
+/// replaced the local port that previously lived in this package.
 void main() {
-  group('ChatResponseUpdateListExtensions.toChatResponse', () {
+  group('ChatResponseUpdatesExtensions.toChatResponse', () {
     test('coalesces contiguous updates into a single message', () {
       // Arrange
       final updates = [
@@ -26,11 +29,12 @@ void main() {
       expect(response.messages.single.contents, hasLength(2));
     });
 
-    test('starts a new message when role or author changes', () {
+    test('starts a new message when the author changes', () {
       // Arrange
       final updates = [
         ChatResponseUpdate(
           role: ChatRole.assistant,
+          authorName: 'one',
           contents: [TextContent('first')],
         ),
         ChatResponseUpdate(
@@ -46,6 +50,29 @@ void main() {
       // Assert
       expect(response.messages, hasLength(2));
       expect(response.messages[1].authorName, 'other');
+    });
+
+    test('starts a new message when the message ID changes', () {
+      // Arrange
+      final updates = [
+        ChatResponseUpdate(
+          role: ChatRole.assistant,
+          messageId: 'msg-1',
+          contents: [TextContent('first')],
+        ),
+        ChatResponseUpdate(
+          role: ChatRole.assistant,
+          messageId: 'msg-2',
+          contents: [TextContent('second')],
+        ),
+      ];
+
+      // Act
+      final response = updates.toChatResponse();
+
+      // Assert
+      expect(response.messages, hasLength(2));
+      expect(response.messages[1].messageId, 'msg-2');
     });
 
     test('preserves response-level metadata from updates', () {

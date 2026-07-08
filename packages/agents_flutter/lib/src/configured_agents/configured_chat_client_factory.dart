@@ -15,6 +15,7 @@ import 'model_profile/open_ai_model_profile.dart';
 import 'models/model_config.dart';
 import 'models/model_source_config.dart';
 import 'models/provider_type.dart';
+import 'text_file_inlining_chat_client.dart';
 
 /// Header that opts a browser build into direct Anthropic API access.
 ///
@@ -56,6 +57,10 @@ class ConfiguredChatClientFactory {
   /// Builds a chat client for [model] hosted by [source], authenticating with
   /// [apiKey].
   ///
+  /// The provider client is wrapped in a [TextFileInliningChatClient] so
+  /// attached text files reach every model as readable prompt text; see that
+  /// class for why the wrapper must stay innermost.
+  ///
   /// Supply [httpClient] to inject a fake transport in tests. [scope]
   /// identifies the conversation the client serves; this base factory does
   /// not use it, but decorating subclasses rely on it to attribute each
@@ -66,6 +71,20 @@ class ConfiguredChatClientFactory {
     String? apiKey,
     http.Client? httpClient,
     AgentScope? scope,
+  }) => TextFileInliningChatClient(
+    _createProviderClient(
+      source: source,
+      model: model,
+      apiKey: apiKey,
+      httpClient: httpClient,
+    ),
+  );
+
+  ChatClient _createProviderClient({
+    required ModelSourceConfig source,
+    required ModelConfig model,
+    String? apiKey,
+    http.Client? httpClient,
   }) {
     final endpoint = source.endpoint;
     final hasEndpoint = endpoint != null && endpoint.isNotEmpty;

@@ -364,7 +364,11 @@ class CompactionMessageIndex {
             total += data?.length ?? 0;
             total += tokenizer.countTokens(mediaType ?? '');
             total += tokenizer.countTokens(name ?? '');
-            total += tokenizer.countTokens(uri ?? '');
+            // When raw bytes are present, `uri` is synthesized from them
+            // (extensions >= 0.5.0), so counting it would double-count.
+            if (data == null) {
+              total += tokenizer.countTokens(uri ?? '');
+            }
           case UriContent(:final uri, :final mediaType):
             total += tokenizer.countTokens(uri.toString());
             total += tokenizer.countTokens(mediaType);
@@ -402,10 +406,12 @@ class CompactionMessageIndex {
       case FunctionResultContent(:final result):
         return getStringByteCount(result?.toString());
       case DataContent(:final data, :final mediaType, :final name, :final uri):
+        // When raw bytes are present, `uri` is synthesized from them
+        // (extensions >= 0.5.0), so counting it would double-count.
         return (data?.length ?? 0) +
             getStringByteCount(mediaType) +
             getStringByteCount(name) +
-            getStringByteCount(uri);
+            (data == null ? getStringByteCount(uri) : 0);
       case UriContent(:final uri, :final mediaType):
         return getStringByteCount(uri.toString()) +
             getStringByteCount(mediaType);

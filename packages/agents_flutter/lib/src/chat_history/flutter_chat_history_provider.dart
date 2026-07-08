@@ -10,6 +10,7 @@ import 'package:extensions/system.dart';
 
 import '../storage/record_store.dart';
 import 'chat_message_codec.dart';
+import 'stale_tool_result_redaction.dart';
 
 /// Field and collection names for persisted chat transcript records.
 ///
@@ -58,12 +59,18 @@ class FlutterChatHistoryProvider extends ChatHistoryProvider {
   /// multi-agent transcripts stay attributable. [_chatReducer] optionally
   /// reduces the provided history (for compaction parity) without mutating
   /// what is stored.
+  ///
+  /// Results of tools named in [staleToolResultNames] are redacted to a
+  /// stale marker when the transcript is provided back to the model (see
+  /// [redactStaleToolResults]); the stored transcript keeps the real
+  /// values.
   FlutterChatHistoryProvider(
     this._store, {
     required this.conversationId,
     required this._sessionIdResolver,
     this._senderAgentId,
     this._chatReducer,
+    this._staleToolResultNames = const {},
     this._collection = ChatMessageRecords.collection,
   }) : super(storeInputRequestMessageFilter: _excludeInjectedMessages);
 
@@ -87,6 +94,7 @@ class FlutterChatHistoryProvider extends ChatHistoryProvider {
   final String Function() _sessionIdResolver;
   final String? _senderAgentId;
   final ChatReducer? _chatReducer;
+  final Set<String> _staleToolResultNames;
   final String _collection;
 
   @override
@@ -108,6 +116,10 @@ class FlutterChatHistoryProvider extends ChatHistoryProvider {
             case final Map<String, Object?> encoded)
           ?ChatMessageCodec.decode(encoded),
     ];
+
+    // Everything loaded here predates the turn being invoked, so any
+    // volatile tool result in it is stale by definition.
+    redactStaleToolResults(messages, _staleToolResultNames);
 
     final reducer = _chatReducer;
     if (reducer == null) {

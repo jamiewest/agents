@@ -20,7 +20,6 @@ import 'chat_client_agent_log_messages.dart';
 import 'chat_client_agent_options.dart';
 import 'chat_client_agent_run_options.dart';
 import 'chat_client_agent_session.dart';
-import 'chat_response_update_extensions.dart';
 import 'message_injecting_chat_client.dart';
 import 'non_approval_required_function_bypassing_chat_client.dart';
 import 'per_service_call_chat_history_persisting_chat_client.dart';

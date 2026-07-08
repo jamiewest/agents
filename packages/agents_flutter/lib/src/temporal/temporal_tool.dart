@@ -5,6 +5,9 @@ import 'package:extensions/system.dart';
 import 'local_time_zone.dart';
 import 'temporal_formatter.dart';
 
+/// The name of the tool created by [createCurrentTimeTool].
+const String currentTimeToolName = 'get_current_time';
+
 /// Creates a tool that returns the current time in an IANA time zone.
 ///
 /// When no `timeZoneId` argument is supplied by the model and [timeZoneId] is
@@ -36,7 +39,7 @@ AIFunction createCurrentTimeTool({
   }
 
   return AIFunctionFactory.create(
-    name: 'get_current_time',
+    name: currentTimeToolName,
     description:
         'Returns the current local date and time in an IANA time zone. '
         'Use this for explicit time lookups, especially for a zone other than '

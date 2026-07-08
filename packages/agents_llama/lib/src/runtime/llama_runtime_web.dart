@@ -61,13 +61,11 @@ final class WebLlamaRuntime implements LlamaRuntime {
       );
     }
 
+    // wllama 3.x ships one unified wasm (threading is chosen at runtime) and
+    // reads only the 'default' key from this map; the per-thread-count paths
+    // of wllama 1.x/2.x are gone.
     final instance = constructor.callAsConstructor<JSObject>(
-      <String, String>{
-        'default': '$_wasmAssetBase/single-thread/wllama.wasm',
-        'single-thread/wllama.wasm':
-            '$_wasmAssetBase/single-thread/wllama.wasm',
-        'multi-thread/wllama.wasm': '$_wasmAssetBase/multi-thread/wllama.wasm',
-      }.jsify(),
+      <String, String>{'default': '$_wasmAssetBase/wllama.wasm'}.jsify(),
     );
 
     final selectedLocalPath = localPath?.trim();

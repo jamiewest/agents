@@ -80,7 +80,9 @@ Public API (`lib/llama_flutter.dart`): `LlamaFlutter`, `LlamaSession`,
 ## wllama web API (verified against `src/wllama.ts` @ master)
 
 - `new Wllama(pathConfig: AssetsPathConfig, wllamaConfig?: WllamaConfig)`.
-  `AssetsPathConfig = { default: string; 'single-thread/wllama.wasm'?: string; 'multi-thread/wllama.wasm'?: string }`.
+  Since wllama 3.x, `AssetsPathConfig = { default: string }` pointing at the
+  single unified `wllama.wasm` (threading is decided at runtime); the
+  per-thread-count paths of 1.x/2.x are gone.
 - `loadModelFromUrl(urlOrSource, params: LoadModelParams & DownloadOptions & { useCache?: boolean })`;
   `LoadModelParams` includes `n_ctx`, `n_gpu_layers`, `n_threads`. Split GGUF:
   pass the first chunk URL.

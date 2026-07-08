@@ -11,7 +11,7 @@ environment:
 dependencies:
   agents:
     path: ../agents
-  extensions: ^0.4.1
+  extensions: ^0.5.0
   flutter:
     sdk: flutter
   llama_flutter:
@@ -26,5 +26,3 @@ dev_dependencies:
 flutter:
   assets:
     - lib/assets/wasm/
-    - lib/assets/wasm/single-thread/
-    - lib/assets/wasm/multi-thread/

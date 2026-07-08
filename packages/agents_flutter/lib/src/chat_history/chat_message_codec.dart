@@ -10,7 +10,7 @@ import 'package:extensions/ai.dart';
 /// Encodes and decodes framework [ChatMessage]s as JSON-compatible maps.
 ///
 /// Persists the content kinds that matter for resuming model context —
-/// text, function calls, function results, data/attachment references, and
+/// text, function calls, function results, data and link attachments, and
 /// token usage — so a restored conversation replays tool use faithfully and
 /// keeps per-message usage detail. Content kinds the codec does not
 /// understand are dropped with a debug log rather than failing the whole
@@ -94,6 +94,11 @@ class ChatMessageCodec {
           'mediaType': ?mediaType,
           'name': ?name,
         },
+        UriContent(:final uri, :final mediaType) => {
+          'kind': 'uri',
+          'uri': '$uri',
+          'mediaType': mediaType,
+        },
         UsageContent(:final details) => {
           'kind': 'usage',
           if (details.inputTokenCount != null) 'input': details.inputTokenCount,
@@ -129,6 +134,10 @@ class ChatMessageCodec {
           callId: json['callId']! as String,
           name: json['name'] as String?,
           result: json['result'],
+        ),
+        'uri' => UriContent(
+          Uri.parse(json['uri']! as String),
+          mediaType: json['mediaType']! as String,
         ),
         'usage' => UsageContent(
           UsageDetails(

@@ -78,10 +78,16 @@ PY
 fi
 
 # Bundle llama.cpp's multimodal library (libmtmd) so the framework can run
-# vision models (Gemma, LLaVA, …). Upstream build-xcframework.sh never includes
-# it: libmtmd.a (and the libcommon.a it depends on) must be merged into each
-# slice's combined archive, and the mtmd headers exposed via the module map.
-# mtmd + common are built by default (LLAMA_BUILD_TOOLS/COMMON default ON).
+# vision models (Gemma, LLaVA, …). Upstream gained native mtmd bundling
+# (LLAMA_BUILD_MTMD=ON, libmtmd.a in the libs array, mtmd headers copied)
+# between b9640 and b9899 — when that flag is present the patch below must be
+# skipped, or libmtmd.a is merged twice and the link fails on ~400 duplicate
+# symbols. Older refs still need the patch: libmtmd.a (and the libcommon.a it
+# depends on) must be merged into each slice's combined archive, and the mtmd
+# headers exposed via the module map.
+if grep -q "LLAMA_BUILD_MTMD" "$REPO/build-xcframework.sh"; then
+  echo "==> Upstream build-xcframework.sh already bundles libmtmd; skipping patch"
+else
 echo "==> Patching build-xcframework.sh to bundle libmtmd"
 python3 - "$REPO/build-xcframework.sh" <<'PY'
 import sys
@@ -181,6 +187,7 @@ src = src.replace(" -- -quiet", " --target mtmd -- -quiet")
 
 open(path, "w").write(src)
 PY
+fi
 
 echo "==> Building xcframework (this can take 10-30 minutes)"
 ( cd "$REPO" && ./build-xcframework.sh )

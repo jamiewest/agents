@@ -270,7 +270,16 @@ void main() {
         customClientResolver: _staticEchoResolver,
       ).createChatClient(source: _localSource, model: _localModel);
 
-      expect(client, isA<_EchoChatClient>());
+      // Every provider client is wrapped so attached text files reach the
+      // model as prompt text.
+      expect(
+        client,
+        isA<TextFileInliningChatClient>().having(
+          (c) => c.innerClient,
+          'innerClient',
+          isA<_EchoChatClient>(),
+        ),
+      );
     });
 
     test('throws when local llama has no custom resolver', () {

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:async';
+
 import 'agent_configuration_store.dart';
 import 'configured_agent_exception.dart';
 import 'models/model_config.dart';
@@ -33,6 +35,23 @@ class ConfiguredAgentsManager {
   final AgentConfigurationStore agents;
 
   final SecretStore _secrets;
+
+  final StreamController<String> _agentChanges =
+      StreamController<String>.broadcast();
+
+  /// Emits the id of a saved agent whenever its configuration changes
+  /// (saved, deleted, or rewritten to drop a delegation).
+  ///
+  /// Long-lived consumers that built an [AIAgent] from a [SavedAgentConfig]
+  /// — for example an open chat — can listen and rebuild the agent so
+  /// edits to model, instructions, or tool access take effect without
+  /// leaving and re-entering the conversation. The stream is a broadcast
+  /// stream; a `null`-safe no-op if never listened to.
+  Stream<String> get agentChanges => _agentChanges.stream;
+
+  /// Releases the change stream. Call when the manager is torn down; app-wide
+  /// singletons that live for the process lifetime need not.
+  Future<void> dispose() => _agentChanges.close();
 
   // --- Sources & secrets ---------------------------------------------------
 
@@ -78,7 +97,12 @@ class ConfiguredAgentsManager {
       await deleteModel(model.id, cascade: true);
     }
     await sources.removeSource(id);
-    await _secrets.delete(ConfiguredAgentsKeys.sourceApiKeyKey(id));
+    // Best-effort: the source record is already gone, and an orphaned
+    // secret is harmless. A platform keychain rejection here must not
+    // make the whole delete report failure.
+    try {
+      await _secrets.delete(ConfiguredAgentsKeys.sourceApiKeyKey(id));
+    } catch (_) {}
   }
 
   // --- Models --------------------------------------------------------------
@@ -139,6 +163,7 @@ class ConfiguredAgentsManager {
       }
     }
     await agents.saveAgent(agent);
+    _notifyAgentChanged(agent.id);
   }
 
   /// Deletes the agent [id].
@@ -156,6 +181,7 @@ class ConfiguredAgentsManager {
     }
     await _removeDelegationReferences({id});
     await agents.removeAgent(id);
+    _notifyAgentChanged(id);
   }
 
   Future<List<SavedAgentConfig>> _agentsForModel(String modelId) async {
@@ -176,6 +202,12 @@ class ConfiguredAgentsManager {
         .toList();
   }
 
+  void _notifyAgentChanged(String agentId) {
+    if (!_agentChanges.isClosed) {
+      _agentChanges.add(agentId);
+    }
+  }
+
   /// Rewrites any remaining agents so they no longer delegate to the removed
   /// [agentIds].
   Future<void> _removeDelegationReferences(Set<String> agentIds) async {
@@ -191,6 +223,7 @@ class ConfiguredAgentsManager {
               .toList(),
         ),
       );
+      _notifyAgentChanged(referrer.id);
     }
   }
 }

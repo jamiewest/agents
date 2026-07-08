@@ -206,6 +206,23 @@ final class LlamaSession {
     let threads = performanceCoreCount()
     ctxParams.n_threads = threads
     ctxParams.n_threads_batch = threads
+    // No decode ever flags more than draftBudget+1 logits rows (a
+    // speculative verification batch; everything else flags one), but the
+    // reserve-time logits buffer is n_outputs_max × n_vocab per ubatch graph
+    // and n_outputs_max defaults to n_batch — ~2 GB of Metal compute buffer
+    // at Gemma's 262k vocab. Upstream's server caps it the same way.
+    let draftBudget = Int(request.draftModel.map { min(max($0.maxDraftTokens, 0), 64) } ?? 0)
+    ctxParams.n_outputs_max = UInt32(1 + draftBudget)
+    // Rollback snapshots for recurrent/hybrid models (e.g. LFM2's conv
+    // layers), whose state cannot be partially erased otherwise:
+    // llama_memory_seq_rm on them succeeds only for trailing removals of at
+    // most n_rs_seq positions. Speculation trims up to draftBudget rejected
+    // tokens per step and prefix reuse trims at least one token at every
+    // turn boundary — with 0 the first fails mid-generation and the second
+    // falls back to a full-prompt re-decode every turn. Mirrors upstream's
+    // need_n_rs_seq() (= draft n_max) plus a floor of 1 for the prefix-reuse
+    // trim; pure-attention models (Gemma) clamp it back to 0 internally.
+    ctxParams.n_rs_seq = UInt32(max(draftBudget, 1))
 
     guard let context = llama_init_from_model(model, ctxParams) else {
       llama_model_free(model)
@@ -484,6 +501,7 @@ final class LlamaSession {
           generatedTokenCount: generated))
     }
 
+    let started = DispatchTime.now()
     while generated < request.maxTokens {
       if isCancelled {
         finish()
@@ -513,6 +531,13 @@ final class LlamaSession {
     }
 
     emitter.finish()
+    let elapsed =
+      Double(DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds)
+      / 1_000_000_000
+    logNative(
+      String(
+        format: "decode: %d tokens in %.2fs (%.1f tok/s)",
+        generated, elapsed, elapsed > 0 ? Double(generated) / elapsed : 0))
     finish()
   }
 
@@ -875,8 +900,26 @@ final class LlamaSession {
       // Drop the rejected tail from the target; the drafter shares this
       // memory, so there is no second cache to trim.
       position += 1 + accepted
-      llama_memory_seq_rm(
-        llama_get_memory(context), 0, llama_pos(position), -1)
+      guard
+        llama_memory_seq_rm(
+          llama_get_memory(context), 0, llama_pos(position), -1)
+      else {
+        // A recurrent/hybrid cache that ran out of rollback snapshots: the
+        // cache now holds the rejected tokens' state and no ledger describes
+        // it, so stop rather than keep decoding against corrupt state.
+        // cachedTokens stays invalidated (finish() is deliberately skipped),
+        // forcing a clean re-decode on the next call.
+        logNative(
+          "speculative (mtp): rejected-tail rollback failed, "
+            + "ending generation")
+        emitter.finish()
+        callbacks.onDone(
+          GenerationStats(
+            promptTokenCount: promptTokens.count,
+            cachedTokenCount: reusedPromptTokens,
+            generatedTokenCount: generated))
+        return
+      }
       decoded.append(current)
       decoded.append(contentsOf: drafted.prefix(accepted))
 
@@ -1239,8 +1282,21 @@ private struct DraftModel {
 
     var ctxParams = llama_context_default_params()
     ctxParams.n_ctx = UInt32(contextSize)
-    ctxParams.n_batch = UInt32(contextSize)
-    ctxParams.n_ubatch = UInt32(min(contextSize, 2048))
+    if isMtp {
+      // An MTP drafter never sees the prompt (it shares the target's memory)
+      // and only ever decodes single-token batches; verification runs on the
+      // target. Reserve-time compute buffers are sized by n_ubatch ×
+      // n_outputs_max, so target-sized batches here reserved a ~2 GB logits
+      // buffer (262k vocab) for a context whose real batches are one token.
+      ctxParams.n_batch = 64
+      ctxParams.n_ubatch = 64
+      ctxParams.n_outputs_max = 1
+    } else {
+      // Standalone drafters ingest the full prompt via decodeChunked, so
+      // they keep target-sized batches.
+      ctxParams.n_batch = UInt32(contextSize)
+      ctxParams.n_ubatch = UInt32(min(contextSize, 2048))
+    }
     let threads = performanceCoreCount()
     ctxParams.n_threads = threads
     ctxParams.n_threads_batch = threads

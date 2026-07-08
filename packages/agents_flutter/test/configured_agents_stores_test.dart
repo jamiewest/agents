@@ -281,6 +281,60 @@ void main() {
       expect(await manager.hasSourceApiKey('s1'), isFalse);
     });
 
+    group('agentChanges stream', () {
+      test('emits the agent id when an agent is saved', () async {
+        final changes = <String>[];
+        final sub = manager.agentChanges.listen(changes.add);
+        addTearDown(sub.cancel);
+
+        await manager.saveAgent(
+          const SavedAgentConfig(id: 'a1', name: 'Helper', modelId: 'm1'),
+        );
+        // The stream is async; let the microtask queue drain.
+        await Future<void>.delayed(Duration.zero);
+
+        expect(changes, ['a1']);
+      });
+
+      test('emits the agent id when an agent is deleted', () async {
+        await manager.saveAgent(
+          const SavedAgentConfig(id: 'a1', name: 'Helper', modelId: 'm1'),
+        );
+        final changes = <String>[];
+        final sub = manager.agentChanges.listen(changes.add);
+        addTearDown(sub.cancel);
+
+        await manager.deleteAgent('a1');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(changes, ['a1']);
+      });
+
+      test('emits a referrer id when a cascade drops its delegation', () async {
+        await manager.saveAgent(
+          const SavedAgentConfig(id: 'delegate', name: 'B', modelId: 'm1'),
+        );
+        await manager.saveAgent(
+          const SavedAgentConfig(
+            id: 'boss',
+            name: 'A',
+            modelId: 'm1',
+            delegations: [AgentDelegationConfig(agentId: 'delegate')],
+          ),
+        );
+        final changes = <String>[];
+        final sub = manager.agentChanges.listen(changes.add);
+        addTearDown(sub.cancel);
+
+        await manager.deleteAgent('delegate', cascade: true);
+        await Future<void>.delayed(Duration.zero);
+
+        // The referrer is rewritten (delegation dropped) and the delegate is
+        // removed; both surface as changes.
+        expect(changes, containsAll(<String>['boss', 'delegate']));
+      });
+    });
+
     group('delegation integrity', () {
       Future<void> seedModel() async {
         await manager.saveSource(

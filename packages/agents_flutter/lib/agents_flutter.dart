@@ -8,6 +8,7 @@ export 'src/a2a/pairing_payload.dart';
 export 'src/chat_client_flutter_extensions.dart';
 export 'src/chat_history/chat_message_codec.dart';
 export 'src/chat_history/flutter_chat_history_provider.dart';
+export 'src/chat_history/stale_tool_result_redaction.dart';
 export 'src/configured_agents/configured_agents.dart';
 export 'src/connectivity/connectivity_context_provider.dart';
 export 'src/connectivity/connectivity_monitor.dart';

@@ -99,6 +99,11 @@ abstract class UsageRecordSink {
 /// one final synthetic update carrying a [UsageContent] with the call's
 /// usage. That content flows into the coalesced assistant message, giving
 /// per-message token detail to both live UI and the persisted transcript.
+///
+/// Because provider clients reject [UsageContent] as model input, the
+/// decorator also strips it from incoming [messages] before delegating —
+/// replayed transcripts keep their per-message usage without ever sending
+/// it back to the provider.
 class UsageTrackingChatClient extends DelegatingChatClient {
   /// Wraps [inner], reporting usage to [sink].
   ///
@@ -135,7 +140,7 @@ class UsageTrackingChatClient extends DelegatingChatClient {
     CancellationToken? cancellationToken,
   }) async {
     final response = await super.getResponse(
-      messages: messages,
+      messages: _withoutUsageContent(messages),
       options: options,
       cancellationToken: cancellationToken,
     );
@@ -160,7 +165,7 @@ class UsageTrackingChatClient extends DelegatingChatClient {
     UsageDetails? contentUsage;
     String? lastMessageId;
     await for (final update in super.getStreamingResponse(
-      messages: messages,
+      messages: _withoutUsageContent(messages),
       options: options,
       cancellationToken: cancellationToken,
     )) {
@@ -204,6 +209,18 @@ class UsageTrackingChatClient extends DelegatingChatClient {
 
   static bool _hasUsageContent(List<AIContent>? contents) =>
       contents?.any((c) => c is UsageContent) ?? false;
+
+  /// Strips transcript-only [UsageContent] from replayed history, copying
+  /// affected messages so the persisted transcript keeps its usage detail.
+  static List<ChatMessage> _withoutUsageContent(
+    Iterable<ChatMessage> messages,
+  ) => [
+    for (final message in messages)
+      if (_hasUsageContent(message.contents))
+        (message.clone()..contents.removeWhere((c) => c is UsageContent))
+      else
+        message,
+  ];
 
   /// Copies [usage] so the injected content cannot be mutated by later
   /// accumulation against the original instance.

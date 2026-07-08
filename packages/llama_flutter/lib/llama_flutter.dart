@@ -130,7 +130,7 @@ class LlamaFlutter {
     String? mmprojPath,
     String? draftModelPath,
     int draftGpuLayers = 999,
-    int maxDraftTokens = 8,
+    int maxDraftTokens = 3,
   }) async {
     await _ensureStarted();
     final id = await _isolate.loadModel(

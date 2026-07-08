@@ -89,6 +89,28 @@ void main() {
       expect(decodedBytes.name, 'blob.bin');
     });
 
+    test('round-trips uri content', () {
+      final message = ChatMessage(
+        role: ChatRole.user,
+        contents: [
+          UriContent(
+            Uri.parse('https://example.com/report.pdf'),
+            mediaType: 'application/pdf',
+          ),
+        ],
+      );
+
+      final decoded = ChatMessageCodec.decode(
+        _jsonRoundTrip(ChatMessageCodec.encode(message)),
+      )!.contents.single;
+
+      expect(
+        (decoded as UriContent).uri.toString(),
+        'https://example.com/report.pdf',
+      );
+      expect(decoded.mediaType, 'application/pdf');
+    });
+
     test('stringifies function results that are not JSON-encodable', () {
       final message = ChatMessage(
         role: ChatRole.tool,

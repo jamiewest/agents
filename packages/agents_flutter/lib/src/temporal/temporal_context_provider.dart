@@ -60,7 +60,10 @@ final class TemporalContextProvider extends AIContextProvider {
           '- Time zone: ${value.timeZoneId}\n'
           '- Use this date when resolving relative date phrases such as today, '
           'tomorrow, yesterday, this weekend, and next Monday. Call the '
-          'get_current_time tool when you need the current time of day.';
+          'get_current_time tool when you need the current time of day.\n'
+          '- Clock times appearing earlier in the conversation are stale. '
+          'When asked for the current time, always call get_current_time '
+          'instead of repeating a time from the conversation history.';
   }
 
   /// Resolves the effective IANA zone, caching device detection after the

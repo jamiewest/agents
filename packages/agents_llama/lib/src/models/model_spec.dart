@@ -47,7 +47,7 @@ class ModelSpec {
     required this.contextSize,
     this.gpuLayers = 999,
     this.draftGpuLayers = 999,
-    this.maxDraftTokens = 8,
+    this.maxDraftTokens = 3,
     required this.format,
     this.sampling = const SamplingDefaults(),
     this.engineId = 'llama',
@@ -84,6 +84,11 @@ class ModelSpec {
   final int draftGpuLayers;
 
   /// Upper bound on tokens the drafter proposes per speculation step.
+  ///
+  /// Defaults to 3, matching upstream llama.cpp's speculative n_max: at
+  /// sampling temperatures the per-token acceptance rate makes longer draft
+  /// chains net-negative (every rejected token costs a wasted draft decode
+  /// plus a wasted verification slot).
   final int maxDraftTokens;
 
   /// The model family's prompt wire format.

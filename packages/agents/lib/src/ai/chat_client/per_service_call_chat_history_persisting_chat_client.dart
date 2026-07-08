@@ -4,7 +4,6 @@ import 'package:extensions/system.dart';
 import '../../abstractions/ai_agent.dart';
 import 'chat_client_agent.dart';
 import 'chat_client_agent_session.dart';
-import 'chat_response_update_extensions.dart';
 
 /// A sentinel conversation ID used to signal to
 /// [FunctionInvokingChatClient] that the conversation is service-managed

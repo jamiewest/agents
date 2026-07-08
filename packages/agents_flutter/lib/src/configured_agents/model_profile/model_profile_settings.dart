@@ -48,3 +48,20 @@ const String reasoningTagsThink = 'think';
 
 /// Value of [reasoningTagsSetting] that disables tag handling.
 const String reasoningTagsNone = 'none';
+
+/// How a scheduled task delivers its prompt to this model.
+///
+/// [taskPromptRoleSystem] sends it as a system-role turn — only for models
+/// whose chat template renders a standalone system message and generates
+/// from it (e.g. Gemma). [taskPromptRoleUser] sends it as a hidden user
+/// message. Absent or empty means [taskPromptRoleUser]: the safe default
+/// that works on every provider, since hosted providers (Anthropic, Gemini,
+/// OpenAI-compatible) hoist system text into a separate field and reject a
+/// system-only turn.
+const String taskPromptRoleSetting = 'tasks.promptRole';
+
+/// Value of [taskPromptRoleSetting] selecting a system-role task prompt.
+const String taskPromptRoleSystem = 'system';
+
+/// Value of [taskPromptRoleSetting] selecting a hidden user-role task prompt.
+const String taskPromptRoleUser = 'user';

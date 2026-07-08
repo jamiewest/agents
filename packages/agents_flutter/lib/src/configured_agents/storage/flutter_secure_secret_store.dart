@@ -15,7 +15,16 @@ import 'secret_store.dart';
 class FlutterSecureSecretStore extends SecretStore {
   /// Creates a store, optionally with a preconfigured [storage] instance.
   FlutterSecureSecretStore({FlutterSecureStorage? storage})
-    : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? _defaultStorage;
+
+  /// macOS uses the legacy file-based keychain: the data-protection
+  /// keychain (the plugin default) needs a keychain-access-groups
+  /// entitlement and a development signing certificate, which ad-hoc
+  /// signed debug builds lack — writes then fail with
+  /// errSecMissingEntitlement.
+  static const _defaultStorage = FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
 
   final FlutterSecureStorage _storage;
 

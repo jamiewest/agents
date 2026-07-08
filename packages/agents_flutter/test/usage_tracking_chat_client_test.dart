@@ -132,6 +132,43 @@ void main() {
     });
   });
 
+  group('UsageTrackingChatClient input stripping', () {
+    test('removes UsageContent from replayed history without mutating '
+        'the transcript', () async {
+      // Arrange: a prior assistant turn carries the UsageContent this
+      // decorator injected when it was persisted.
+      final priorTurn = ChatMessage(
+        role: ChatRole.assistant,
+        contents: [
+          TextContent('earlier answer'),
+          UsageContent(UsageDetails(inputTokenCount: 4, outputTokenCount: 2)),
+        ],
+      );
+      final history = [
+        ChatMessage.fromText(ChatRole.user, 'hi'),
+        priorTurn,
+        ChatMessage.fromText(ChatRole.user, 'again'),
+      ];
+      final inner = _InputCapturingChatClient();
+      final client = _tracking(inner, _RecordingSink());
+
+      // Act: exercise both call paths against the same history.
+      await client.getResponse(messages: history);
+      await client.getStreamingResponse(messages: history).drain<void>();
+
+      // Assert: the provider never sees UsageContent as input...
+      for (final sent in inner.calls) {
+        expect(
+          sent.any((m) => m.contents.any((c) => c is UsageContent)),
+          isFalse,
+        );
+        expect(sent[1].text, 'earlier answer');
+      }
+      // ...while the persisted transcript keeps its usage detail.
+      expect(priorTurn.contents.whereType<UsageContent>(), hasLength(1));
+    });
+  });
+
   group('UsageTrackingChatClient getResponse', () {
     test('records response usage and attaches UsageContent', () async {
       final sink = _RecordingSink();
@@ -291,6 +328,45 @@ final class _RecordingSink implements UsageRecordSink {
 
   @override
   void record(ChatUsageRecord record) => records.add(record);
+}
+
+/// A fake client that captures the messages each call sends downstream.
+final class _InputCapturingChatClient implements ChatClient {
+  final List<List<ChatMessage>> calls = [];
+
+  @override
+  Future<ChatResponse> getResponse({
+    required Iterable<ChatMessage> messages,
+    ChatOptions? options,
+    CancellationToken? cancellationToken,
+  }) async {
+    calls.add(messages.toList());
+    return ChatResponse.fromMessage(
+      ChatMessage.fromText(ChatRole.assistant, 'ok'),
+    );
+  }
+
+  @override
+  Stream<ChatResponseUpdate> getStreamingResponse({
+    required Iterable<ChatMessage> messages,
+    ChatOptions? options,
+    CancellationToken? cancellationToken,
+  }) {
+    calls.add(messages.toList());
+    return Stream.fromIterable([
+      ChatResponseUpdate(
+        role: ChatRole.assistant,
+        messageId: 'm1',
+        contents: [TextContent('ok')],
+      ),
+    ]);
+  }
+
+  @override
+  T? getService<T>({Object? key}) => null;
+
+  @override
+  void dispose() {}
 }
 
 /// A fake client that replays scripted update lists, one per call.
