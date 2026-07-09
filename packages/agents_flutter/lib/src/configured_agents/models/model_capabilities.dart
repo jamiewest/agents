@@ -16,6 +16,7 @@ class ModelCapabilities {
   const ModelCapabilities({
     this.supportsThinking = false,
     this.supportsVision = false,
+    this.supportsAudio = false,
     this.supportsTools = true,
     this.contextLength,
     this.minMemoryMb,
@@ -26,6 +27,7 @@ class ModelCapabilities {
       ModelCapabilities(
         supportsThinking: settings[thinkingKey]?.trim() == 'true',
         supportsVision: settings[visionKey]?.trim() == 'true',
+        supportsAudio: settings[audioKey]?.trim() == 'true',
         supportsTools: settings[toolsKey]?.trim() != 'false',
         contextLength: int.tryParse(settings[contextLengthKey] ?? ''),
         minMemoryMb: int.tryParse(settings[minMemoryMbKey] ?? ''),
@@ -36,6 +38,9 @@ class ModelCapabilities {
 
   /// Settings key for [supportsVision].
   static const String visionKey = 'capability.vision';
+
+  /// Settings key for [supportsAudio].
+  static const String audioKey = 'capability.audio';
 
   /// Settings key for [supportsTools].
   static const String toolsKey = 'capability.tools';
@@ -52,6 +57,9 @@ class ModelCapabilities {
   /// Whether the model accepts image input.
   final bool supportsVision;
 
+  /// Whether the model accepts audio input.
+  final bool supportsAudio;
+
   /// Whether the model supports tool calling.
   final bool supportsTools;
 
@@ -66,6 +74,7 @@ class ModelCapabilities {
   Map<String, String> toSettings() => {
     if (supportsThinking) thinkingKey: 'true',
     if (supportsVision) visionKey: 'true',
+    if (supportsAudio) audioKey: 'true',
     if (!supportsTools) toolsKey: 'false',
     if (contextLength != null) contextLengthKey: '$contextLength',
     if (minMemoryMb != null) minMemoryMbKey: '$minMemoryMb',
