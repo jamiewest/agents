@@ -28,6 +28,7 @@ export 'src/flutter_harness_agent_options.dart';
 export 'src/flutter_harness_capabilities.dart';
 export 'src/flutter_harness_service_collection_extensions.dart';
 export 'src/host_application_builder_extensions.dart';
+export 'src/logged_background_service.dart';
 export 'src/huggingface/huggingface_api.dart';
 export 'src/huggingface/huggingface_downloader.dart';
 export 'src/huggingface/huggingface_service_collection_extensions.dart';

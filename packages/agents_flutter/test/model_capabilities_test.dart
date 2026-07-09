@@ -12,6 +12,7 @@ void main() {
 
       expect(capabilities.supportsThinking, isFalse);
       expect(capabilities.supportsVision, isFalse);
+      expect(capabilities.supportsAudio, isFalse);
       expect(capabilities.supportsTools, isTrue);
       expect(capabilities.contextLength, isNull);
       expect(capabilities.minMemoryMb, isNull);
@@ -21,6 +22,7 @@ void main() {
       const capabilities = ModelCapabilities(
         supportsThinking: true,
         supportsVision: true,
+        supportsAudio: true,
         supportsTools: false,
         contextLength: 128000,
         minMemoryMb: 8192,
@@ -32,6 +34,7 @@ void main() {
 
       expect(restored.supportsThinking, isTrue);
       expect(restored.supportsVision, isTrue);
+      expect(restored.supportsAudio, isTrue);
       expect(restored.supportsTools, isFalse);
       expect(restored.contextLength, 128000);
       expect(restored.minMemoryMb, 8192);
