@@ -59,6 +59,24 @@ void main() {
       expect(agent.getService(String), isNull);
     });
 
+    test('resolvesAIContextProviderByConcreteType', () {
+      // Regression: an AIContextProvider subtype must resolve through the
+      // agent's aiContextProviders by its concrete runtime type, not just by
+      // the AIContextProvider base type. Loop evaluators such as
+      // BackgroundTaskCompletionLoopEvaluator rely on this to fetch their
+      // provider via getService.
+      final provider = _TestAIContextProvider();
+      final agent = ChatClientAgent(
+        _ScriptedChatClient(),
+        options: ChatClientAgentOptions()
+          ..useProvidedChatClientAsIs = true
+          ..aiContextProviders = [provider],
+      );
+
+      expect(agent.getService(_TestAIContextProvider), same(provider));
+      expect(agent.getService(AIContextProvider), same(provider));
+    });
+
     test(
       'requestingAIAgentMetadataIncludesProviderNameFromChatClientMetadata',
       () {

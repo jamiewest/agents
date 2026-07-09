@@ -185,8 +185,17 @@ abstract class AIContextProvider {
   }) => Future.value();
 
   /// Returns a service of the specified [serviceType], or `null`.
+  ///
+  /// Resolves when [serviceType] is this provider's concrete runtime type or
+  /// the [AIContextProvider] base type, mirroring the `runtimeType` idiom used
+  /// by [AgentSession] and [DelegatingAIAgent]. Matching the concrete type is
+  /// what lets callers such as `BackgroundTaskCompletionLoopEvaluator` resolve
+  /// a specific provider via `AIAgent.getService`.
   Object? getService(Type serviceType, {Object? serviceKey}) {
-    return serviceType == AIContextProvider ? this : null;
+    return serviceKey == null &&
+            (serviceType == runtimeType || serviceType == AIContextProvider)
+        ? this
+        : null;
   }
 
   /// Returns a service of type [T], or `null`.
