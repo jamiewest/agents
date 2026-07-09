@@ -22,7 +22,7 @@ class GemmaPrompt {
   const GemmaPrompt({
     required this.text,
     required this.stopSequences,
-    this.images = const <Uint8List>[],
+    this.media = const <Uint8List>[],
   });
 
   /// The formatted prompt, ready to pass to `LlamaFlutter.generate`.
@@ -32,10 +32,11 @@ class GemmaPrompt {
   /// [GemmaChatTemplate.stopSequences].
   final List<String> stopSequences;
 
-  /// Image bytes referenced by the [mediaMarker]s embedded in [text], in the
-  /// order the markers appear. Passed straight to `LlamaFlutter.generate`'s
-  /// `images` so mtmd can interleave them. Empty for a text-only prompt.
-  final List<Uint8List> images;
+  /// Encoded media bytes (image or audio) referenced by the [mediaMarker]s
+  /// embedded in [text], in the order the markers appear. Passed straight to
+  /// the runtime so mtmd can interleave them; mtmd auto-detects each blob's
+  /// kind from its magic bytes. Empty for a text-only prompt.
+  final List<Uint8List> media;
 }
 
 /// The parsed result of one generated model turn.
@@ -100,7 +101,7 @@ class GemmaChatTemplate {
     final all = messages.toList();
     final toolList = tools.toList();
     final out = StringBuffer();
-    final images = <Uint8List>[];
+    final media = <Uint8List>[];
 
     var loopStart = 0;
     final firstIsSystem = all.isNotEmpty && _roleOf(all.first) == 'system';
@@ -180,17 +181,23 @@ class GemmaChatTemplate {
         }
       }
 
-      final imageMarkers = StringBuffer();
+      // Gemma 4 accepts both vision and audio through mtmd. Collect either kind
+      // of media blob in content order and emit one marker apiece; mtmd
+      // substitutes the model-specific image/audio tokens and auto-detects the
+      // kind from each blob's magic bytes.
+      final mediaMarkers = StringBuffer();
       for (final data in msg.contents.whereType<DataContent>()) {
         final bytes = data.data;
-        if (bytes != null && data.hasTopLevelMediaType('image')) {
-          images.add(bytes);
-          imageMarkers.write(mediaMarker);
+        if (bytes != null &&
+            (data.hasTopLevelMediaType('image') ||
+                data.hasTopLevelMediaType('audio'))) {
+          media.add(bytes);
+          mediaMarkers.write(mediaMarker);
         }
       }
 
       final base = isAssistant ? _stripThinking(msg.text) : msg.text.trim();
-      final content = '$imageMarkers$base';
+      final content = '$mediaMarkers$base';
       out.write(content);
       final hasContent = content.trim().isNotEmpty;
 
@@ -213,7 +220,7 @@ class GemmaChatTemplate {
     return GemmaPrompt(
       text: out.toString(),
       stopSequences: stopSequences,
-      images: images,
+      media: media,
     );
   }
 

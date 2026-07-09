@@ -471,5 +471,12 @@ class ConfiguredAgentFactory {
       ..enableLocation = access.enableLocation
       ..enableNetworkInfo = access.enableNetworkInfo
       ..enableWakeLock = access.enableWakeLock;
+    // The `run_shell` tool spawns host processes via `dart:io`, so it is only
+    // available off the web. The base harness wraps it in an
+    // `ApprovalRequiredAIFunction`, so every command still requires per-call
+    // user approval.
+    if (access.enableShell && !kIsWeb) {
+      options.shellExecutor = LocalShellExecutor();
+    }
   }
 }

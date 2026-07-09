@@ -122,8 +122,9 @@ messagesWithRuntimeContext(
 ///
 /// Roles map to the wire names wllama's chat-completion API accepts
 /// (`system`/`user`/`assistant`); tool-role results fold into user-role text
-/// turns. Images are extracted with the same rule the [ChatFormat] templates
-/// use: image-typed [DataContent] with non-null bytes.
+/// turns. Media is extracted with the same rule the [ChatFormat] templates
+/// use — [DataContent] with non-null bytes — split by kind so the message-level
+/// multimodal path can label each content part (`image` vs `audio`).
 List<LlamaChatTurn> chatTurnsFromMessages(Iterable<ChatMessage> messages) =>
     <LlamaChatTurn>[
       for (final message in messages)
@@ -139,8 +140,20 @@ List<LlamaChatTurn> chatTurnsFromMessages(Iterable<ChatMessage> messages) =>
               if (data.data != null && data.hasTopLevelMediaType('image'))
                 data.data!,
           ],
+          audio: <Uint8List>[
+            for (final data in message.contents.whereType<DataContent>())
+              if (data.data != null && data.hasTopLevelMediaType('audio'))
+                data.data!,
+          ],
         ),
     ];
+
+/// Whether any message carries audio-typed [DataContent] with bytes.
+bool _hasAudioContent(Iterable<ChatMessage> messages) => messages.any(
+  (message) => message.contents.whereType<DataContent>().any(
+    (data) => data.data != null && data.hasTopLevelMediaType('audio'),
+  ),
+);
 
 bool _isTextOnlyProviderMessage(ChatMessage message) {
   if (message.getAgentRequestMessageSourceType() !=
@@ -225,6 +238,18 @@ class LlamaChatClient extends ChatClient {
       enableThinking: thinking,
     );
 
+    // A model whose format did not emit any media marker for audio the caller
+    // attached cannot "hear" it: the audio would be silently dropped and the
+    // model asked to transcribe nothing. Fail loudly instead. (Gemma 4 does
+    // collect audio, so this fires only for text/vision-only families; the
+    // absent-audio-projector case surfaces as a clear runtime error deeper in.)
+    if (prompt.media.isEmpty && _hasAudioContent(prepared)) {
+      throw UnsupportedError(
+        'This local model cannot accept audio input. Load an audio-capable '
+        'model (Gemma 4 with an audio projector) to transcribe speech.',
+      );
+    }
+
     final maxTokens = options?.maxOutputTokens ?? sampling.maxTokens;
     final temperature = options?.temperature ?? sampling.temperature;
     final topK = options?.topK ?? sampling.topK;
@@ -240,7 +265,7 @@ class LlamaChatClient extends ChatClient {
         topK: topK,
         topP: topP,
         seed: seed,
-        imageCount: prompt.images.length,
+        imageCount: prompt.media.length,
         contextSize: contextSize,
         capturedAt: DateTime.now(),
       ),
@@ -255,8 +280,8 @@ class LlamaChatClient extends ChatClient {
       topP: topP,
       seed: seed,
       stopSequences: prompt.stopSequences,
-      images: prompt.images.isEmpty ? null : prompt.images,
-      turns: prompt.images.isEmpty ? null : chatTurnsFromMessages(prepared),
+      media: prompt.media.isEmpty ? null : prompt.media,
+      turns: prompt.media.isEmpty ? null : chatTurnsFromMessages(prepared),
       onStats: (reported) => stats = reported,
     );
     if (cancellationToken != null) {

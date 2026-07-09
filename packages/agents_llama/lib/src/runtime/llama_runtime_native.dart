@@ -61,7 +61,7 @@ final class _NativeLlamaSession implements LlamaSession {
     double? topP,
     int? seed,
     List<String> stopSequences = const <String>[],
-    List<Uint8List>? images,
+    List<Uint8List>? media,
     List<LlamaChatTurn>? turns,
     LlamaStatsCallback? onStats,
   }) => _inner.generate(
@@ -72,7 +72,9 @@ final class _NativeLlamaSession implements LlamaSession {
     topP: topP,
     seed: seed,
     stopSequences: stopSequences,
-    images: images,
+    // The native FFI `images` parameter accepts any mtmd media bytes; the
+    // Swift side auto-detects image vs audio from each blob's magic bytes.
+    images: media,
     onStats: onStats == null
         ? null
         : (stats) => onStats(

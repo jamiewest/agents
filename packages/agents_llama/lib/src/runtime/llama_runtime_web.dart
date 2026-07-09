@@ -348,22 +348,30 @@ final class _WebLlamaSession implements LlamaSession {
     double? topP,
     int? seed,
     List<String> stopSequences = const <String>[],
-    List<Uint8List>? images,
+    List<Uint8List>? media,
     List<LlamaChatTurn>? turns,
     LlamaStatsCallback? onStats,
   }) {
-    final isImageTurn = images != null && images.isNotEmpty;
-    if (isImageTurn) {
-      if (!_supportsImageInput()) {
+    final isMediaTurn = media != null && media.isNotEmpty;
+    if (isMediaTurn) {
+      if (turns == null) {
+        throw UnsupportedError(
+          'Media input on the web local llama runtime requires structured '
+          'chat turns.',
+        );
+      }
+      final hasImage = turns.any((turn) => turn.images.isNotEmpty);
+      final hasAudio = turns.any((turn) => turn.audio.isNotEmpty);
+      if (hasImage && !_supportsModality('image')) {
         throw StateError(
           'The loaded local llama model has no vision projector. Configure a '
           'projector (mmproj) GGUF for this model to send images.',
         );
       }
-      if (turns == null) {
-        throw UnsupportedError(
-          'Image input on the web local llama runtime requires structured '
-          'chat turns.',
+      if (hasAudio && !_supportsModality('audio')) {
+        throw StateError(
+          'The loaded local llama model has no audio projector. Configure an '
+          'audio-capable projector (mmproj) GGUF for this model to send audio.',
         );
       }
     }
@@ -373,11 +381,11 @@ final class _WebLlamaSession implements LlamaSession {
     // A prompt longer than the context window makes wllama's prefill hang
     // indefinitely instead of erroring. Estimate prompt tokens pessimistically
     // and fail fast with an actionable message; also clamp `max_tokens` so the
-    // prompt plus the requested output stays within `n_ctx`. Skip for image
-    // turns, whose token cost is dominated by mtmd image tokens we can't size
-    // from the text here.
+    // prompt plus the requested output stays within `n_ctx`. Skip for media
+    // turns, whose token cost is dominated by mtmd image/audio tokens we can't
+    // size from the text here.
     var effectiveMaxTokens = maxTokens;
-    if (!isImageTurn) {
+    if (!isMediaTurn) {
       final estimatedPromptTokens = (prompt.length / _charsPerToken).ceil();
       if (estimatedPromptTokens >= _contextSize) {
         controller
@@ -401,7 +409,7 @@ final class _WebLlamaSession implements LlamaSession {
 
     final options =
         <String, Object?>{
-              if (isImageTurn)
+              if (isMediaTurn)
                 'messages': _chatMessages(turns!)
               else
                 'prompt': prompt,
@@ -417,8 +425,8 @@ final class _WebLlamaSession implements LlamaSession {
     // Token accounting: wllama invokes onData once per generated token, and
     // its tokenizer sizes the prompt. The count runs concurrently with the
     // generation and is best-effort — a tokenize failure only skips stats,
-    // never the generation. Image turns approximate: the count covers the
-    // rendered text prompt, not mtmd image tokens.
+    // never the generation. Media turns approximate: the count covers the
+    // rendered text prompt, not mtmd image/audio tokens.
     var generatedCount = 0;
     final promptTokenCount = onStats == null
         ? Future<int?>.value()
@@ -426,13 +434,13 @@ final class _WebLlamaSession implements LlamaSession {
 
     options['onData'] = ((JSObject chunk) {
       generatedCount++;
-      final text = isImageTurn ? _chatChunkText(chunk) : _chunkText(chunk);
+      final text = isMediaTurn ? _chatChunkText(chunk) : _chunkText(chunk);
       if (text.isNotEmpty && !controller.isClosed) {
         controller.add(text);
       }
     }).toJS;
 
-    final method = isImageTurn ? 'createChatCompletion' : 'createCompletion';
+    final method = isMediaTurn ? 'createChatCompletion' : 'createCompletion';
     unawaited(
       _wllama
           .callMethod<JSPromise<JSAny?>>(method.toJS, options)
@@ -477,26 +485,30 @@ final class _WebLlamaSession implements LlamaSession {
     }
   }
 
-  bool _supportsImageInput() =>
+  /// Whether wllama reports the loaded model accepts [modality]
+  /// (`'image'` or `'audio'`) — i.e. an appropriate mmproj is loaded.
+  bool _supportsModality(String modality) =>
       _wllama
-          .callMethod<JSBoolean?>('supportInputModality'.toJS, 'image'.toJS)
+          .callMethod<JSBoolean?>('supportInputModality'.toJS, modality.toJS)
           ?.toDart ??
       false;
 
-  /// Converts [turns] to wllama's OAI-style chat messages. Turns with images
-  /// carry `{type: 'image', data: <bytes>}` parts (wllama accepts any typed
-  /// array where its types say `ArrayBuffer`); text-only turns use plain
+  /// Converts [turns] to wllama's OAI-style chat messages. Turns with media
+  /// carry `{type: 'image'|'audio', data: <bytes>}` parts (wllama accepts any
+  /// typed array where its types say `ArrayBuffer`); text-only turns use plain
   /// string content.
   static List<Map<String, Object?>> _chatMessages(List<LlamaChatTurn> turns) =>
       <Map<String, Object?>>[
         for (final turn in turns)
           <String, Object?>{
             'role': turn.role,
-            'content': turn.images.isEmpty
+            'content': turn.images.isEmpty && turn.audio.isEmpty
                 ? turn.text
                 : <Map<String, Object?>>[
                     for (final image in turn.images)
                       <String, Object?>{'type': 'image', 'data': image},
+                    for (final clip in turn.audio)
+                      <String, Object?>{'type': 'audio', 'data': clip},
                     if (turn.text.isNotEmpty)
                       <String, Object?>{'type': 'text', 'text': turn.text},
                   ],

@@ -43,7 +43,7 @@ class Lfm2ChatFormat implements ChatFormat {
     return RenderedPrompt(
       text: prompt.text,
       stopSequences: prompt.stopSequences,
-      images: prompt.images,
+      media: prompt.images,
     );
   }
 

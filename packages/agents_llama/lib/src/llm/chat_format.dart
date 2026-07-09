@@ -11,7 +11,7 @@ class RenderedPrompt {
   const RenderedPrompt({
     required this.text,
     required this.stopSequences,
-    this.images = const <Uint8List>[],
+    this.media = const <Uint8List>[],
   });
 
   /// The formatted prompt text, ready for token generation.
@@ -20,9 +20,11 @@ class RenderedPrompt {
   /// Strings that terminate a generation turn.
   final List<String> stopSequences;
 
-  /// Image bytes referenced by media markers embedded in [text], in the order
-  /// the markers appear. Empty for a text-only prompt.
-  final List<Uint8List> images;
+  /// Encoded media bytes (image or audio) referenced by the media markers
+  /// embedded in [text], in the order the markers appear. mtmd auto-detects
+  /// each blob's kind from its magic bytes, so a single ordered list suffices.
+  /// Empty for a text-only prompt.
+  final List<Uint8List> media;
 }
 
 /// Pairs prompt rendering with output decoding for one model family.

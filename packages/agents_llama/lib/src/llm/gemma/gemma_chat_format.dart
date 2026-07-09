@@ -32,7 +32,7 @@ class GemmaChatFormat implements ChatFormat {
     return RenderedPrompt(
       text: prompt.text,
       stopSequences: prompt.stopSequences,
-      images: prompt.images,
+      media: prompt.media,
     );
   }
 

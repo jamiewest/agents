@@ -519,6 +519,7 @@ void main() {
             enableLocation: true,
             enableNetworkInfo: true,
             enableWakeLock: true,
+            enableShell: true,
           ),
         );
         await manager.saveAgent(agent);
@@ -556,6 +557,7 @@ void main() {
         expect(toolNames, contains('geocode_address'));
         expect(toolNames, contains('get_current_network_info'));
         expect(toolNames, contains('set_wake_lock'));
+        expect(toolNames, contains('run_shell'));
       },
     );
 

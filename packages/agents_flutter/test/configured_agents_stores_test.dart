@@ -102,6 +102,22 @@ void main() {
       expect(restored.fileToolApprovalMode, FileToolApprovalMode.alwaysAsk);
     });
 
+    test('AgentAccessConfig round trips the shell toggle', () {
+      const access = AgentAccessConfig(enableShell: true);
+
+      final restored = AgentAccessConfig.fromJson(access.toJson());
+
+      expect(restored.enableShell, isTrue);
+    });
+
+    test('AgentAccessConfig defaults the shell toggle off', () {
+      expect(const AgentAccessConfig().enableShell, isFalse);
+      final restored = AgentAccessConfig.fromJson(const {
+        'enableFileAccess': true,
+      });
+      expect(restored.enableShell, isFalse);
+    });
+
     test('SavedAgentConfig keeps legacy access unset when absent', () {
       final restored = SavedAgentConfig.fromJson(const {
         'id': 'a1',

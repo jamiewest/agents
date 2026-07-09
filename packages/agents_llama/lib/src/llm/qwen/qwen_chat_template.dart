@@ -112,7 +112,7 @@ class QwenChatTemplate {
     return RenderedPrompt(
       text: out.toString(),
       stopSequences: stopSequences,
-      images: images,
+      media: images,
     );
   }
 

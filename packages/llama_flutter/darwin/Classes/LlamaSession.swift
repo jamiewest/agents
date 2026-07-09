@@ -1110,9 +1110,20 @@ final class LlamaSession {
           .bitmap
       }
       guard let bitmap else {
-        return .failure(GenerationError("Failed to decode image bytes"))
+        return .failure(GenerationError("Failed to decode media bytes"))
       }
       bitmaps.append(bitmap)
+    }
+
+    // mtmd auto-detects audio vs image from each blob's magic bytes. If the
+    // caller sent audio but this model's projector has no audio encoder, fail
+    // with a clear message rather than an opaque tokenize/encode error.
+    if bitmaps.contains(where: { $0 != nil && mtmd_bitmap_is_audio($0) }),
+      !mtmd_support_audio(mtmd)
+    {
+      return .failure(
+        GenerationError(
+          "This model has no audio projector; cannot accept audio input"))
     }
 
     guard let chunks = mtmd_input_chunks_init() else {

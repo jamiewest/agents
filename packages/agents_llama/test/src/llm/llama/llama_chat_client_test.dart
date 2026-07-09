@@ -14,7 +14,7 @@ final class _RecordingSession implements LlamaSession {
   _RecordingSession({this.stats});
 
   String? prompt;
-  Iterable<Uint8List>? images;
+  Iterable<Uint8List>? media;
   Iterable<String>? stopSequences;
   List<LlamaChatTurn>? turns;
 
@@ -30,13 +30,13 @@ final class _RecordingSession implements LlamaSession {
     double? topP,
     int? seed,
     List<String> stopSequences = const <String>[],
-    List<Uint8List>? images,
+    List<Uint8List>? media,
     List<LlamaChatTurn>? turns,
     LlamaStatsCallback? onStats,
   }) {
     this.prompt = prompt;
     this.stopSequences = stopSequences;
-    this.images = images;
+    this.media = media;
     this.turns = turns;
     if (stats != null) onStats?.call(stats!);
     return Stream<String>.value('Hello!');
@@ -171,7 +171,7 @@ void main() {
         cancellationToken: CancellationToken.none,
       );
 
-      expect(session.images, hasLength(1));
+      expect(session.media, hasLength(1));
       final turns = session.turns;
       expect(turns, isNotNull);
       expect(turns!.map((turn) => turn.role), ['system', 'assistant', 'user']);
@@ -179,6 +179,70 @@ void main() {
       expect(turns[1].images, isEmpty);
       expect(turns.last.text, 'What is in this picture?');
       expect(turns.last.images.single, same(imageBytes));
+      expect(turns.last.audio, isEmpty);
+    });
+
+    test('passes audio media and typed audio turns for Gemma 4', () async {
+      final session = _RecordingSession();
+      final client = LlamaChatClient(
+        sessionProvider: () async => session,
+        format: const GemmaChatFormat(),
+        contextSize: 4096,
+      );
+      final audioBytes = Uint8List.fromList([82, 73, 70, 70]); // "RIFF"
+
+      await client.getResponse(
+        messages: [
+          ChatMessage(
+            role: ChatRole.user,
+            contents: [
+              TextContent('Transcribe this'),
+              DataContent(audioBytes, mediaType: 'audio/wav'),
+            ],
+          ),
+        ],
+        cancellationToken: CancellationToken.none,
+      );
+
+      // The rendered prompt carries one media marker for the clip, and the flat
+      // media channel (native mtmd) carries its bytes.
+      expect(session.prompt, contains(GemmaChatTemplate.mediaMarker));
+      expect(session.media, hasLength(1));
+      expect(session.media!.single, same(audioBytes));
+      // The message-level path (web/wllama) labels the clip as audio, not image.
+      final userTurn = session.turns!.last;
+      expect(userTurn.audio.single, same(audioBytes));
+      expect(userTurn.images, isEmpty);
+    });
+
+    test('rejects audio for a model whose format cannot accept it', () async {
+      final session = _RecordingSession();
+      final client = LlamaChatClient(
+        sessionProvider: () async => session,
+        format: const Lfm2ChatFormat(),
+        contextSize: 4096,
+      );
+
+      await expectLater(
+        client.getResponse(
+          messages: [
+            ChatMessage(
+              role: ChatRole.user,
+              contents: [
+                TextContent('Transcribe this'),
+                DataContent(
+                  Uint8List.fromList([82, 73, 70, 70]),
+                  mediaType: 'audio/wav',
+                ),
+              ],
+            ),
+          ],
+          cancellationToken: CancellationToken.none,
+        ),
+        throwsA(isA<UnsupportedError>()),
+      );
+      // Nothing reached the session: the guard fired before generation.
+      expect(session.prompt, isNull);
     });
   });
 

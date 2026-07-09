@@ -183,6 +183,7 @@ class AgentAccessConfig {
     this.enableFileWriteTools = true,
     this.fileToolApprovalMode = FileToolApprovalMode.alwaysAsk,
     this.enableWebSearch = true,
+    this.enableShell = false,
     this.enableTodoList = true,
     this.enableAgentMode = true,
     this.enableSkills = true,
@@ -215,6 +216,11 @@ class AgentAccessConfig {
 
   /// Whether the hosted web-search tool is available.
   final bool enableWebSearch;
+
+  /// Whether the `run_shell` tool, which executes shell commands on the host,
+  /// is available. Every command still requires per-call user approval.
+  /// Desktop-only; ignored on web. Defaults to `false`.
+  final bool enableShell;
 
   /// Whether todo-list context is available.
   final bool enableTodoList;
@@ -253,6 +259,7 @@ class AgentAccessConfig {
     bool? enableFileWriteTools,
     FileToolApprovalMode? fileToolApprovalMode,
     bool? enableWebSearch,
+    bool? enableShell,
     bool? enableTodoList,
     bool? enableAgentMode,
     bool? enableSkills,
@@ -269,6 +276,7 @@ class AgentAccessConfig {
     enableFileWriteTools: enableFileWriteTools ?? this.enableFileWriteTools,
     fileToolApprovalMode: fileToolApprovalMode ?? this.fileToolApprovalMode,
     enableWebSearch: enableWebSearch ?? this.enableWebSearch,
+    enableShell: enableShell ?? this.enableShell,
     enableTodoList: enableTodoList ?? this.enableTodoList,
     enableAgentMode: enableAgentMode ?? this.enableAgentMode,
     enableSkills: enableSkills ?? this.enableSkills,
@@ -288,6 +296,7 @@ class AgentAccessConfig {
     'enableFileWriteTools': enableFileWriteTools,
     'fileToolApprovalMode': fileToolApprovalMode.name,
     'enableWebSearch': enableWebSearch,
+    'enableShell': enableShell,
     'enableTodoList': enableTodoList,
     'enableAgentMode': enableAgentMode,
     'enableSkills': enableSkills,
@@ -312,6 +321,7 @@ class AgentAccessConfig {
                 ''] ??
             FileToolApprovalMode.alwaysAsk,
         enableWebSearch: (json['enableWebSearch'] as bool?) ?? true,
+        enableShell: (json['enableShell'] as bool?) ?? false,
         enableTodoList: (json['enableTodoList'] as bool?) ?? true,
         enableAgentMode: (json['enableAgentMode'] as bool?) ?? true,
         enableSkills: (json['enableSkills'] as bool?) ?? true,

@@ -13,11 +13,13 @@ typedef LlamaLoadProgress = void Function(double progress);
 /// image turns) additionally need the conversation as discrete turns; this
 /// type carries that view alongside the rendered prompt.
 class LlamaChatTurn {
-  /// Creates a turn with [role], its concatenated [text], and any [images].
+  /// Creates a turn with [role], its concatenated [text], and any [images] or
+  /// [audio].
   const LlamaChatTurn({
     required this.role,
     required this.text,
     this.images = const <Uint8List>[],
+    this.audio = const <Uint8List>[],
   });
 
   /// The chat role: `'system'`, `'user'`, or `'assistant'`.
@@ -27,7 +29,15 @@ class LlamaChatTurn {
   final String text;
 
   /// Raw encoded image bytes attached to this turn.
+  ///
+  /// Kept separate from [audio] because the message-level multimodal path
+  /// (wllama's chat-completion API) labels each content part by kind
+  /// (`{type: 'image'}` vs `{type: 'audio'}`).
   final List<Uint8List> images;
+
+  /// Raw encoded audio bytes attached to this turn (e.g. WAV), for models with
+  /// an audio-capable projector (Gemma 4). See [images] for why kinds are split.
+  final List<Uint8List> audio;
 }
 
 /// Token accounting for one completed generation run, engine-neutral.
@@ -59,6 +69,10 @@ typedef LlamaStatsCallback = void Function(LlamaGenerationStats stats);
 abstract interface class LlamaSession {
   /// Generates text for [prompt], yielding decoded pieces as they arrive.
   ///
+  /// [media] carries encoded media bytes (image or audio) referenced by the
+  /// markers embedded in [prompt], in marker order; mtmd auto-detects each
+  /// blob's kind. Used by runtimes that consume the rendered [prompt] directly.
+  ///
   /// [turns] is an optional structured view of the same conversation, used by
   /// runtimes whose multimodal path is message-level; runtimes that consume
   /// the rendered [prompt] directly ignore it.
@@ -73,7 +87,7 @@ abstract interface class LlamaSession {
     double? topP,
     int? seed,
     List<String> stopSequences = const <String>[],
-    List<Uint8List>? images,
+    List<Uint8List>? media,
     List<LlamaChatTurn>? turns,
     LlamaStatsCallback? onStats,
   });
