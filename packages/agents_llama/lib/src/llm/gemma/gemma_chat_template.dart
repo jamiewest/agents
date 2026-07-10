@@ -204,7 +204,15 @@ class GemmaChatTemplate {
       if (prevType == 'tool_call' && !emittedResponse) {
         out.write(toolResponseOpen);
       } else if (!(emittedResponse && !hasContent)) {
+        // Deliberate divergence from the upstream jinja: closing the turn
+        // must also clear the mid-turn state. Upstream keeps
+        // prev_message_type == 'tool_response' here, so a completed tool
+        // round that also carries prose suppresses the trailing
+        // `<|turn>model` and the prompt ends headerless after `<turn|>` —
+        // the model then invents its own turn/channel markup, which leaks
+        // into user-visible text.
         out.write('$turnClose\n');
+        prevType = null;
       }
     }
 

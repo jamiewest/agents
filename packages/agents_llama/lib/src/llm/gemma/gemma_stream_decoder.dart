@@ -22,6 +22,11 @@ import 'gemma_chat_template.dart';
 /// Text and tool calls are emitted in **separate** updates on purpose:
 /// `FunctionInvokingChatClient` suppresses any update that carries a function
 /// call, so combining them in one update would drop the prose.
+///
+/// A confused model can also emit control markup that doesn't belong in a
+/// well-formed turn — a `<channel|>` close with no matching opener, or a
+/// self-invented `<|turn>role` header. Both are stripped from prose rather
+/// than surfaced, so raw control tokens never leak into user-visible text.
 class GemmaStreamDecoder {
   const GemmaStreamDecoder([this.template = const GemmaChatTemplate()]);
 
@@ -30,6 +35,7 @@ class GemmaStreamDecoder {
   static const String _channelOpen = GemmaChatTemplate.channelOpen;
   static const String _channelClose = GemmaChatTemplate.channelClose;
   static const String _callOpen = GemmaChatTemplate.toolCallOpen;
+  static const String _turnOpen = GemmaChatTemplate.turnOpen;
 
   /// The thinking channel always carries the `thought` label right after
   /// `<|channel>`; it is dropped from the surfaced reasoning text.
@@ -43,6 +49,7 @@ class GemmaStreamDecoder {
           _channelOpen.length,
           _channelClose.length,
           _callOpen.length,
+          _turnOpen.length,
         ].reduce((a, b) => a > b ? a : b) -
         1;
 
@@ -51,6 +58,7 @@ class GemmaStreamDecoder {
     var thinking = false;
     var buffering = false;
     var labelPending = false;
+    var turnLabelPending = false;
 
     await for (final piece in tokens) {
       if (buffering) {
@@ -94,23 +102,49 @@ class GemmaStreamDecoder {
           break;
         }
 
-        final openAt = buf.indexOf(_channelOpen);
-        final callAt = buf.indexOf(_callOpen);
-
-        if (callAt >= 0 && (openAt < 0 || callAt <= openAt)) {
-          final prose = buf.substring(0, callAt);
-          if (prose.isNotEmpty) yield _text(prose);
-          tail.write(buf.substring(callAt));
-          buf = '';
-          buffering = true;
-          break;
+        // A stray `<|turn>role` header is dropped through its newline.
+        if (turnLabelPending) {
+          final newline = buf.indexOf('\n');
+          if (newline < 0) break;
+          buf = buf.substring(newline + 1);
+          turnLabelPending = false;
+          progressed = true;
+          continue;
         }
-        if (openAt >= 0) {
-          final prose = buf.substring(0, openAt);
+
+        // Act on whichever marker appears first; the rest of the buffer is
+        // re-scanned after the state change.
+        var at = -1;
+        var marker = '';
+        void consider(int index, String m) {
+          if (index >= 0 && (at < 0 || index < at)) {
+            at = index;
+            marker = m;
+          }
+        }
+
+        consider(buf.indexOf(_callOpen), _callOpen);
+        consider(buf.indexOf(_channelOpen), _channelOpen);
+        consider(buf.indexOf(_channelClose), _channelClose);
+        consider(buf.indexOf(_turnOpen), _turnOpen);
+
+        if (at >= 0) {
+          final prose = buf.substring(0, at);
           if (prose.isNotEmpty) yield _text(prose);
-          buf = buf.substring(openAt + _channelOpen.length);
-          thinking = true;
-          labelPending = true;
+          if (marker == _callOpen) {
+            tail.write(buf.substring(at));
+            buf = '';
+            buffering = true;
+            break;
+          }
+          buf = buf.substring(at + marker.length);
+          if (marker == _channelOpen) {
+            thinking = true;
+            labelPending = true;
+          } else if (marker == _turnOpen) {
+            turnLabelPending = true;
+          }
+          // An unmatched `<channel|>` close needs no state: it is dropped.
           progressed = true;
           continue;
         }
@@ -144,6 +178,8 @@ class GemmaStreamDecoder {
     } else if (thinking) {
       if (labelPending) buf = _stripLabel(buf);
       if (buf.isNotEmpty) yield _reasoning(buf);
+    } else if (turnLabelPending) {
+      // The stream ended inside a stray `<|turn>role` header; drop it.
     } else if (buf.isNotEmpty) {
       yield _text(buf);
     }
