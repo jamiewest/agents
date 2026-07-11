@@ -39,6 +39,9 @@ class ConfiguredAgentsManager {
   final StreamController<String> _agentChanges =
       StreamController<String>.broadcast();
 
+  final StreamController<void> _configurationChanges =
+      StreamController<void>.broadcast();
+
   /// Emits the id of a saved agent whenever its configuration changes
   /// (saved, deleted, or rewritten to drop a delegation).
   ///
@@ -49,9 +52,22 @@ class ConfiguredAgentsManager {
   /// stream; a `null`-safe no-op if never listened to.
   Stream<String> get agentChanges => _agentChanges.stream;
 
-  /// Releases the change stream. Call when the manager is torn down; app-wide
-  /// singletons that live for the process lifetime need not.
-  Future<void> dispose() => _agentChanges.close();
+  /// Emits after any successful source, model, or agent save or deletion,
+  /// including cascade deletes.
+  ///
+  /// Coarser than [agentChanges]: listeners that derive state from the whole
+  /// configuration — for example capability or provider classifications that
+  /// depend on model and source records — can listen here and reload
+  /// everything. Nothing is emitted when a mutation throws before changing
+  /// any store.
+  Stream<void> get configurationChanges => _configurationChanges.stream;
+
+  /// Releases the change streams. Call when the manager is torn down;
+  /// app-wide singletons that live for the process lifetime need not.
+  Future<void> dispose() async {
+    await _agentChanges.close();
+    await _configurationChanges.close();
+  }
 
   // --- Sources & secrets ---------------------------------------------------
 
@@ -59,6 +75,7 @@ class ConfiguredAgentsManager {
   /// secret. Passing an empty [apiKey] clears the stored secret.
   Future<void> saveSource(ModelSourceConfig source, {String? apiKey}) async {
     await sources.saveSource(source);
+    _notifyConfigurationChanged();
     if (apiKey != null) {
       await setSourceApiKey(source.id, apiKey);
     }
@@ -97,6 +114,7 @@ class ConfiguredAgentsManager {
       await deleteModel(model.id, cascade: true);
     }
     await sources.removeSource(id);
+    _notifyConfigurationChanged();
     // Best-effort: the source record is already gone, and an orphaned
     // secret is harmless. A platform keychain rejection here must not
     // make the whole delete report failure.
@@ -108,7 +126,10 @@ class ConfiguredAgentsManager {
   // --- Models --------------------------------------------------------------
 
   /// Saves [model].
-  Future<void> saveModel(ModelConfig model) => sources.saveModel(model);
+  Future<void> saveModel(ModelConfig model) async {
+    await sources.saveModel(model);
+    _notifyConfigurationChanged();
+  }
 
   /// Deletes the model [id].
   ///
@@ -129,6 +150,7 @@ class ConfiguredAgentsManager {
       for (final agent in dependents) agent.id,
     });
     await sources.removeModel(id);
+    _notifyConfigurationChanged();
   }
 
   // --- Agents --------------------------------------------------------------
@@ -164,6 +186,7 @@ class ConfiguredAgentsManager {
     }
     await agents.saveAgent(agent);
     _notifyAgentChanged(agent.id);
+    _notifyConfigurationChanged();
   }
 
   /// Deletes the agent [id].
@@ -182,6 +205,7 @@ class ConfiguredAgentsManager {
     await _removeDelegationReferences({id});
     await agents.removeAgent(id);
     _notifyAgentChanged(id);
+    _notifyConfigurationChanged();
   }
 
   Future<List<SavedAgentConfig>> _agentsForModel(String modelId) async {
@@ -205,6 +229,12 @@ class ConfiguredAgentsManager {
   void _notifyAgentChanged(String agentId) {
     if (!_agentChanges.isClosed) {
       _agentChanges.add(agentId);
+    }
+  }
+
+  void _notifyConfigurationChanged() {
+    if (!_configurationChanges.isClosed) {
+      _configurationChanges.add(null);
     }
   }
 
