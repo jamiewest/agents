@@ -1,3 +1,8 @@
+# Split-out packages — live in their own repositories, kept on disk only
+/packages/agents_app/
+/packages/agents_llama/
+/packages/llama_flutter/
+
 # Miscellaneous
 *.class
 *.log
