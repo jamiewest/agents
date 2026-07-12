@@ -159,7 +159,9 @@ Hosting.A2A.AspNetCore, Hosting.AGUI.AspNetCore, Aspire.*.
 - **Cross-package ripple:** `dart analyze` on `packages/agents` alone does
   NOT catch subclass breaks in dependents. After changing any base contract
   (e.g. `AgentFileStore`), also run `dart analyze` in
-  `packages/agents_flutter` and `packages/agents_app`
+  `packages/agents_flutter`. The separately maintained
+  [`agents_app`](https://github.com/jamiewest/agents_app) is also a downstream
+  consumer and should be checked when preparing a coordinated release
   (`RecordStoreAgentFileStore` broke the app's dart2js build in 2026-07).
 - `extensions` `FunctionCallContent` does NOT subtype `ToolCallContent`.
   Tests bridge with

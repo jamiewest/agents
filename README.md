@@ -6,6 +6,17 @@ Build, compose, and orchestrate AI agents backed by any `ChatClient` — with
 sessions, streaming, tool use, compaction, evaluation, and middleware
 pipelines.
 
+## Packages
+
+- [`agents`](packages/agents) contains the provider-agnostic Dart framework.
+- [`agents_flutter`](packages/agents_flutter) adds Flutter device capabilities,
+  persistence, and configured-agent integration.
+
+Local llama.cpp support lives in
+[`jamiewest/agents_llama`](https://github.com/jamiewest/agents_llama), and the
+opinionated Flutter application lives in
+[`jamiewest/agents_app`](https://github.com/jamiewest/agents_app).
+
 | C# namespace | Dart layer |
 |---|---|
 | `Microsoft.Agents.AI.Abstractions` | `abstractions/` |
