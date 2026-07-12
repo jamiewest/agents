@@ -4,6 +4,7 @@ description: >-
   package, feeding signals such as date and connectivity to an agent through
   the AIContextProvider interface.
 version: 0.0.1
+publish_to: none
 repository: https://github.com/jamiewest/agents
 resolution: workspace
 
@@ -13,7 +14,8 @@ environment:
 
 dependencies:
   a2a: ^4.2.0
-  agents: ^1.2.0
+  agents:
+    path: ../agents
   anthropic_sdk_dart: ^5.0.0
   background_downloader: ^9.5.5
   clock: ^1.1.2
