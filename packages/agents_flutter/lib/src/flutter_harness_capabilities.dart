@@ -5,7 +5,7 @@ import 'package:extensions/ai.dart';
 import 'connectivity/connectivity_context_provider.dart';
 import 'connectivity/connectivity_monitor.dart';
 import 'connectivity/connectivity_tool.dart';
-import 'device_info/device_content_provider.dart';
+import 'device_info/device_context_provider.dart';
 import 'device_info/device_info.dart';
 import 'device_info/device_info_gatherer.dart';
 import 'device_info/device_info_tool.dart';
@@ -40,15 +40,26 @@ typedef FlutterHarnessCapabilities = ({
 /// set can be backed by DI singletons (hosting) or freshly created instances
 /// (direct construction). When [networkInfoSource] is `null` and network info
 /// is enabled, the plugin-backed source is used.
+///
+/// [connectivityMonitor] and [locationResolver] hold live platform resources,
+/// so callers create them only for enabled capabilities; they are required
+/// exactly when the corresponding capability is enabled.
 FlutterHarnessCapabilities buildFlutterHarnessCapabilities(
   FlutterHarnessAgentOptions options, {
   required Clock clock,
-  required ConnectivityMonitor connectivityMonitor,
   required DeviceInfo deviceInfo,
   required AppInfo appInfo,
-  required LocationResolver locationResolver,
+  ConnectivityMonitor? connectivityMonitor,
+  LocationResolver? locationResolver,
   NetworkInfoSource? networkInfoSource,
 }) {
+  if (options.enableConnectivity && connectivityMonitor == null) {
+    throw ArgumentError.notNull('connectivityMonitor');
+  }
+  if (options.enableLocation && locationResolver == null) {
+    throw ArgumentError.notNull('locationResolver');
+  }
+
   final providers = <AIContextProvider>[];
   final tools = <AITool>[];
 
@@ -71,13 +82,16 @@ FlutterHarnessCapabilities buildFlutterHarnessCapabilities(
   }
 
   if (options.enableLocation) {
-    providers.add(LocationContextProvider(locationResolver));
+    providers.add(LocationContextProvider(locationResolver!));
     tools.add(createCurrentLocationTool());
     tools.add(createGeocodeAddressTool());
   }
 
+  // Network info is deliberately tool-only: NetworkContextProvider polls six
+  // platform channels per turn and injects volatile values (SSID, IPs) into
+  // instructions, violating both KV-cache rules. The tool covers on-demand
+  // lookups; compose the provider manually if ambient context is essential.
   if (options.enableNetworkInfo) {
-    providers.add(NetworkContextProvider(source: networkInfoSource));
     tools.add(createCurrentNetworkInfoTool(source: networkInfoSource));
   }
 
@@ -87,7 +101,7 @@ FlutterHarnessCapabilities buildFlutterHarnessCapabilities(
 
   // Connectivity is always last: see [buildFlutterHarnessCapabilities].
   if (options.enableConnectivity) {
-    providers.add(ConnectivityContextProvider(connectivityMonitor));
+    providers.add(ConnectivityContextProvider(connectivityMonitor!));
     tools.add(createConnectivityTool());
   }
 

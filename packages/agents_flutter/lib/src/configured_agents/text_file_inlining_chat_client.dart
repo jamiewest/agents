@@ -93,9 +93,7 @@ class TextFileInliningChatClient extends DelegatingChatClient {
     for (var i = 0; i < clone.contents.length; i++) {
       final content = clone.contents[i];
       if (_isInlinableTextFile(content)) {
-        clone.contents[i] = TextContent(
-          _fileAsText(content as DataContent),
-        );
+        clone.contents[i] = TextContent(_fileAsText(content as DataContent));
       }
     }
     return clone;

@@ -89,13 +89,19 @@ extension FlutterHarnessChatClientAgentOptionsExtensions
       );
     }
 
+    // Live platform resources are created only when their capability is
+    // enabled; an internally created monitor lives for the process, so pass
+    // one in when disposal matters.
     final capabilities = buildFlutterHarnessCapabilities(
       capabilityOptions,
       clock: clock ?? const Clock(),
-      connectivityMonitor: connectivityMonitor ?? ConnectivityMonitor(),
+      connectivityMonitor:
+          connectivityMonitor ??
+          (enableConnectivity ? ConnectivityMonitor() : null),
       deviceInfo: effectiveDeviceInfo,
       appInfo: effectiveAppInfo,
-      locationResolver: locationResolver ?? LocationResolver(),
+      locationResolver:
+          locationResolver ?? (enableLocation ? LocationResolver() : null),
       networkInfoSource: networkInfoSource,
     );
 

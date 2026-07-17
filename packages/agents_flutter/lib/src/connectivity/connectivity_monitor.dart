@@ -49,16 +49,29 @@ final class ConnectivityMonitor implements Disposable {
 
   Future<void> _seed() async {
     try {
-      _update(await _checkConnectivity());
+      final results = await _checkConnectivity();
+      // A change event that arrived while the poll was in flight is newer
+      // than the poll's snapshot; never let the seed overwrite it (or write
+      // at all after dispose).
+      if (!_sawStreamEvent && !_disposed) {
+        _latest = results;
+      }
     } catch (_) {
       // Leave state unknown; treated as online until a change arrives.
     }
   }
 
-  void _update(List<ConnectivityResult> results) => _latest = results;
+  bool _sawStreamEvent = false;
+  bool _disposed = false;
+
+  void _update(List<ConnectivityResult> results) {
+    _sawStreamEvent = true;
+    _latest = results;
+  }
 
   @override
   void dispose() {
+    _disposed = true;
     _subscription.cancel();
   }
 }

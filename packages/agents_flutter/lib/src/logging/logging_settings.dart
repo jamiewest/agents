@@ -35,6 +35,12 @@ class LoggingSettings extends ChangeNotifier {
   LogLevel _minimumLevel;
   final Map<String, LogLevel> _categoryLevels = <String, LogLevel>{};
 
+  // Changes made before bindStore completes must win over the loaded values
+  // (and still be persisted once the store is bound), so track which fields
+  // have been touched.
+  bool _minimumLevelTouched = false;
+  bool _categoryLevelsTouched = false;
+
   // The extensions package defines a `name` extension on LogLevel that
   // returns `LogLevel.Trace`-style strings, shadowing `EnumName.name`; use
   // the plain enum identifier for stable persistence.
@@ -48,13 +54,23 @@ class LoggingSettings extends ChangeNotifier {
       Map<String, LogLevel>.unmodifiable(_categoryLevels);
 
   /// Loads persisted values from [store] and persists future changes to it.
+  ///
+  /// Values changed before the load completes (for example from a settings
+  /// UI during startup) are kept and persisted rather than overwritten by
+  /// the loaded state.
   Future<void> bindStore(KeyValueStore store) async {
     _store = store;
     final storedLevel = await store.read(_minimumLevelKey);
     final storedOverrides = await store.read(_categoryLevelsKey);
-    final level = LogLevel.values.asNameMap()[storedLevel];
-    if (level != null) _minimumLevel = level;
-    if (storedOverrides != null) {
+    if (_minimumLevelTouched) {
+      await store.write(_minimumLevelKey, _levelName(_minimumLevel));
+    } else {
+      final level = LogLevel.values.asNameMap()[storedLevel];
+      if (level != null) _minimumLevel = level;
+    }
+    if (_categoryLevelsTouched) {
+      await _persistOverrides();
+    } else if (storedOverrides != null) {
       try {
         final decoded = jsonDecode(storedOverrides) as Map<String, Object?>;
         _categoryLevels.clear();
@@ -75,6 +91,7 @@ class LoggingSettings extends ChangeNotifier {
   Future<void> setMinimumLevel(LogLevel level) async {
     if (level == _minimumLevel) return;
     _minimumLevel = level;
+    _minimumLevelTouched = true;
     notifyListeners();
     await _store?.write(_minimumLevelKey, _levelName(level));
   }
@@ -87,6 +104,7 @@ class LoggingSettings extends ChangeNotifier {
       if (_categoryLevels[category] == level) return;
       _categoryLevels[category] = level;
     }
+    _categoryLevelsTouched = true;
     notifyListeners();
     await _persistOverrides();
   }
@@ -95,6 +113,7 @@ class LoggingSettings extends ChangeNotifier {
   Future<void> clearCategoryLevels() async {
     if (_categoryLevels.isEmpty) return;
     _categoryLevels.clear();
+    _categoryLevelsTouched = true;
     notifyListeners();
     await _persistOverrides();
   }

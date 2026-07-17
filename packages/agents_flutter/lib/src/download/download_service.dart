@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:background_downloader/background_downloader.dart';
 import 'package:extensions/system.dart' show Disposable;
@@ -155,7 +156,19 @@ class DownloadService implements Disposable {
         'Provide either downloader or backend, not both.',
       ),
       _backend = backend ?? FileDownloaderBackend(downloader: downloader) {
-    _subscription = _backend.updates.listen(_onUpdate, onError: (_) {});
+    _subscription = _backend.updates.listen(
+      _onUpdate,
+      onError: (Object error, StackTrace stackTrace) {
+        // The plugin stream stays subscribed; surface the error instead of
+        // dropping it so failures are diagnosable.
+        developer.log(
+          'Ignoring download backend update-stream error.',
+          name: 'agents_flutter.download',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      },
+    );
   }
 
   final DownloadBackend _backend;

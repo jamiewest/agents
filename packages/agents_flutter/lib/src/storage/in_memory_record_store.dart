@@ -99,11 +99,17 @@ class InMemoryRecordStore extends RecordStore {
   @override
   Future<void> deleteWhere(String collection, RecordQuery query) async {
     final matches = _query(collection, query);
+    if (matches.isEmpty) return;
     final records = _collection(collection);
     for (final match in matches) {
       records.remove(match.id);
     }
     _changes.add(collection);
+  }
+
+  /// Closes the change stream; watchers complete and stop emitting.
+  void dispose() {
+    _changes.close();
   }
 
   List<StoredRecord> _query(String collection, RecordQuery? query) {

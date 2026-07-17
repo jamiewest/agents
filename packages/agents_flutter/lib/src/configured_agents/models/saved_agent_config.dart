@@ -316,9 +316,8 @@ class AgentAccessConfig {
         enableFileAccess: (json['enableFileAccess'] as bool?) ?? true,
         enableFileWriteTools: (json['enableFileWriteTools'] as bool?) ?? true,
         fileToolApprovalMode:
-            FileToolApprovalMode.values.asNameMap()[json['fileToolApprovalMode']
-                    as String? ??
-                ''] ??
+            FileToolApprovalMode.values
+                .asNameMap()[json['fileToolApprovalMode'] as String? ?? ''] ??
             FileToolApprovalMode.alwaysAsk,
         enableWebSearch: (json['enableWebSearch'] as bool?) ?? true,
         enableShell: (json['enableShell'] as bool?) ?? false,

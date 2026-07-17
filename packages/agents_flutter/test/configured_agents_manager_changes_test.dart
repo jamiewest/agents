@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:async';
+
 import 'package:agents_flutter/agents_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -137,4 +139,45 @@ void main() {
       expect(manager.configurationChanges, emitsDone);
     });
   });
+
+  group('ConfiguredAgentsManager.saveSource', () {
+    test('stores the API key before notifying listeners', () async {
+      final manager = ConfiguredAgentsManager(
+        sources: ModelSourceStore(InMemoryKeyValueStore()),
+        agents: AgentConfigurationStore(InMemoryKeyValueStore()),
+        secrets: _SlowWriteSecretStore(),
+      );
+      String? keyAtNotification;
+      manager.configurationChanges.listen((_) {
+        // Reads run as soon as the notification lands, mirroring listeners
+        // that rebuild an agent (and read its key) on configuration changes.
+        unawaited(
+          manager.getSourceApiKey('s1').then((k) => keyAtNotification ??= k),
+        );
+      });
+
+      await manager.saveSource(_source, apiKey: 'sk-test');
+      await pumpEventQueue();
+
+      expect(keyAtNotification, 'sk-test');
+    });
+  });
+}
+
+/// A secret store whose writes land a few microtasks late, exposing
+/// notify-before-write races deterministically.
+final class _SlowWriteSecretStore implements SecretStore {
+  final InMemorySecretStore _inner = InMemorySecretStore();
+
+  @override
+  Future<String?> read(String key) => _inner.read(key);
+
+  @override
+  Future<void> write(String key, String value) async {
+    await pumpEventQueue(times: 3);
+    await _inner.write(key, value);
+  }
+
+  @override
+  Future<void> delete(String key) => _inner.delete(key);
 }

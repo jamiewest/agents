@@ -78,7 +78,7 @@ void main() {
       ]);
     });
 
-    test('network opt-in adds a provider and tool', () {
+    test('network opt-in adds the tool only, never the provider', () {
       final result = build(
         FlutterHarnessAgentOptions()
           ..enableTemporal = false
@@ -88,7 +88,9 @@ void main() {
           ..enableNetworkInfo = true,
       );
 
-      expect(typeNames(result.providers), ['NetworkContextProvider']);
+      // The provider's per-turn platform reads and volatile values would
+      // break KV-prefix caching; the harness only ever wires the tool.
+      expect(result.providers, isEmpty);
       expect(toolNames(result.tools), ['get_current_network_info']);
     });
 
@@ -128,6 +130,39 @@ void main() {
         isNot(contains('ConnectivityContextProvider')),
       );
       expect(toolNames(result.tools), isNot(contains('get_connectivity')));
+    });
+
+    test('requires the monitor/resolver only for enabled capabilities', () {
+      FlutterHarnessCapabilities buildBare(FlutterHarnessAgentOptions o) =>
+          buildFlutterHarnessCapabilities(
+            o,
+            clock: Clock.fixed(DateTime.utc(2026, 6, 28)),
+            deviceInfo: DeviceInfo(),
+            appInfo: AppInfo(),
+          );
+
+      expect(
+        () => buildBare(FlutterHarnessAgentOptions()),
+        throwsArgumentError,
+        reason: 'connectivity enabled but no monitor supplied',
+      );
+      expect(
+        () => buildBare(
+          FlutterHarnessAgentOptions()
+            ..enableConnectivity = false
+            ..enableLocation = true,
+        ),
+        throwsArgumentError,
+        reason: 'location enabled but no resolver supplied',
+      );
+
+      final result = buildBare(
+        FlutterHarnessAgentOptions()..enableConnectivity = false,
+      );
+      expect(typeNames(result.providers), [
+        'TemporalContextProvider',
+        'DeviceContextProvider',
+      ]);
     });
   });
 
@@ -198,6 +233,22 @@ void main() {
       expect(options.harnessInstructions, 'custom harness instructions');
       expect(options.aiContextProviders, [marker]);
       expect(options.chatOptions, isNull);
+    });
+
+    test('dispose releases owned platform resources', () {
+      final agent = FlutterHarnessAgent(_FakeChatClient(), 1000, 100);
+      agent.dispose();
+
+      final bare = FlutterHarnessAgent(
+        _FakeChatClient(),
+        1000,
+        100,
+        options: FlutterHarnessAgentOptions(
+          enableConnectivity: false,
+          enableLocation: false,
+        ),
+      );
+      bare.dispose();
     });
   });
 
@@ -322,6 +373,31 @@ void main() {
 
       expect(provider.getRequiredService<LocationResolver>(), isNotNull);
       expect(provider.getRequiredService<NetworkInfoSource>(), isNotNull);
+    });
+
+    test('does not duplicate capabilities across service providers', () {
+      late FlutterHarnessAgentOptions registrationOptions;
+      final services = ServiceCollection()
+        ..addSingletonInstance<ChatClient>(_FakeChatClient())
+        ..addSingletonInstance<ConnectivityMonitor>(fakeMonitor())
+        ..addFlutterHarness(
+          configure: (options) => registrationOptions = options,
+        );
+
+      // Resolving from two providers built off the same collection runs the
+      // agent factory twice; capabilities must merge into per-agent clones,
+      // never into the captured registration options.
+      expect(
+        services.buildServiceProvider().getRequiredService<AIAgent>(),
+        isNotNull,
+      );
+      expect(
+        services.buildServiceProvider().getRequiredService<AIAgent>(),
+        isNotNull,
+      );
+
+      expect(registrationOptions.aiContextProviders, isNull);
+      expect(registrationOptions.chatOptions, isNull);
     });
 
     test('preserves a pre-registered ConnectivityMonitor', () {

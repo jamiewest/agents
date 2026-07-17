@@ -19,8 +19,20 @@ library;
 const String chatFormatSetting = 'chat.format';
 
 /// Legacy key for [chatFormatSetting] written by earlier versions for
-/// local llama models; read as a fallback.
+/// local llama models.
+///
+/// The agents_flutter profile resolver reads only [chatFormatSetting]; the
+/// fallback to this key lives downstream in the app (which migrates the
+/// value when editing a model). Keep the constant so every reader names the
+/// key the same way.
 const String legacyLlamaFormatSetting = 'llama.format';
+
+/// The local llama context-window size in tokens, as a decimal string.
+///
+/// Written by the app's model editor for `localLlama` sources and read by
+/// `ConfiguredAgentFactory` to derive the harness compaction budget; absent
+/// or unparsable means the factory's local default (8192).
+const String llamaContextSizeSetting = 'llama.contextSize';
 
 /// How tools are conveyed to an OpenAI-compatible model:
 /// `native`, `prompt`, or `none`. Empty means auto.

@@ -124,6 +124,31 @@ Hosting.A2A.AspNetCore, Hosting.AGUI.AspNetCore, Aspire.*.
   shape drift only.
 - **Anthropic beta features are `betas` parameters** on the client
   extensions rather than a separate `AnthropicBetaServiceExtensions` class.
+- **Hosting.OpenAI map-options sync** (2026-07-13, ports upstream's
+  2026-07-01/03 refactor: `OpenAI*MapOptions`, `OpenAI*RequestInfo(Builder)`,
+  `HostedAgentResponseExecutor`, `ResponseErrorCodes`). Deviations:
+  `HostedAgentResponseExecutor` resolves agents via a `ResolveHostedAgent`
+  callback instead of keyed DI services, and delegates execution to an
+  `AIAgentResponseExecutor` (upstream shares event generation via a
+  `ToStreamingResponseAsync` extension; the port's generation lives in the
+  executor). `NotSupportedException` maps to `UnsupportedError`;
+  `ResponseErrorCodes.mapValidationError` returns a Dart record.
+  `AgentReference` is typed; the internal `AgentId`/`AgentIdType` entity
+  models are not yet consumed and were not ported.
+- **`getService` supertype matching lives in the generic helper**
+  (2026-07-13). Dart cannot test a runtime `Type` for assignability, so the
+  C# `serviceType.IsInstanceOfType(this)` check cannot be ported to
+  `getService(Type)`; the base implementations answer exact `runtimeType`
+  and base-type requests only. The keyed generic `getServiceOf<T>` adds the
+  supertype match via a `this is T` fallback that runs AFTER the delegation
+  chain — so for a base-type request a delegating agent returns its
+  innermost agent (pinned by tests), where C# returns the outermost. Do not
+  "fix" the ordering without deciding to change those semantics.
+- **`AIAgent.currentRunContext` is a plain mutable static** (2026-07-13).
+  Upstream uses `AsyncLocal` with a protected setter; Dart has neither, and
+  zone-based storage was deliberately not used. `run`/`runStreaming` assign
+  it (and re-assign after each streamed update) like upstream, but the value
+  does not flow per-async-context and any code can set it.
 - **A2A card resolution** maps upstream `A2ACardResolverExtensions` onto
   `extension A2AAgentCardExtensions on A2AAgentCard`
   (`a2a/extensions/a2a_agent_card_extensions.dart`).

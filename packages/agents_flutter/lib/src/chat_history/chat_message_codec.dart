@@ -87,10 +87,13 @@ class ChatMessageCodec {
             if (result != null) 'result': _jsonSafe(result),
             if (exception != null) 'exception': exception.toString(),
           },
+        // Bytes are preferred over the synthesized data URI so a null
+        // mediaType round-trips as null instead of the URI default
+        // (application/octet-stream). External (non-data) URIs carry no
+        // bytes and keep the URI form.
         DataContent(:final uri, :final data, :final mediaType, :final name) => {
           'kind': 'data',
-          'uri': ?uri,
-          if (uri == null && data != null) 'bytes': base64Encode(data),
+          if (data != null) 'bytes': base64Encode(data) else 'uri': ?uri,
           'mediaType': ?mediaType,
           'name': ?name,
         },
@@ -99,19 +102,30 @@ class ChatMessageCodec {
           'uri': '$uri',
           'mediaType': mediaType,
         },
-        UsageContent(:final details) => {
-          'kind': 'usage',
-          if (details.inputTokenCount != null) 'input': details.inputTokenCount,
-          if (details.outputTokenCount != null)
-            'output': details.outputTokenCount,
-          if (details.totalTokenCount != null) 'total': details.totalTokenCount,
-          if (details.cachedInputTokenCount != null)
-            'cached': details.cachedInputTokenCount,
-          if (details.reasoningTokenCount != null)
-            'reasoning': details.reasoningTokenCount,
-        },
+        UsageContent(:final details) => _encodeUsage(details),
         _ => _logDropped(content),
       };
+
+  static Map<String, Object?> _encodeUsage(UsageDetails details) {
+    if (details.additionalProperties != null) {
+      developer.log(
+        'Dropping UsageDetails.additionalProperties from persisted chat '
+        'history.',
+        name: 'agents_flutter.chat_history',
+      );
+    }
+    return {
+      'kind': 'usage',
+      if (details.inputTokenCount != null) 'input': details.inputTokenCount,
+      if (details.outputTokenCount != null) 'output': details.outputTokenCount,
+      if (details.totalTokenCount != null) 'total': details.totalTokenCount,
+      if (details.cachedInputTokenCount != null)
+        'cached': details.cachedInputTokenCount,
+      if (details.reasoningTokenCount != null)
+        'reasoning': details.reasoningTokenCount,
+      'counts': ?details.additionalCounts,
+    };
+  }
 
   static Map<String, Object?>? _logDropped(AIContent content) {
     developer.log(
@@ -128,12 +142,26 @@ class ChatMessageCodec {
         'functionCall' => FunctionCallContent(
           callId: json['callId']! as String,
           name: json['name']! as String,
-          arguments: (json['arguments'] as Map?)?.cast<String, Object?>(),
+          // Records written before per-entry sanitization may hold the
+          // whole arguments map stringified; keep those loadable.
+          arguments: switch (json['arguments']) {
+            final Map arguments => arguments.cast<String, Object?>(),
+            final String arguments => {'value': arguments},
+            _ => null,
+          },
         ),
         'functionResult' => FunctionResultContent(
           callId: json['callId']! as String,
           name: json['name'] as String?,
           result: json['result'],
+          exception: switch (json['exception']) {
+            final String message => Exception(
+              message.startsWith(_exceptionPrefix)
+                  ? message.substring(_exceptionPrefix.length)
+                  : message,
+            ),
+            _ => null,
+          },
         ),
         'uri' => UriContent(
           Uri.parse(json['uri']! as String),
@@ -146,29 +174,55 @@ class ChatMessageCodec {
             totalTokenCount: json['total'] as int?,
             cachedInputTokenCount: json['cached'] as int?,
             reasoningTokenCount: json['reasoning'] as int?,
+            additionalCounts: (json['counts'] as Map?)?.cast<String, int>(),
           ),
         ),
-        'data' => switch (json['uri']) {
-          final String uri => DataContent.fromUri(
-            uri,
-            name: json['name'] as String?,
-          ),
-          _ => DataContent(
-            base64Decode(json['bytes']! as String),
+        'data' => switch ((json['bytes'], json['uri'])) {
+          (final String bytes, _) => DataContent(
+            base64Decode(bytes),
             mediaType: json['mediaType'] as String?,
             name: json['name'] as String?,
           ),
+          (_, final String uri) => DataContent.fromUri(
+            uri,
+            name: json['name'] as String?,
+          ),
+          _ => null,
         },
         _ => null,
       };
 
-  /// Returns [value] if it survives JSON encoding, otherwise its string form.
-  static Object? _jsonSafe(Object? value) {
+  static const String _exceptionPrefix = 'Exception: ';
+
+  /// Returns [value] if it survives JSON encoding, otherwise a sanitized
+  /// copy.
+  ///
+  /// Maps and lists are sanitized per entry so a single non-encodable value
+  /// does not stringify the whole structure — decode relies on `arguments`
+  /// staying a map. Anything else falls back to its string form.
+  static Object? _jsonSafe(Object? value) =>
+      _jsonSafeInner(value, Set.identity());
+
+  static Object? _jsonSafeInner(Object? value, Set<Object> seen) {
     try {
       jsonEncode(value);
       return value;
     } on Object {
-      return value.toString();
+      if (value is Map || value is List) {
+        if (!seen.add(value!)) {
+          return '<cyclic>';
+        }
+      }
+      return switch (value) {
+        final Map map => {
+          for (final entry in map.entries)
+            '${entry.key}': _jsonSafeInner(entry.value, seen),
+        },
+        final List list => [
+          for (final element in list) _jsonSafeInner(element, seen),
+        ],
+        _ => value.toString(),
+      };
     }
   }
 }

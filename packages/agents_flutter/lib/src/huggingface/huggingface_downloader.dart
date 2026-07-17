@@ -81,7 +81,10 @@ final class HuggingFaceDownloader {
     String? directory,
   ) => DownloadRequest(
     url: resolveUri(repoId, filename, revision: revision).toString(),
-    filename: filename.split('/').last,
+    // Flatten the repo subpath into the local name so files that share a
+    // basename in different repo folders (onnx/model.onnx vs
+    // quantized/model.onnx) do not clobber each other on disk.
+    filename: filename.split('/').join('_'),
     directory: directory ?? repoId,
     headers: token == null ? null : {'Authorization': 'Bearer $token'},
     metaData: repoId,

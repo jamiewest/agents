@@ -75,10 +75,12 @@ class ConfiguredAgentsManager {
   /// secret. Passing an empty [apiKey] clears the stored secret.
   Future<void> saveSource(ModelSourceConfig source, {String? apiKey}) async {
     await sources.saveSource(source);
-    _notifyConfigurationChanged();
+    // The key must land before the notification: listeners rebuild agents on
+    // configurationChanges and immediately read the source's API key.
     if (apiKey != null) {
       await setSourceApiKey(source.id, apiKey);
     }
+    _notifyConfigurationChanged();
   }
 
   /// Stores (or, when [apiKey] is empty, clears) the API key for [sourceId].

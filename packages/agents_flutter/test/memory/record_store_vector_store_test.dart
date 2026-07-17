@@ -58,6 +58,39 @@ void main() {
     });
   });
 
+  group('EmbeddingGeneratorScorer.embed', () {
+    test('degrades to null instead of failing memory writes', () async {
+      // A flaky or empty embedding model must not make upserts/searches
+      // throw; a null vector falls back to keyword scoring.
+      expect(
+        await EmbeddingGeneratorScorer(_ThrowingGenerator()).embed('x'),
+        isNull,
+      );
+      expect(
+        await EmbeddingGeneratorScorer(_EmptyGenerator()).embed('x'),
+        isNull,
+      );
+    });
+
+    test('a failing generator still allows keyword-ranked search', () async {
+      final records = InMemoryRecordStore();
+      final target = RecordStoreVectorStore(
+        records,
+        scorer: EmbeddingGeneratorScorer(_ThrowingGenerator()),
+      ).getDynamicCollection('chat_memory', _definition());
+      await target.upsertAsync({
+        'Key': '1',
+        'AgentId': 'a',
+        'Content': 'favorite color is teal',
+        'ContentEmbedding': 'favorite color is teal',
+      });
+
+      final results = await target.searchAsync('favorite color').toList();
+
+      expect(results.single.record['Key'], '1');
+    });
+  });
+
   group('RecordStoreVectorStore', () {
     late InMemoryRecordStore records;
 
@@ -261,6 +294,30 @@ class _TestAgent extends AIAgent {
 
 /// Deterministic embedder: 'sun'-ish text maps near [1,0,0]; 'ice'-ish near
 /// [0,1,0].
+final class _ThrowingGenerator extends EmbeddingGenerator {
+  @override
+  Future<GeneratedEmbeddings> generateEmbeddings({
+    required Iterable<String> values,
+    EmbeddingGenerationOptions? options,
+    CancellationToken? cancellationToken,
+  }) async => throw StateError('model not loaded');
+
+  @override
+  void dispose() {}
+}
+
+final class _EmptyGenerator extends EmbeddingGenerator {
+  @override
+  Future<GeneratedEmbeddings> generateEmbeddings({
+    required Iterable<String> values,
+    EmbeddingGenerationOptions? options,
+    CancellationToken? cancellationToken,
+  }) async => GeneratedEmbeddings();
+
+  @override
+  void dispose() {}
+}
+
 final class _FakeEmbeddingScorer extends MemoryScorer {
   @override
   Future<List<double>?> embed(String text) async =>

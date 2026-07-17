@@ -90,38 +90,45 @@ extension FlutterHarnessServiceCollectionExtensions on ServiceCollection {
               ? sp.getRequiredKeyedService<ChatClient>(chatClientServiceKey)
               : sp.getRequiredService<ChatClient>());
 
+      // Clone so each resolved agent merges capabilities into its own copy;
+      // mutating the captured options would leak duplicate providers and
+      // tools into agents built from other ServiceProviders.
+      final effectiveOptions = options.clone();
+
       final capabilities = buildFlutterHarnessCapabilities(
-        options,
+        effectiveOptions,
         clock: sp.getRequiredService<Clock>(),
-        connectivityMonitor: sp.getRequiredService<ConnectivityMonitor>(),
-        deviceInfo: options.enableDeviceInfo
+        connectivityMonitor: effectiveOptions.enableConnectivity
+            ? sp.getRequiredService<ConnectivityMonitor>()
+            : null,
+        deviceInfo: effectiveOptions.enableDeviceInfo
             ? sp.getRequiredService<DeviceInfo>()
             : DeviceInfo(),
-        appInfo: options.enableAppInfo
+        appInfo: effectiveOptions.enableAppInfo
             ? sp.getRequiredService<AppInfo>()
             : AppInfo(),
-        locationResolver: options.enableLocation
+        locationResolver: effectiveOptions.enableLocation
             ? sp.getRequiredService<LocationResolver>()
-            : LocationResolver(),
-        networkInfoSource: options.enableNetworkInfo
+            : null,
+        networkInfoSource: effectiveOptions.enableNetworkInfo
             ? sp.getRequiredService<NetworkInfoSource>()
             : null,
       );
 
-      options.aiContextProviders = [
-        ...?options.aiContextProviders,
+      effectiveOptions.aiContextProviders = [
+        ...?effectiveOptions.aiContextProviders,
         ...capabilities.providers,
       ];
-      options.chatOptions ??= ChatOptions();
-      options.chatOptions!.tools = [
-        ...?options.chatOptions!.tools,
+      effectiveOptions.chatOptions ??= ChatOptions();
+      effectiveOptions.chatOptions!.tools = [
+        ...?effectiveOptions.chatOptions!.tools,
         ...capabilities.tools,
       ];
 
       return client.asHarnessAgent(
         maxContextWindowTokens,
         maxOutputTokens,
-        options: options,
+        options: effectiveOptions,
       );
     });
 

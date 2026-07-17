@@ -15,27 +15,45 @@ import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
 import '../../../abstractions/ai_agent.dart';
+import '../open_ai_responses_map_options.dart';
 import 'agent_invocation_context.dart';
 import 'models/create_response.dart';
 import 'models/item_resource.dart';
 import 'models/response.dart';
 import 'models/streaming_response_event.dart';
+import 'open_ai_response_request_info_builder.dart';
 import 'response_executor.dart';
 
 /// A [ResponseExecutor] backed by a single [AIAgent].
 class AIAgentResponseExecutor implements ResponseExecutor {
   /// Creates an [AIAgentResponseExecutor] for [agent].
-  AIAgentResponseExecutor(this._agent);
+  ///
+  /// [mapOptions] controls how request-supplied settings are mapped onto the
+  /// agent run; by default any such setting is rejected.
+  AIAgentResponseExecutor(this._agent, {OpenAIResponsesMapOptions? mapOptions})
+    : _mapOptions = mapOptions ?? OpenAIResponsesMapOptions();
 
   final AIAgent _agent;
+  final OpenAIResponsesMapOptions _mapOptions;
 
   @override
   Future<ResponseError?> validateRequest(
     CreateResponse request, {
     CancellationToken? cancellationToken,
-  }) async {
-    // The input is required by [CreateResponse]; no further validation here.
-    return null;
+  }) async => validateRunOptions(request);
+
+  /// Validates that the request-supplied settings are accepted by the
+  /// configured run-options factory.
+  ResponseError? validateRunOptions(CreateResponse request) {
+    try {
+      _mapOptions.runOptionsFactory(request.toRequestInfo());
+      return null;
+    } on UnsupportedError catch (e) {
+      return ResponseError(
+        code: 'unsupported_parameter',
+        message: e.message ?? 'Unsupported request setting.',
+      );
+    }
   }
 
   @override
@@ -50,9 +68,13 @@ class AIAgentResponseExecutor implements ResponseExecutor {
     StreamingResponseEvent number(StreamingResponseEvent event) =>
         event..sequenceNumber = sequence++;
 
+    // The hosting developer controls, via
+    // OpenAIResponsesMapOptions.runOptionsFactory, which (if any) request
+    // settings are mapped onto the agent run. By default no request setting
+    // is mapped.
+    final options = _mapOptions.runOptionsFactory(request.toRequestInfo());
+
     final messages = <ChatMessage>[
-      if (request.instructions != null)
-        ChatMessage.fromText(ChatRole.system, request.instructions!),
       ...?conversationHistory,
       ...request.input.getInputMessages().map((m) => m.toChatMessage()),
     ];
@@ -78,7 +100,7 @@ class AIAgentResponseExecutor implements ResponseExecutor {
     try {
       final updates = _agent.runStreaming(
         null,
-        null,
+        options,
         messages: messages,
         cancellationToken: cancellationToken,
       );

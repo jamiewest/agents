@@ -45,8 +45,9 @@ extension LocationContextProviderChatClientAgentOptionsExtensions
     on ChatClientAgentOptions {
   /// Appends a location provider and, by default, the location tools.
   ///
-  /// Existing context providers and tools are retained. When [resolver] is not
-  /// supplied a new one is created; the caller owns its disposal.
+  /// Existing context providers and tools are retained. When [resolver] is
+  /// not supplied a new one is created; a resolver holds no live platform
+  /// resources (its dispose is a no-op), so an internal instance is safe.
   ///
   /// Append this after a temporal provider and before a connectivity provider
   /// so the coarse area sits between the daily-stable date and the volatile

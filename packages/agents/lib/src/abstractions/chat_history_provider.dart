@@ -136,6 +136,18 @@ abstract class ChatHistoryProvider {
 
   /// Returns a service of the specified [serviceType], or `null`.
   Object? getService(Type serviceType, {Object? serviceKey}) {
-    return serviceType == ChatHistoryProvider ? this : null;
+    return serviceKey == null &&
+            (serviceType == runtimeType || serviceType == ChatHistoryProvider)
+        ? this
+        : null;
+  }
+
+  /// Returns a service of type [T], or `null`.
+  T? getServiceOf<T extends Object>({Object? serviceKey}) {
+    final service = getService(T, serviceKey: serviceKey);
+    if (service is T) {
+      return service;
+    }
+    return serviceKey == null && this is T ? this as T : null;
   }
 }

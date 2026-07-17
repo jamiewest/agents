@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'device_info.dart';
 
@@ -11,6 +12,14 @@ import 'device_info.dart';
 /// platform-specific fields.
 Future<Map<String, String>> gatherDeviceInfoFields() async {
   final plugin = DeviceInfoPlugin();
+
+  // `Platform` throws on the web, so the checks below must stay behind this
+  // guard; the web falls through to the generic `deviceInfo` map (browser
+  // fields) at the bottom.
+  if (kIsWeb) {
+    final base = await plugin.deviceInfo;
+    return base.data.map((k, v) => MapEntry(k, '$v'));
+  }
 
   if (Platform.isIOS) {
     final i = await plugin.iosInfo;

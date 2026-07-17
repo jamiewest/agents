@@ -14,7 +14,11 @@ class AgentResponse {
   }) {
     if (response != null) {
       _messages = List<ChatMessage>.of(response.messages);
+      additionalProperties = response.additionalProperties;
+      createdAt = response.createdAt;
       finishReason = response.finishReason;
+      responseId = response.responseId;
+      usage = response.usage;
       continuationToken = response.continuationToken;
       rawRepresentation = response;
     } else if (message != null) {
@@ -66,13 +70,22 @@ class AgentResponse {
     final msgs = _messages ?? const <ChatMessage>[];
     final updates = <AgentResponseUpdate>[];
     for (final msg in msgs) {
-      updates.add(AgentResponseUpdate(role: msg.role, contents: msg.contents));
+      updates.add(
+        AgentResponseUpdate(role: msg.role, contents: msg.contents)
+          ..additionalProperties = msg.additionalProperties
+          ..authorName = msg.authorName
+          ..rawRepresentation = msg.rawRepresentation
+          ..finishReason = finishReason
+          ..agentId = agentId
+          ..responseId = responseId
+          ..messageId = msg.messageId
+          ..createdAt = msg.createdAt ?? createdAt,
+      );
     }
     if (usage != null || additionalProperties != null) {
       updates.add(
-        AgentResponseUpdate(
-          contents: [if (usage != null) UsageContent(usage!)],
-        ),
+        AgentResponseUpdate(contents: [if (usage != null) UsageContent(usage!)])
+          ..additionalProperties = additionalProperties,
       );
     }
     return updates;

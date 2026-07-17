@@ -76,6 +76,7 @@ class AgentTrafficLoggingAgent extends DelegatingAIAgent {
     _logStart(messageList);
     final stopwatch = Stopwatch()..start();
     var updateCount = 0;
+    var terminated = false;
     final responseText = StringBuffer();
     try {
       await for (final update in innerAgent.runCoreStreaming(
@@ -90,14 +91,26 @@ class AgentTrafficLoggingAgent extends DelegatingAIAgent {
         }
         yield update;
       }
+      terminated = true;
       _logCompleted(
         stopwatch.elapsed,
         responseText: responseText.toString(),
         updateCount: updateCount,
       );
     } catch (error) {
+      terminated = true;
       _logFailed(stopwatch.elapsed, error);
       rethrow;
+    } finally {
+      // A consumer cancelling the stream finalizes the generator without
+      // reaching either log call above; every started run still gets
+      // exactly one terminator line.
+      if (!terminated) {
+        _logger.logInformation(
+          '$_label run cancelled after ${stopwatch.elapsed.inMilliseconds}ms'
+          ', $updateCount updates',
+        );
+      }
     }
   }
 

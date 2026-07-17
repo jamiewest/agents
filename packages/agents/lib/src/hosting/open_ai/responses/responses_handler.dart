@@ -13,6 +13,7 @@ import '../models/error_response.dart';
 import '../models/sort_order.dart';
 import 'models/create_response.dart';
 import 'models/response.dart';
+import 'response_error_codes.dart';
 import 'responses_service.dart';
 
 /// Handles non-streaming OpenAI Responses API operations.
@@ -33,7 +34,10 @@ class ResponsesHandler {
       cancellationToken: cancellationToken,
     );
     if (error != null) {
-      return ApiResult.badRequest(_error(error.message, code: error.code));
+      final (statusCode, wireCode) = ResponseErrorCodes.mapValidationError(
+        error.code,
+      );
+      return ApiResult(statusCode, _error(error.message, code: wireCode));
     }
 
     try {

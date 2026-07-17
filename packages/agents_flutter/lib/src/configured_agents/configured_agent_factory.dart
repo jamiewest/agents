@@ -21,6 +21,7 @@ import 'agent_scope.dart';
 import 'configured_agent_exception.dart';
 import 'configured_agents_manager.dart';
 import 'configured_chat_client_factory.dart';
+import 'model_profile/model_profile_settings.dart';
 import 'models/model_config.dart';
 import 'models/model_source_config.dart';
 import 'models/provider_type.dart';
@@ -228,7 +229,7 @@ class ConfiguredAgentFactory {
     var maxContextWindowTokens = _maxContextWindowTokens;
     if (source.providerType == ProviderType.localLlama) {
       maxContextWindowTokens =
-          int.tryParse(model.settings['llama.contextSize']?.trim() ?? '') ??
+          int.tryParse(model.settings[llamaContextSizeSetting]?.trim() ?? '') ??
           8192;
       effectiveMaxOutputTokens = min(
         effectiveMaxOutputTokens,
@@ -449,7 +450,9 @@ class ConfiguredAgentFactory {
     return chatOptions
       ..modelId = modelId
       ..instructions = instructions
-      ..temperature = temperature
+      // An agent without a saved temperature keeps a harness-configured one,
+      // mirroring the maxOutputTokens fallback computed by the caller.
+      ..temperature = temperature ?? chatOptions.temperature
       ..maxOutputTokens = maxOutputTokens;
   }
 

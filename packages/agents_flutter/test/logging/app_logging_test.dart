@@ -117,6 +117,31 @@ void main() {
       expect(reloaded.minimumLevel, LogLevel.warning);
       expect(reloaded.categoryLevels, {'Noisy': LogLevel.none});
     });
+
+    test('changes made before bindStore completes win over the load', () async {
+      // Arrange: the store holds previously persisted values.
+      final keyValueStore = InMemoryKeyValueStore();
+      final earlier = LoggingSettings();
+      await earlier.bindStore(keyValueStore);
+      await earlier.setMinimumLevel(LogLevel.error);
+      await earlier.setCategoryLevel('Old', LogLevel.none);
+
+      // Act: a settings UI changes values while the loader's bindStore is
+      // still reading the persisted state.
+      final settings = LoggingSettings();
+      final binding = settings.bindStore(keyValueStore);
+      await settings.setMinimumLevel(LogLevel.trace);
+      await settings.setCategoryLevel('Fresh', LogLevel.debug);
+      await binding;
+
+      // Assert: the startup-window changes survive and were persisted.
+      expect(settings.minimumLevel, LogLevel.trace);
+      expect(settings.categoryLevels, {'Fresh': LogLevel.debug});
+      final reloaded = LoggingSettings();
+      await reloaded.bindStore(keyValueStore);
+      expect(reloaded.minimumLevel, LogLevel.trace);
+      expect(reloaded.categoryLevels, {'Fresh': LogLevel.debug});
+    });
   });
 
   group('addAppLogging', () {
@@ -202,6 +227,30 @@ void main() {
       expect(response.text, 'ok');
       expect(store.records, hasLength(2));
       expect(store.records.last.message, contains('responded in'));
+    });
+
+    test('logs a terminator when the consumer cancels the stream', () async {
+      // Arrange
+      final store = AppLogStore();
+      final logger = AppLogStoreLoggerProvider(
+        store,
+      ).createLogger(agentTrafficLogCategory);
+      final agent = AgentTrafficLoggingAgent(
+        _FakeAgent(updates: ['Hel', 'lo ', 'world']),
+        logger,
+      );
+
+      // Act: take one update, then cancel mid-run.
+      final update = await agent.runCoreStreaming([
+        ChatMessage.fromText(ChatRole.user, 'hi'),
+      ]).first;
+      await pumpEventQueue();
+
+      // Assert: the started line still gets exactly one terminator.
+      expect(update, isNotNull);
+      expect(store.records, hasLength(2));
+      expect(store.records.first.message, contains('run started'));
+      expect(store.records.last.message, contains('run cancelled'));
     });
 
     test('logs and rethrows failures', () async {

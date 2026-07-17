@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:async';
+
 import 'package:sembast/sembast.dart' as sembast;
 
 import 'record_store.dart';
@@ -121,10 +123,23 @@ class SembastRecordStore extends RecordStore {
     // Sembast cannot enumerate its stores, so the only complete wipe is to
     // delete the database itself and reopen an empty one. Watch streams
     // created before the reset stay bound to the closed database.
-    final database = await _database;
-    await database.close();
-    await deleteSembastDatabase(name: name);
-    _database = openSembastDatabase(name: name);
+    //
+    // The replacement future is swapped in before the close so operations
+    // that start mid-reset await the reopened database instead of throwing
+    // on the closed one.
+    final previous = _database;
+    final replacement = Completer<sembast.Database>();
+    _database = replacement.future;
+    try {
+      final database = await previous;
+      await database.close();
+      await deleteSembastDatabase(name: name);
+      replacement.complete(await openSembastDatabase(name: name));
+    } catch (error, stackTrace) {
+      replacement.completeError(error, stackTrace);
+      replacement.future.ignore();
+      rethrow;
+    }
   }
 
   static sembast.Finder? _finder(RecordQuery? query) {

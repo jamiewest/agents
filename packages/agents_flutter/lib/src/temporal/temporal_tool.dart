@@ -72,9 +72,17 @@ AIFunction createCurrentTimeTool({
           ? await defaultTimeZoneId()
           : requestedTimeZoneId;
 
-      return formatter
-          .format(effectiveClock.now(), effectiveTimeZoneId)
-          .toJson();
+      // A model-supplied zone id can be invalid ("PST", "EST"); report the
+      // failure to the model instead of throwing, like the sibling tools.
+      try {
+        return formatter
+            .format(effectiveClock.now(), effectiveTimeZoneId)
+            .toJson();
+      } catch (error) {
+        return 'Error getting current time: unknown time zone '
+            '"$effectiveTimeZoneId". Use an IANA identifier such as '
+            'Asia/Tokyo. ($error)';
+      }
     },
   );
 }

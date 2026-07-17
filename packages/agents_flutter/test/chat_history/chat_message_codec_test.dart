@@ -176,6 +176,183 @@ void main() {
       expect(ChatMessageCodec.decode({'v': 99, 'role': 'user'}), isNull);
       expect(ChatMessageCodec.decode({'v': 1}), isNull);
     });
+
+    test('sanitizes non-JSON argument values per entry', () {
+      final message = ChatMessage(
+        role: ChatRole.assistant,
+        contents: [
+          FunctionCallContent(
+            callId: 'call-1',
+            name: 'do_thing',
+            arguments: {'good': 42, 'bad': _NotJson()},
+          ),
+        ],
+      );
+
+      final decoded = ChatMessageCodec.decode(
+        _jsonRoundTrip(ChatMessageCodec.encode(message)),
+      );
+
+      final call = decoded!.contents.whereType<FunctionCallContent>().single;
+      expect(call.arguments, {'good': 42, 'bad': 'opaque-result'});
+    });
+
+    test('sanitizes non-JSON values nested in argument lists', () {
+      final message = ChatMessage(
+        role: ChatRole.assistant,
+        contents: [
+          FunctionCallContent(
+            callId: 'call-1',
+            name: 'do_thing',
+            arguments: {
+              'items': [1, _NotJson()],
+            },
+          ),
+        ],
+      );
+
+      final decoded = ChatMessageCodec.decode(
+        _jsonRoundTrip(ChatMessageCodec.encode(message)),
+      );
+
+      final call = decoded!.contents.whereType<FunctionCallContent>().single;
+      expect(call.arguments, {
+        'items': [1, 'opaque-result'],
+      });
+    });
+
+    test('does not hang on cyclic argument structures', () {
+      final cycle = <String, Object?>{};
+      cycle['self'] = cycle;
+      final message = ChatMessage(
+        role: ChatRole.assistant,
+        contents: [
+          FunctionCallContent(callId: 'call-1', name: 'f', arguments: cycle),
+        ],
+      );
+
+      final decoded = ChatMessageCodec.decode(
+        _jsonRoundTrip(ChatMessageCodec.encode(message)),
+      );
+
+      final call = decoded!.contents.whereType<FunctionCallContent>().single;
+      expect(call.arguments, {'self': '<cyclic>'});
+    });
+
+    test('decodes legacy records whose arguments were stringified whole', () {
+      final decoded = ChatMessageCodec.decode({
+        'v': 1,
+        'role': 'assistant',
+        'contents': [
+          {
+            'kind': 'functionCall',
+            'callId': 'call-1',
+            'name': 'do_thing',
+            'arguments': '{bad: map}',
+          },
+        ],
+      });
+
+      final call = decoded!.contents.whereType<FunctionCallContent>().single;
+      expect(call.arguments, {'value': '{bad: map}'});
+    });
+
+    test('round-trips function result exceptions', () {
+      final message = ChatMessage(
+        role: ChatRole.tool,
+        contents: [
+          FunctionResultContent(
+            callId: 'call-1',
+            name: 'do_thing',
+            exception: Exception('tool blew up'),
+          ),
+        ],
+      );
+
+      final once = ChatMessageCodec.decode(
+        _jsonRoundTrip(ChatMessageCodec.encode(message)),
+      )!;
+      final twice = ChatMessageCodec.decode(
+        _jsonRoundTrip(ChatMessageCodec.encode(once)),
+      )!;
+
+      final result = twice.contents.whereType<FunctionResultContent>().single;
+      expect(result.exception, isNotNull);
+      expect(result.exception.toString(), 'Exception: tool blew up');
+    });
+
+    test('round-trips data content with a null media type', () {
+      final message = ChatMessage(
+        role: ChatRole.user,
+        contents: [
+          DataContent(Uint8List.fromList([9, 8, 7]), mediaType: null),
+        ],
+      );
+
+      final decoded = ChatMessageCodec.decode(
+        _jsonRoundTrip(ChatMessageCodec.encode(message)),
+      )!.contents.single;
+
+      expect((decoded as DataContent).data, [9, 8, 7]);
+      expect(decoded.mediaType, isNull);
+    });
+
+    test('round-trips data content holding an external uri', () {
+      final message = ChatMessage(
+        role: ChatRole.user,
+        contents: [
+          DataContent.fromUri('https://example.com/image.png', name: 'pic'),
+        ],
+      );
+
+      final decoded = ChatMessageCodec.decode(
+        _jsonRoundTrip(ChatMessageCodec.encode(message)),
+      )!.contents.single;
+
+      expect((decoded as DataContent).uri, 'https://example.com/image.png');
+      expect(decoded.data, isNull);
+      expect(decoded.name, 'pic');
+    });
+
+    test('drops empty data content without losing the message', () {
+      final message = ChatMessage(
+        role: ChatRole.user,
+        contents: [
+          TextContent('see attachment'),
+          DataContent(null, mediaType: 'image/png'),
+        ],
+      );
+
+      final decoded = ChatMessageCodec.decode(
+        _jsonRoundTrip(ChatMessageCodec.encode(message)),
+      );
+
+      expect(decoded, isNotNull);
+      expect(decoded!.text, 'see attachment');
+      expect(decoded.contents.whereType<DataContent>(), isEmpty);
+    });
+
+    test('round-trips usage additional counts', () {
+      final message = ChatMessage(
+        role: ChatRole.assistant,
+        contents: [
+          UsageContent(
+            UsageDetails(
+              inputTokenCount: 10,
+              additionalCounts: {'audio': 3, 'image': 7},
+            ),
+          ),
+        ],
+      );
+
+      final decoded = ChatMessageCodec.decode(
+        _jsonRoundTrip(ChatMessageCodec.encode(message)),
+      );
+
+      final usage = decoded!.contents.whereType<UsageContent>().single;
+      expect(usage.details.inputTokenCount, 10);
+      expect(usage.details.additionalCounts, {'audio': 3, 'image': 7});
+    });
   });
 }
 

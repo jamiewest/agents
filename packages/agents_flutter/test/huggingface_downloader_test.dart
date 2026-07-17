@@ -70,7 +70,7 @@ void main() {
       });
     });
 
-    test('saves nested files under their base name', () async {
+    test('saves nested files under a flattened, collision-free name', () async {
       final downloads = _FakeDownloadService();
       final downloader = HuggingFaceDownloader(downloads);
 
@@ -81,7 +81,9 @@ void main() {
       );
 
       final request = downloads.lastEnqueued!;
-      expect(request.filename, 'decoder_model.onnx');
+      // The subpath is preserved in the local name so same-basename files
+      // from different repo folders do not clobber each other.
+      expect(request.filename, 'onnx_decoder_model.onnx');
       expect(
         request.url,
         'https://huggingface.co/org/model/resolve/main/onnx/decoder_model.onnx',

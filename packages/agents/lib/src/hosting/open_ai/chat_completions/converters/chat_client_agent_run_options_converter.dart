@@ -4,38 +4,35 @@
 
 import 'package:extensions/ai.dart';
 
-import '../../../../ai/chat_client/chat_client_agent_run_options.dart';
+import '../../open_ai_chat_completion_request_info.dart';
 import '../models/create_chat_completion.dart';
 import '../models/response_format.dart';
 import '../models/tool.dart';
 import '../models/tool_choice.dart';
 
-/// Builds [ChatClientAgentRunOptions] from a [CreateChatCompletion] request.
+/// Builds an [OpenAIChatCompletionRequestInfo] from a [CreateChatCompletion]
+/// request.
 extension ChatClientAgentRunOptionsConverter on CreateChatCompletion {
-  /// Maps this request's sampling, tool, and format settings to run options.
-  ChatClientAgentRunOptions buildOptions() {
-    final chatOptions = ChatOptions(
-      temperature: temperature,
-      maxOutputTokens: maxCompletionTokens,
-      frequencyPenalty: frequencyPenalty,
-      presencePenalty: presencePenalty,
-      seed: seed,
-      topP: topP,
-      stopSequences: stop?.sequenceList ?? <String>[],
-      responseFormat: responseFormat?._toChatResponseFormat(),
-    );
-
-    final choice = toolChoice;
-    if (choice != null) {
-      chatOptions.toolMode = choice._toChatToolMode();
-    }
-
+  /// Extracts the request-supplied generation and tool settings.
+  OpenAIChatCompletionRequestInfo toRequestInfo() {
+    final sequences = stop?.sequenceList;
     final requestTools = tools;
-    if (requestTools != null && requestTools.isNotEmpty) {
-      chatOptions.tools = requestTools.map((t) => t._toAITool()).toList();
-    }
-
-    return ChatClientAgentRunOptions(chatOptions: chatOptions);
+    return OpenAIChatCompletionRequestInfo()
+      ..temperature = temperature
+      ..topP = topP
+      ..maxOutputTokens = maxCompletionTokens
+      ..frequencyPenalty = frequencyPenalty
+      ..presencePenalty = presencePenalty
+      ..seed = seed
+      ..stopSequences = (sequences?.isNotEmpty ?? false)
+          ? List<String>.of(sequences!)
+          : null
+      ..responseFormat = responseFormat?._toChatResponseFormat()
+      ..model = model
+      ..toolChoice = toolChoice?._toChatToolMode()
+      ..tools = (requestTools?.isNotEmpty ?? false)
+          ? requestTools!.map((t) => t._toAITool()).toList()
+          : null;
   }
 }
 

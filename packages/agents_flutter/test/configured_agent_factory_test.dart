@@ -466,10 +466,35 @@ void main() {
           chatOptions.instructions,
           isNot(contains('shared instructions')),
         );
-        expect(chatOptions.temperature, isNull);
+        // A saved agent without a temperature falls back to the harness
+        // value instead of clobbering it with null, matching the
+        // maxOutputTokens fallback below.
+        expect(chatOptions.temperature, 0.8);
         expect(chatOptions.maxOutputTokens, 256);
       },
     );
+
+    test('a saved agent temperature overrides the harness value', () async {
+      final manager = buildManager();
+      await manager.saveSource(_openAiSource, apiKey: 'sk-openai');
+      await manager.saveModel(_openAiModel);
+      const agent = SavedAgentConfig(
+        id: 'a1',
+        name: 'Helper',
+        modelId: 'm-openai',
+        temperature: 0.1,
+      );
+      await manager.saveAgent(agent);
+
+      final built = await ConfiguredAgentFactory(
+        manager,
+        configureHarness: (options) =>
+            options.chatOptions = ChatOptions(temperature: 0.8),
+      ).createAgent(agent);
+      final chatOptions = built.getServiceOf<ChatOptions>()!;
+
+      expect(chatOptions.temperature, 0.1);
+    });
 
     test(
       'uses shared harness max output when the saved agent is blank',
@@ -543,7 +568,9 @@ void main() {
         expect(providerTypeNames, isNot(contains('AgentSkillsProvider')));
         expect(providerTypes, isNot(contains(ConnectivityContextProvider)));
         expect(providerTypes, contains(LocationContextProvider));
-        expect(providerTypes, contains(NetworkContextProvider));
+        // Network info is tool-only: the provider would poll six platform
+        // channels per turn and inject volatile text into instructions.
+        expect(providerTypes, isNot(contains(NetworkContextProvider)));
 
         expect(
           tools.map((tool) => tool.runtimeType.toString()),

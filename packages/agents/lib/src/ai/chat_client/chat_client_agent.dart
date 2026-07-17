@@ -108,6 +108,7 @@ final class ChatClientAgent extends AIAgent {
   }
 
   /// The agent identifier from the underlying options, if set.
+  @override
   String? get idCore => _agentOptions?.id;
 
   @override

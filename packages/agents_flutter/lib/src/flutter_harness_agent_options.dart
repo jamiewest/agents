@@ -46,8 +46,10 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
   /// `get_current_location` and `geocode_address` tools. Defaults to `false`.
   bool enableLocation;
 
-  /// When `true`, adds the detailed local-network context provider and
-  /// `get_current_network_info` tool. Defaults to `false`.
+  /// When `true`, adds the `get_current_network_info` tool. Defaults to
+  /// `false`. Tool-only: the network context provider is never registered by
+  /// the harness because its per-turn platform reads and volatile values
+  /// would invalidate the cached prompt prefix.
   bool enableNetworkInfo;
 
   /// When `true`, adds the `set_wake_lock` tool. Defaults to `false`.

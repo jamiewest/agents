@@ -38,18 +38,19 @@ extension ConnectivityContextProviderChatClientAgentOptionsExtensions
     on ChatClientAgentOptions {
   /// Appends a connectivity provider and, by default, a connectivity tool.
   ///
-  /// Existing context providers and tools are retained. When [monitor] is not
-  /// supplied a new one is created; the caller owns its disposal.
+  /// Existing context providers and tools are retained. The caller supplies
+  /// [monitor] — and owns its disposal — because a monitor holds a live
+  /// platform subscription; creating one here would leave it unreachable and
+  /// leaked. Use `ServiceCollection.addConnectivityContextProvider` when the
+  /// service provider should own the monitor's lifetime instead.
   ChatClientAgentOptions addConnectivityContextProvider({
-    ConnectivityMonitor? monitor,
+    required ConnectivityMonitor monitor,
     AITool? connectivityTool,
     bool includeConnectivityTool = true,
   }) {
-    final effectiveMonitor = monitor ?? ConnectivityMonitor();
-
     aiContextProviders = [
       ...?aiContextProviders,
-      ConnectivityContextProvider(effectiveMonitor),
+      ConnectivityContextProvider(monitor),
     ];
 
     if (includeConnectivityTool) {

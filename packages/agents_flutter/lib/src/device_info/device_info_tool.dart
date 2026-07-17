@@ -7,7 +7,7 @@ import 'device_info.dart';
 ///
 /// The data is gathered once at startup by `DeviceInfoHostedService`; this tool
 /// just reads the cached values, so it returns instantly with no plugin call.
-AIFunctionDeclaration createGetDeviceInfoTool(DeviceInfo deviceInfo) {
+AIFunction createGetDeviceInfoTool(DeviceInfo deviceInfo) {
   return AIFunctionFactory.create(
     name: 'get_device_info',
     description:

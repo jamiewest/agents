@@ -5,6 +5,7 @@
 // The full upstream request carries ~30 fields; this port types the ones the
 // executor/service consume and keeps the remainder accessible via [raw].
 
+import 'agent_reference.dart';
 import 'conversation_reference.dart';
 import 'response_input.dart';
 
@@ -23,6 +24,9 @@ class CreateResponse {
     this.maxOutputTokens,
     this.metadata,
     this.conversation,
+    this.tools,
+    this.toolChoice,
+    this.agent,
     this.raw = const {},
   });
 
@@ -41,6 +45,11 @@ class CreateResponse {
     conversation: json['conversation'] == null
         ? null
         : ConversationReference.fromJson(json['conversation']),
+    tools: (json['tools'] as List?)?.cast<Object?>(),
+    toolChoice: json['tool_choice'],
+    agent: json['agent'] == null
+        ? null
+        : AgentReference.fromJson(json['agent'] as Map<String, dynamic>),
     raw: json,
   );
 
@@ -76,6 +85,15 @@ class CreateResponse {
 
   /// The conversation this response belongs to.
   final ConversationReference? conversation;
+
+  /// The raw `tools` array supplied on the request.
+  final List<Object?>? tools;
+
+  /// The raw `tool_choice` value supplied on the request.
+  final Object? toolChoice;
+
+  /// The agent reference supplied on the request.
+  final AgentReference? agent;
 
   /// The full decoded request JSON (for fields not modeled explicitly).
   final Map<String, dynamic> raw;

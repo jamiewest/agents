@@ -65,6 +65,12 @@ final class PluginNetworkInfoSource implements NetworkInfoSource {
 ///
 /// The provider reads the platform network fields in parallel and omits any
 /// values that are unavailable or unsupported on the current platform.
+///
+/// The Flutter harness does not register this provider — only the
+/// `get_current_network_info` tool — because it performs six platform-channel
+/// reads on every turn and injects volatile values (SSID, addresses) into
+/// instructions, which invalidates the model's cached prompt prefix. Compose
+/// it manually only when ambient network context is worth that cost.
 final class NetworkContextProvider extends AIContextProvider {
   /// Creates a network context provider backed by [networkInfo].
   NetworkContextProvider({NetworkInfo? networkInfo, NetworkInfoSource? source})

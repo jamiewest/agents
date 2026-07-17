@@ -67,10 +67,26 @@ class PairingException implements Exception {
 /// Client side of the pairing handshake and agent discovery.
 class PairingClient {
   /// Creates a [PairingClient].
+  ///
+  /// When [httpClient] is omitted the client creates and owns one; call
+  /// [close] to release its connections. An injected client stays owned by
+  /// the caller and is left open.
   PairingClient({http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+    : _http = httpClient ?? http.Client(),
+      _ownsHttp = httpClient == null;
+
+  /// How long [pair] and [listAgents] wait before giving up on the host.
+  static const Duration _requestTimeout = Duration(seconds: 8);
 
   final http.Client _http;
+  final bool _ownsHttp;
+
+  /// Releases the HTTP client when this instance created it.
+  void close() {
+    if (_ownsHttp) {
+      _http.close();
+    }
+  }
 
   /// Redeems [payload]'s single-use token for a long-lived credential.
   Future<PairingResult> pair(
@@ -86,15 +102,17 @@ class PairingClient {
 
     final http.Response response;
     try {
-      response = await _http.post(
-        Uri.parse('${payload.baseUrl}${payload.pairingPath}'),
-        headers: const {'content-type': 'application/json'},
-        body: jsonEncode({
-          'token': payload.token,
-          'clientName': clientName,
-          'clientId': clientId,
-        }),
-      );
+      response = await _http
+          .post(
+            Uri.parse('${payload.baseUrl}${payload.pairingPath}'),
+            headers: const {'content-type': 'application/json'},
+            body: jsonEncode({
+              'token': payload.token,
+              'clientName': clientName,
+              'clientId': clientId,
+            }),
+          )
+          .timeout(_requestTimeout);
     } catch (e) {
       throw PairingException(
         'Could not reach ${payload.baseUrl}. Make sure both devices are on '
@@ -108,13 +126,19 @@ class PairingClient {
       );
     }
 
-    final map = (jsonDecode(response.body) as Map).cast<String, Object?>();
-    return PairingResult(
-      credential: map['credential']! as String,
-      baseUrl: map['baseUrl'] as String? ?? payload.baseUrl,
-      hostId: map['hostId'] as String? ?? payload.hostId,
-      deviceName: map['deviceName'] as String? ?? payload.host,
-    );
+    try {
+      final map = (jsonDecode(response.body) as Map).cast<String, Object?>();
+      return PairingResult(
+        credential: map['credential']! as String,
+        baseUrl: map['baseUrl'] as String? ?? payload.baseUrl,
+        hostId: map['hostId'] as String? ?? payload.hostId,
+        deviceName: map['deviceName'] as String? ?? payload.host,
+      );
+    } catch (e) {
+      throw PairingException(
+        'The host sent an unexpected pairing response. ($e)',
+      );
+    }
   }
 
   /// Whether a paired host is currently reachable with [credential].
@@ -140,23 +164,36 @@ class PairingClient {
     String baseUrl,
     String credential,
   ) async {
-    final response = await _http.get(
-      Uri.parse('$baseUrl/agents'),
-      headers: {'authorization': 'Bearer $credential'},
-    );
+    final http.Response response;
+    try {
+      response = await _http
+          .get(
+            Uri.parse('$baseUrl/agents'),
+            headers: {'authorization': 'Bearer $credential'},
+          )
+          .timeout(_requestTimeout);
+    } catch (e) {
+      throw PairingException('Could not reach $baseUrl. ($e)');
+    }
     if (response.statusCode != 200) {
       throw PairingException(
         'Could not list the host\'s agents (HTTP ${response.statusCode}).',
       );
     }
-    final list = (jsonDecode(response.body) as Map)['agents']! as List;
-    return [
-      for (final entry in list.cast<Map>())
-        HostedAgentSummary(
-          path: entry['path']! as String,
-          name: entry['name']! as String,
-          description: entry['description'] as String? ?? '',
-        ),
-    ];
+    try {
+      final list = (jsonDecode(response.body) as Map)['agents']! as List;
+      return [
+        for (final entry in list.cast<Map>())
+          HostedAgentSummary(
+            path: entry['path']! as String,
+            name: entry['name']! as String,
+            description: entry['description'] as String? ?? '',
+          ),
+      ];
+    } catch (e) {
+      throw PairingException(
+        'The host sent an unexpected agents response. ($e)',
+      );
+    }
   }
 }

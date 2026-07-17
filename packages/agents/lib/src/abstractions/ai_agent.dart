@@ -12,7 +12,7 @@ import 'agent_session.dart';
 /// Provides the base abstraction for all AI agents, defining the core
 /// interface for agent interactions and conversation management.
 abstract class AIAgent {
-  AIAgent() : id = _generateId();
+  AIAgent();
 
   static final _random = Random.secure();
 
@@ -21,8 +21,18 @@ abstract class AIAgent {
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
+  final String _defaultId = _generateId();
+
   /// Gets the unique identifier for this agent instance.
-  final String id;
+  ///
+  /// Defaults to a randomly-generated identifier; service-backed agents can
+  /// supply the identifier assigned by the backing service via [idCore].
+  String get id => idCore ?? _defaultId;
+
+  /// A custom identifier for the agent, which derived classes can override.
+  ///
+  /// When `null`, [id] uses the default randomly-generated identifier.
+  String? get idCore => null;
 
   /// Gets the human-readable name of the agent.
   String? get name => null;
@@ -41,13 +51,24 @@ abstract class AIAgent {
   /// Returns a service of the specified [serviceType], or `null`.
   ///
   /// Used to retrieve strongly-typed services from this agent or any agents
-  /// it wraps.
+  /// it wraps. Dart cannot test a runtime [Type] for assignability, so this
+  /// base implementation only answers exact-type requests; [getServiceOf]
+  /// additionally matches supertypes of the concrete agent type.
   Object? getService(Type serviceType, {Object? serviceKey}) {
-    return serviceType == AIAgent ? this : null;
+    return serviceKey == null &&
+            (serviceType == runtimeType || serviceType == AIAgent)
+        ? this
+        : null;
   }
 
   /// Returns a service of type [T], or `null`.
-  T? getServiceOf<T extends Object>() => getService(T) as T?;
+  T? getServiceOf<T extends Object>({Object? serviceKey}) {
+    final service = getService(T, serviceKey: serviceKey);
+    if (service is T) {
+      return service;
+    }
+    return serviceKey == null && this is T ? this as T : null;
+  }
 
   /// Creates a new conversation session compatible with this agent.
   Future<AgentSession> createSession({CancellationToken? cancellationToken}) {
@@ -115,6 +136,7 @@ abstract class AIAgent {
         ChatMessage(role: ChatRole.user, contents: [TextContent(message)]),
       ...?messages,
     ];
+    currentRunContext = AgentRunContext(this, session, allMessages, options);
     return runCore(
       allMessages,
       session: session,
@@ -138,18 +160,26 @@ abstract class AIAgent {
     CancellationToken? cancellationToken,
     String? message,
     Iterable<ChatMessage>? messages,
-  }) {
+  }) async* {
     final allMessages = [
       if (message != null)
         ChatMessage(role: ChatRole.user, contents: [TextContent(message)]),
       ...?messages,
     ];
-    return runCoreStreaming(
+    final context = AgentRunContext(this, session, allMessages, options);
+    currentRunContext = context;
+    final updates = runCoreStreaming(
       allMessages,
       session: session,
       options: options,
       cancellationToken: cancellationToken,
     );
+    await for (final update in updates) {
+      yield update;
+
+      // Restore context again when resuming after the caller code executes.
+      currentRunContext = context;
+    }
   }
 
   /// Core implementation of the agent streaming invocation logic.

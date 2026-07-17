@@ -222,12 +222,17 @@ class _RecordStoreVectorCollection
         ),
     ]..sort((a, b) => b.$2.compareTo(a.$2));
 
+    // Filter by threshold before paging so `skip` skips qualifying results,
+    // not records that were never going to be returned.
     final threshold = options?.scoreThreshold;
-    var emitted = 0;
-    for (final (record, score) in scored.skip(options?.skip ?? 0)) {
-      if (emitted >= top) break;
-      if (threshold != null && score < threshold) continue;
-      emitted++;
+    final qualifying = threshold == null
+        ? scored
+        : [
+            for (final entry in scored)
+              if (entry.$2 >= threshold) entry,
+          ];
+    for (final (record, score)
+        in qualifying.skip(options?.skip ?? 0).take(top)) {
       yield VectorSearchResult(_withoutVector(record), score: score);
     }
   }

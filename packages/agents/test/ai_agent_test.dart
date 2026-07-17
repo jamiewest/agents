@@ -90,6 +90,41 @@ void main() {
       expect(id1, id2);
     });
 
+    test('id_UsesIdCoreWhenOverridden', () {
+      final agent = _CustomIdAgent('custom-id');
+
+      expect(agent.id, 'custom-id');
+    });
+
+    test('id_FallsBackToGeneratedIdWhenIdCoreIsNull', () {
+      final agent = _CustomIdAgent(null);
+
+      expect(agent.id, isNotEmpty);
+    });
+
+    test('run_SetsCurrentRunContext', () async {
+      final agent = _TestAgent();
+      AIAgent.currentRunContext = null;
+
+      await agent.run(null, null, message: 'hello');
+
+      final context = AIAgent.currentRunContext;
+      expect(context, isNotNull);
+      expect(context!.agent, same(agent));
+      expect(context.requestMessages, hasLength(1));
+    });
+
+    test('runStreaming_SetsCurrentRunContext', () async {
+      final agent = _TestAgent();
+      AIAgent.currentRunContext = null;
+
+      await agent.runStreaming(null, null, message: 'hello').drain<void>();
+
+      final context = AIAgent.currentRunContext;
+      expect(context, isNotNull);
+      expect(context!.agent, same(agent));
+    });
+
     test('getService_RequestingAIAgentType_ReturnsAgent', () {
       final agent = _TestAgent();
 
@@ -106,10 +141,18 @@ void main() {
       expect(service, isNull);
     });
 
-    test('getService_WithServiceKey_StillReturnsAgentForAIAgentType', () {
+    test('getService_WithServiceKey_ReturnsNull', () {
       final agent = _TestAgent();
 
       final service = agent.getService(AIAgent, serviceKey: 'key');
+
+      expect(service, isNull);
+    });
+
+    test('getService_RequestingConcreteType_ReturnsAgent', () {
+      final agent = _TestAgent();
+
+      final service = agent.getService(_TestAgent);
 
       expect(service, same(agent));
     });
@@ -154,6 +197,15 @@ void main() {
       expect(agent.description, 'Does things');
     });
   });
+}
+
+class _CustomIdAgent extends _TestAgent {
+  _CustomIdAgent(this._customId);
+
+  final String? _customId;
+
+  @override
+  String? get idCore => _customId;
 }
 
 class _TestAgent extends AIAgent {

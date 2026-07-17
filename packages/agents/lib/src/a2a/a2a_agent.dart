@@ -55,6 +55,9 @@ final class A2AAgent extends AIAgent {
        );
 
   @override
+  String? get idCore => _agentOptions.id;
+
+  @override
   String? get name => _agentOptions.name;
 
   @override

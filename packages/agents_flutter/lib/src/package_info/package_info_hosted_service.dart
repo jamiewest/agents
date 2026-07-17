@@ -1,15 +1,15 @@
 import 'package:extensions/extensions.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 import '../logged_background_service.dart';
 import 'app_info.dart';
+import 'app_info_loader.dart';
 
 /// Loads the app's package metadata once at startup into [AppInfo].
 ///
 /// Runs as a [BackgroundService] so the platform lookup stays off the host
-/// startup path and never delays the first frame. `PackageInfo.fromPlatform()`
-/// is fast and tools only run once the user sends a message, so the cached
-/// value is ready by the time `get_app_info` reads it.
+/// startup path and never delays the first frame. Loading is fast and tools
+/// only run once the user sends a message, so the cached value is ready by
+/// the time `get_app_info` reads it.
 final class PackageInfoHostedService extends LoggedBackgroundService {
   PackageInfoHostedService({
     required this.appInfo,
@@ -21,10 +21,9 @@ final class PackageInfoHostedService extends LoggedBackgroundService {
   @override
   Future<void> executeLogged(CancellationToken stoppingToken) async {
     try {
-      final info = await PackageInfo.fromPlatform();
-      appInfo.info = info;
+      await loadAppInfo(appInfo);
       logger.logInformation(
-        'app ${info.appName} v${info.version}+${info.buildNumber}',
+        'app ${appInfo.appName} v${appInfo.version}+${appInfo.buildNumber}',
       );
     } catch (e) {
       logger.logError('failed to load package info', error: e);

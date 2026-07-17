@@ -26,10 +26,17 @@ extension AppLoggingServiceCollectionExtensions on ServiceCollection {
   /// registered as a fallback, matching `addConfiguredAgents`).
   ///
   /// Supply [capacity] to change how many records the store retains.
+  ///
+  /// Calling this twice on one collection is a no-op the second time;
+  /// otherwise two stores and two filter rules would be installed.
   ServiceCollection addAppLogging({
     LogLevel defaultLevel = LogLevel.information,
     int capacity = 2000,
   }) {
+    if (any((descriptor) => descriptor.serviceType == AppLogStore)) {
+      return this;
+    }
+
     final store = AppLogStore(capacity: capacity);
     final settings = LoggingSettings(defaultLevel: defaultLevel);
 

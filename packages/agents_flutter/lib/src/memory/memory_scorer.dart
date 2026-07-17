@@ -75,8 +75,14 @@ class EmbeddingGeneratorScorer extends MemoryScorer {
 
   @override
   Future<List<double>?> embed(String text) async {
-    final embeddings = await _generator.generateEmbeddings(values: [text]);
-    return embeddings[0].vector;
+    // A flaky or unloaded embedding model must not fail memory writes or
+    // searches; a null vector degrades scoring to keyword overlap.
+    try {
+      final embeddings = await _generator.generateEmbeddings(values: [text]);
+      return embeddings.isEmpty ? null : embeddings[0].vector;
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

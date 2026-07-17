@@ -11,8 +11,10 @@ import 'dart:convert';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
+import '../../../abstractions/agent_run_options.dart';
 import '../../../abstractions/ai_agent.dart';
 import '../id_generator.dart';
+import '../open_ai_chat_completions_map_options.dart';
 import 'agent_response_extensions.dart';
 import 'converters/chat_client_agent_run_options_converter.dart';
 import 'models/chat_completion.dart';
@@ -24,16 +26,31 @@ import 'models/create_chat_completion.dart';
 class AIAgentChatCompletionsProcessor {
   AIAgentChatCompletionsProcessor._();
 
+  /// Produces the run options for [request] via [mapOptions].
+  ///
+  /// Throws an [UnsupportedError] when the request carries settings the
+  /// configured factory does not accept (the default rejects all of them).
+  static AgentRunOptions? _runOptions(
+    CreateChatCompletion request,
+    OpenAIChatCompletionsMapOptions? mapOptions,
+  ) => (mapOptions ?? OpenAIChatCompletionsMapOptions()).runOptionsFactory(
+    request.toRequestInfo(),
+  );
+
   /// Runs [agent] for a non-streaming [request] and returns the completion.
+  ///
+  /// Throws an [UnsupportedError] when the request carries settings that
+  /// [mapOptions] does not accept.
   static Future<ChatCompletion> createChatCompletion(
     AIAgent agent,
     CreateChatCompletion request, {
+    OpenAIChatCompletionsMapOptions? mapOptions,
     CancellationToken? cancellationToken,
   }) async {
+    final options = _runOptions(request, mapOptions);
     final chatMessages = request.messages
         .map((m) => m.toChatMessage())
         .toList();
-    final options = request.buildOptions();
     final response = await agent.run(
       null,
       options,
@@ -44,15 +61,34 @@ class AIAgentChatCompletionsProcessor {
   }
 
   /// Runs [agent] for a streaming [request], yielding completion chunks.
+  ///
+  /// Throws an [UnsupportedError] synchronously when the request carries
+  /// settings that [mapOptions] does not accept, so callers can reject the
+  /// request before starting the event stream.
   static Stream<ChatCompletionChunk> streamChatCompletion(
     AIAgent agent,
     CreateChatCompletion request, {
+    OpenAIChatCompletionsMapOptions? mapOptions,
+    CancellationToken? cancellationToken,
+  }) {
+    final options = _runOptions(request, mapOptions);
+    return _streamChatCompletion(
+      agent,
+      request,
+      options,
+      cancellationToken: cancellationToken,
+    );
+  }
+
+  static Stream<ChatCompletionChunk> _streamChatCompletion(
+    AIAgent agent,
+    CreateChatCompletion request,
+    AgentRunOptions? options, {
     CancellationToken? cancellationToken,
   }) async* {
     final chatMessages = request.messages
         .map((m) => m.toChatMessage())
         .toList();
-    final options = request.buildOptions();
     final chunkId = IdGenerator.newId(
       'chatcmpl',
       delimiter: '-',

@@ -143,16 +143,21 @@ void main() {
       expect(result['timeZoneId'], 'Asia/Tokyo');
     });
 
-    test('rejects an unknown IANA time zone', () async {
+    test('reports an unknown IANA time zone as a tool error string', () async {
       final tool = createCurrentTimeTool(
         clock: Clock.fixed(fixedInstant),
         timeZoneId: 'America/Los_Angeles',
       );
 
-      await expectLater(
-        tool.invoke(AIFunctionArguments({'timeZoneId': 'Not/A_Zone'})),
-        throwsArgumentError,
+      // A model-supplied bad zone must come back as an error message the
+      // model can react to, not escape the tool loop as an exception.
+      final result = await tool.invoke(
+        AIFunctionArguments({'timeZoneId': 'Not/A_Zone'}),
       );
+
+      expect(result, isA<String>());
+      expect(result, contains('Not/A_Zone'));
+      expect(result, contains('IANA'));
     });
   });
 

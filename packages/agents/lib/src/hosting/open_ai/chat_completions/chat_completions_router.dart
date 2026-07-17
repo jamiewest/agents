@@ -13,6 +13,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
 import '../../../abstractions/ai_agent.dart';
+import '../open_ai_chat_completions_map_options.dart';
 import '../sse_json_result.dart';
 import 'ai_agent_chat_completions_processor.dart';
 import 'models/chat_completion_chunk.dart';
@@ -26,7 +27,14 @@ typedef ResolveAgent = AIAgent Function(String agentName);
 /// Mounts `POST /<agentName>/v1/chat/completions`. Streaming requests
 /// (`"stream": true`) produce a Server-Sent Events response; non-streaming
 /// requests produce a single JSON [Response].
-Router openAIChatCompletionsRouter({required ResolveAgent resolveAgent}) {
+///
+/// [mapOptions] controls how request-supplied settings (temperature, tools,
+/// tool_choice, ...) are mapped onto the agent run; by default any such
+/// setting is rejected with HTTP 400.
+Router openAIChatCompletionsRouter({
+  required ResolveAgent resolveAgent,
+  OpenAIChatCompletionsMapOptions? mapOptions,
+}) {
   final router = Router();
 
   router.post('/<agentName>/v1/chat/completions', (
@@ -53,26 +61,41 @@ Router openAIChatCompletionsRouter({required ResolveAgent resolveAgent}) {
       jsonDecode(body) as Map<String, dynamic>,
     );
 
-    if (createRequest.stream == true) {
-      final chunks = AIAgentChatCompletionsProcessor.streamChatCompletion(
-        agent,
-        createRequest,
-      );
-      return sseJsonResult<ChatCompletionChunk>(
-        chunks,
-        toJson: (chunk) => chunk.toJson(),
-      );
-    }
-
-    final completion =
-        await AIAgentChatCompletionsProcessor.createChatCompletion(
+    try {
+      if (createRequest.stream == true) {
+        final chunks = AIAgentChatCompletionsProcessor.streamChatCompletion(
           agent,
           createRequest,
+          mapOptions: mapOptions,
         );
-    return Response.ok(
-      jsonEncode(completion.toJson()),
-      headers: {'content-type': 'application/json'},
-    );
+        return sseJsonResult<ChatCompletionChunk>(
+          chunks,
+          toJson: (chunk) => chunk.toJson(),
+        );
+      }
+
+      final completion =
+          await AIAgentChatCompletionsProcessor.createChatCompletion(
+            agent,
+            createRequest,
+            mapOptions: mapOptions,
+          );
+      return Response.ok(
+        jsonEncode(completion.toJson()),
+        headers: {'content-type': 'application/json'},
+      );
+    } on UnsupportedError catch (e) {
+      return Response.badRequest(
+        body: jsonEncode({
+          'error': {
+            'message': e.message ?? 'Unsupported request setting.',
+            'type': 'invalid_request_error',
+            'code': 'unsupported_parameter',
+          },
+        }),
+        headers: {'content-type': 'application/json'},
+      );
+    }
   });
 
   return router;

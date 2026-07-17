@@ -90,6 +90,29 @@ void main() {
       await controller.close();
       monitor.dispose();
     });
+
+    test('a slow seed never overwrites a newer stream event', () async {
+      final controller = StreamController<List<ConnectivityResult>>();
+      final seed = Completer<List<ConnectivityResult>>();
+      final monitor = ConnectivityMonitor(
+        checkConnectivity: () => seed.future,
+        onChanged: controller.stream,
+      );
+      final provider = ConnectivityContextProvider(monitor);
+
+      // The device goes offline while the seed poll is still in flight; the
+      // poll's stale online snapshot must not win when it finally lands.
+      controller.add([ConnectivityResult.none]);
+      await _settle();
+      seed.complete([ConnectivityResult.wifi]);
+      await _settle();
+
+      final result = await provider.invoking(_createInvokingContext());
+      expect(result.instructions, contains('offline'));
+
+      await controller.close();
+      monitor.dispose();
+    });
   });
 
   group('get_connectivity', () {

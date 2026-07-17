@@ -14,6 +14,7 @@ import '../api_result.dart';
 import '../sse_json_result.dart';
 import 'models/create_response.dart';
 import 'models/streaming_response_event.dart';
+import 'response_error_codes.dart';
 import 'responses_handler.dart';
 import 'responses_service.dart';
 
@@ -33,12 +34,15 @@ Router openAIResponsesRouter({required ResponsesService service}) {
     if (shouldStream) {
       final error = await service.validateRequest(createRequest);
       if (error != null) {
+        final (statusCode, wireCode) = ResponseErrorCodes.mapValidationError(
+          error.code,
+        );
         return _toResponse(
-          ApiResult.badRequest({
+          ApiResult(statusCode, {
             'error': {
               'message': error.message,
               'type': 'invalid_request_error',
-              if (error.code != null) 'code': error.code,
+              'code': ?wireCode,
             },
           }),
         );

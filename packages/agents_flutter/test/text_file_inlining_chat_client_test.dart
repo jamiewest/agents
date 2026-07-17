@@ -87,19 +87,13 @@ void main() {
         TextFileInliningChatClient.isTextLike('text/csv; charset=utf-8'),
         isTrue,
       );
-      expect(
-        TextFileInliningChatClient.isTextLike('application/json'),
-        isTrue,
-      );
+      expect(TextFileInliningChatClient.isTextLike('application/json'), isTrue);
       expect(
         TextFileInliningChatClient.isTextLike('application/ld+json'),
         isTrue,
       );
       expect(TextFileInliningChatClient.isTextLike('image/png'), isFalse);
-      expect(
-        TextFileInliningChatClient.isTextLike('application/pdf'),
-        isFalse,
-      );
+      expect(TextFileInliningChatClient.isTextLike('application/pdf'), isFalse);
       expect(TextFileInliningChatClient.isTextLike(null), isFalse);
     });
   });

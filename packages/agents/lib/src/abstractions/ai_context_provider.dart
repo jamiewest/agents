@@ -199,5 +199,11 @@ abstract class AIContextProvider {
   }
 
   /// Returns a service of type [T], or `null`.
-  T? getServiceOf<T extends Object>() => getService(T) as T?;
+  T? getServiceOf<T extends Object>({Object? serviceKey}) {
+    final service = getService(T, serviceKey: serviceKey);
+    if (service is T) {
+      return service;
+    }
+    return serviceKey == null && this is T ? this as T : null;
+  }
 }
