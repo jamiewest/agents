@@ -1,5 +1,72 @@
 # Changelog
 
+## 1.5.0
+
+- Add `AnthropicChatClient` under `anthropic/`: a `ChatClient` backed by
+  Anthropic's Messages API, with client builder extensions and shared
+  defaults.
+- Add `GeminiChatClient` and `GeminiClient` under `gemini/`: a `ChatClient`
+  backed by the Gemini API, with builder extensions and defaults. Handles
+  `thoughtSignature` round-tripping on function calls (including the
+  documented skip-validation placeholder for replayed calls), strips
+  unsupported `additionalProperties` from tool and response schemas, and
+  enables server-side tool invocations when mixing Gemini built-in tools
+  with function tools.
+- Add MCP integration under `mcp/`: `AgentMcpSkillsSource` discovers Agent
+  Skills exposed over MCP (`AgentMcpSkill`, `McpSkillIndex`,
+  `AgentMcpSkillResource`, plus options), `McpClientTaskExtensions` exposes
+  MCP tools as AI functions (`McpClientAIFunction`,
+  `TaskAwareMcpClientAIFunction`, `McpTaskOptions`), and the skills
+  provider builder gains MCP registration extensions.
+- Add sequential and concurrent orchestrations to the workflows engine:
+  `SequentialWorkflowBuilder` and `ConcurrentWorkflowBuilder` on the shared
+  `OrchestrationBuilderBase`, with `OutputTag` (+ JSON converter),
+  `WorkflowOutputEvent` extensions, and checkpoint support for output
+  executors in `WorkflowInfo`.
+- Add session-store composition under `hosting/`:
+  `DelegatingAgentSessionStore`, `IsolationKeyScopedAgentSessionStore`
+  (+ options), and `SessionIsolationKeyProvider` for partitioning stored
+  sessions by user, tenant, or composite keys.
+- Expand OpenAI hosting: `HostedAgentResponseExecutor` routes Responses API
+  requests to hosted agents by `agent.name` or `metadata["entity_id"]`,
+  with `OpenAIResponseRequestInfo` / `OpenAIChatCompletionRequestInfo`
+  request descriptors, per-API map options, `AgentReference`, and
+  standardized response error codes.
+- Add OpenAI conversion helpers under `ai/open_ai/`: extensions mapping
+  `AgentResponse` and `ChatClientAgent` results onto OpenAI wire formats.
+- Add auto-approval rules to the tool-approval middleware:
+  `ToolApprovalAgentOptions` with ordered `autoApprovalRules` (evaluated
+  after standing rules, before prompting the user) and an approve-all rule.
+- Expand the file access and file memory providers: new `replace` and
+  `replace_lines` editing tools backed by the shared `FileEditor` /
+  `FileLineEdit` helpers, `FileStoreEntry` metadata, configurable tool
+  names, and read-only / full auto-approval rule presets.
+- Add chat-client decorators: `MessageInjectingChatClient` lets external
+  code (such as tool delegates) enqueue messages into the function
+  invocation loop, and `NonApprovalRequiredFunctionBypassingChatClient`
+  strips approval requests for tools that do not require approval,
+  re-injecting them pre-approved on the next request.
+- Add `BackgroundTaskCompletionLoopEvaluator` (+ options): keeps a
+  `LoopAgent` iterating until tracked background tasks complete, with a
+  templated feedback message listing the still-running tasks.
+- Add skills improvements: a `CachingAgentSkillsSource` decorator
+  (+ options), `AgentSkillsSourceContext`, and
+  `AgentFileSkillFilterContext` for filtering file-based skills.
+- Add evaluation types: `GeneratedEvaluatorRef` (versioned references to
+  generated evaluators) and `RubricScore` (typed per-dimension score
+  breakdown for rubric evaluators).
+- Export `InvokedContext` and `InvokingContext` as standalone libraries
+  (previously hidden from the public API) and publicly export
+  `ChatMessageJsonConverter`.
+- Fix `AIContextProvider.getService` to resolve requests for concrete
+  provider types (matching the `runtimeType` idiom used by `AgentSession`
+  and `DelegatingAIAgent`); concrete-type lookups previously returned
+  `null`, breaking provider resolution in
+  `BackgroundTaskCompletionLoopEvaluator` and
+  `TodoCompletionLoopEvaluator`.
+- Add `anthropic_sdk_dart: ^5.0.0`, `archive: ^4.0.9`, `http: ^1.6.0`, and
+  `mcp_dart: ^2.2.1` dependencies; bump `extensions` to `^0.5.0`.
+
 ## 1.4.0
 
 - Add loop agents under `harness/loop/`: `LoopAgent` and `LoopAgentOptions`
