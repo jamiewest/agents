@@ -153,6 +153,38 @@ void main() {
       );
     });
 
+    test('a local search source adds search and page-opening tools', () {
+      final result = build(
+        FlutterHarnessAgentOptions(webSearchSource: _FakeWebSearchSource()),
+      );
+
+      expect(
+        toolNames(result.tools),
+        containsAll(<String>[webSearchToolName, openWebPageToolName]),
+      );
+    });
+
+    test('a page loader alone adds only open_web_page', () {
+      final result = build(
+        FlutterHarnessAgentOptions(webPageLoader: _FakeWebPageLoader()),
+      );
+
+      expect(toolNames(result.tools), contains(openWebPageToolName));
+      expect(toolNames(result.tools), isNot(contains(webSearchToolName)));
+    });
+
+    test('disableWebSearch suppresses configured local web tools', () {
+      final result = build(
+        FlutterHarnessAgentOptions(
+          webSearchSource: _FakeWebSearchSource(),
+          webPageLoader: _FakeWebPageLoader(),
+        )..disableWebSearch = true,
+      );
+
+      expect(toolNames(result.tools), isNot(contains(webSearchToolName)));
+      expect(toolNames(result.tools), isNot(contains(openWebPageToolName)));
+    });
+
     test('connectivity stays last with every capability enabled', () {
       final result = build(
         FlutterHarnessAgentOptions()
@@ -263,6 +295,24 @@ void main() {
         'set_wake_lock',
       ]);
     });
+
+    test('adds local web tools from direct extension arguments', () {
+      final options = ChatClientAgentOptions();
+
+      options.addFlutterHarnessContext(
+        enableTemporal: false,
+        enableConnectivity: false,
+        enableAppInfo: false,
+        enableDeviceInfo: false,
+        webSearchSource: _FakeWebSearchSource(),
+        webPageLoader: _FakeWebPageLoader(),
+      );
+
+      expect(toolNames(options.chatOptions!.tools!.toList()), <String>[
+        webSearchToolName,
+        openWebPageToolName,
+      ]);
+    });
   });
 
   group('FlutterHarnessAgent', () {
@@ -296,6 +346,84 @@ void main() {
       );
       bare.dispose();
     });
+
+    test('local web tools replace the hosted search marker', () {
+      final agent = FlutterHarnessAgent(
+        _FakeChatClient(),
+        1000,
+        100,
+        options: FlutterHarnessAgentOptions(
+          webSearchSource: _FakeWebSearchSource(),
+          webPageLoader: _FakeWebPageLoader(),
+        ),
+      );
+
+      final tools = agent.getServiceOf<ChatOptions>()!.tools!;
+      expect(
+        toolNames(tools.toList()),
+        containsAll(<String>[webSearchToolName, openWebPageToolName]),
+      );
+      expect(tools.whereType<HostedWebSearchTool>(), isEmpty);
+      agent.dispose();
+    });
+
+    test('preserves hosted search when local web tools are not configured', () {
+      final agent = FlutterHarnessAgent(_FakeChatClient(), 1000, 100);
+
+      final tools = agent.getServiceOf<ChatOptions>()!.tools!;
+
+      expect(tools.whereType<HostedWebSearchTool>(), hasLength(1));
+      expect(toolNames(tools.toList()), isNot(contains(openWebPageToolName)));
+      agent.dispose();
+    });
+
+    test('a page loader adds direct opening and preserves hosted search', () {
+      final agent = FlutterHarnessAgent(
+        _FakeChatClient(),
+        1000,
+        100,
+        options: FlutterHarnessAgentOptions(
+          webPageLoader: _FakeWebPageLoader(),
+        ),
+      );
+
+      final tools = agent.getServiceOf<ChatOptions>()!.tools!;
+
+      expect(tools.whereType<HostedWebSearchTool>(), hasLength(1));
+      expect(toolNames(tools.toList()), contains(openWebPageToolName));
+      expect(
+        tools.whereType<AIFunction>().where(
+          (tool) => tool.name == webSearchToolName,
+        ),
+        isEmpty,
+      );
+      agent.dispose();
+    });
+
+    test('disabled access exposes neither hosted nor local web tools', () {
+      final agent = FlutterHarnessAgent(
+        _FakeChatClient(),
+        1000,
+        100,
+        options: FlutterHarnessAgentOptions(
+          webSearchSource: _FakeWebSearchSource(),
+          webPageLoader: _FakeWebPageLoader(),
+        )..disableWebSearch = true,
+      );
+
+      final tools = agent.getServiceOf<ChatOptions>()!.tools!;
+
+      expect(tools.whereType<HostedWebSearchTool>(), isEmpty);
+      expect(
+        tools.whereType<AIFunction>().where(
+          (tool) =>
+              tool.name == webSearchToolName ||
+              tool.name == openWebPageToolName,
+        ),
+        isEmpty,
+      );
+      agent.dispose();
+    });
   });
 
   group('FlutterHarnessAgentOptions.clone', () {
@@ -309,6 +437,8 @@ void main() {
               enableConnectivity: false,
               enableLocation: true,
               timeZoneId: 'Asia/Tokyo',
+              webSearchSource: _FakeWebSearchSource(),
+              webPageLoader: _FakeWebPageLoader(),
             )
             ..harnessInstructions = 'keep me'
             ..aiContextProviders = [marker]
@@ -326,6 +456,8 @@ void main() {
       expect(copy.chatOptions!.temperature, 0.25);
       expect(copy.pushoverClient, same(pushoverClient));
       expect(copy.pushoverToolOptions, same(pushoverToolOptions));
+      expect(copy.webSearchSource, same(original.webSearchSource));
+      expect(copy.webPageLoader, same(original.webPageLoader));
     });
 
     test('isolates the provider list and chatOptions from the original', () {
@@ -428,6 +560,27 @@ void main() {
       expect(provider.getRequiredService<NetworkInfoSource>(), isNotNull);
     });
 
+    test('DI harness replaces hosted search with configured local tools', () {
+      final services = ServiceCollection()
+        ..addSingletonInstance<ChatClient>(_FakeChatClient())
+        ..addSingletonInstance<ConnectivityMonitor>(fakeMonitor())
+        ..addFlutterHarness(
+          configure: (options) => options
+            ..webSearchSource = _FakeWebSearchSource()
+            ..webPageLoader = _FakeWebPageLoader(),
+        );
+      final provider = services.buildServiceProvider();
+
+      final agent = provider.getRequiredService<AIAgent>();
+      final tools = agent.getServiceOf<ChatOptions>()!.tools!;
+
+      expect(tools.whereType<HostedWebSearchTool>(), isEmpty);
+      expect(
+        toolNames(tools.toList()),
+        containsAll(<String>[webSearchToolName, openWebPageToolName]),
+      );
+    });
+
     test('does not duplicate capabilities across service providers', () {
       late FlutterHarnessAgentOptions registrationOptions;
       final services = ServiceCollection()
@@ -508,4 +661,26 @@ final class _FakeChatClient implements ChatClient {
 
   @override
   void dispose() {}
+}
+
+final class _FakeWebSearchSource implements WebSearchSource {
+  @override
+  Future<Iterable<WebSearchResult>> search(
+    String query, {
+    required int maxResults,
+    CancellationToken? cancellationToken,
+  }) async => const <WebSearchResult>[];
+}
+
+final class _FakeWebPageLoader implements WebPageLoader {
+  @override
+  Future<WebPageContent> load(
+    Uri url, {
+    CancellationToken? cancellationToken,
+  }) async => WebPageContent(
+    status: WebPageLoadStatus.success,
+    requestedUrl: url,
+    finalUrl: url,
+    text: 'page',
+  );
 }

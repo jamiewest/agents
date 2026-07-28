@@ -2,6 +2,10 @@ import 'package:agents/agents.dart';
 
 import 'pushover/pushover_api.dart';
 import 'pushover/pushover_tool.dart';
+import 'web/web_navigation_policy.dart';
+import 'web/web_page_loader.dart';
+import 'web/web_search_source.dart';
+import 'web/web_search_tool_options.dart';
 
 /// Configuration for a [FlutterHarnessAgent].
 ///
@@ -28,6 +32,10 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
     this.timeZoneId,
     this.pushoverClient,
     this.pushoverToolOptions,
+    this.webSearchSource,
+    this.webPageLoader,
+    this.webNavigationPolicy,
+    this.webSearchToolOptions,
   });
 
   /// When `true`, adds the temporal context provider and `get_current_time`
@@ -80,6 +88,28 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
   /// the defaults (send + quota tools, no emergency priority).
   PushoverToolOptions? pushoverToolOptions;
 
+  /// Search backend used by the local `web_search` function.
+  ///
+  /// Setting this replaces the provider-hosted search marker with local
+  /// `web_search` and `open_web_page` functions unless [disableWebSearch] is
+  /// true. The host owns any credentials held by this source.
+  WebSearchSource? webSearchSource;
+
+  /// Optional page loader used by `open_web_page`.
+  ///
+  /// Setting this without [webSearchSource] exposes only `open_web_page`.
+  /// When omitted alongside a configured source, the harness creates a
+  /// `HeadlessWebViewPageLoader` through the tool factory.
+  WebPageLoader? webPageLoader;
+
+  /// Navigation policy used by the default headless page loader.
+  ///
+  /// Omit this to allow only public HTTP(S) destinations.
+  WebNavigationPolicy? webNavigationPolicy;
+
+  /// Limits and timeouts for the local web tools.
+  WebSearchToolOptions? webSearchToolOptions;
+
   /// Returns a shallow copy of these options.
   ///
   /// [chatOptions] is cloned and [aiContextProviders] is copied into a new list,
@@ -97,6 +127,10 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
         timeZoneId: timeZoneId,
         pushoverClient: pushoverClient,
         pushoverToolOptions: pushoverToolOptions,
+        webSearchSource: webSearchSource,
+        webPageLoader: webPageLoader,
+        webNavigationPolicy: webNavigationPolicy,
+        webSearchToolOptions: webSearchToolOptions,
       )
       ..id = id
       ..name = name

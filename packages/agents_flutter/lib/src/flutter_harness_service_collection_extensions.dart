@@ -114,6 +114,9 @@ extension FlutterHarnessServiceCollectionExtensions on ServiceCollection {
             ? sp.getRequiredService<NetworkInfoSource>()
             : null,
       );
+      if (usesLocalWebSearch(effectiveOptions)) {
+        effectiveOptions.disableWebSearch = true;
+      }
 
       effectiveOptions.aiContextProviders = [
         ...?effectiveOptions.aiContextProviders,

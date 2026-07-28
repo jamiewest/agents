@@ -215,7 +215,7 @@ class AgentAccessConfig {
   /// Only meaningful while [enableFileAccess] is `true`.
   final FileToolApprovalMode fileToolApprovalMode;
 
-  /// Whether the hosted web-search tool is available.
+  /// Whether hosted or locally configured web-search tools are available.
   final bool enableWebSearch;
 
   /// Whether the `run_shell` tool, which executes shell commands on the host,

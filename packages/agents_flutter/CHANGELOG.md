@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+- Add vendor-neutral local web search and direct page-opening tools for the
+  Flutter harness. `open_web_page` renders JavaScript in an isolated,
+  incognito headless WebView, extracts readable text and metadata, and applies
+  a configurable public-network navigation policy.
+- A configured local search source replaces the hosted web-search marker. A
+  page loader may instead add only `open_web_page` while retaining hosted
+  search. Both retain the existing per-agent web-search access gate.
+- Add native headless page loading on Android, iOS, macOS, and Windows using
+  `flutter_inappwebview`, with structured timeout, navigation, HTTP, loading,
+  empty-content, and challenge-detection results. Flutter web reports the
+  capability as unsupported.
+
 ## 0.2.1
 
 - Pushover as a harness capability with per-agent gating:

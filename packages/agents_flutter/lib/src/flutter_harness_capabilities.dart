@@ -22,6 +22,7 @@ import 'pushover/pushover_tool.dart';
 import 'temporal/temporal_context_provider.dart';
 import 'temporal/temporal_tool.dart';
 import 'wake_lock/wake_lock_tool.dart';
+import 'web/web_search_tools.dart';
 
 /// The Flutter context providers and tools enabled by a set of options.
 typedef FlutterHarnessCapabilities = ({
@@ -112,6 +113,17 @@ FlutterHarnessCapabilities buildFlutterHarnessCapabilities(
     );
   }
 
+  if (usesLocalWebTools(options)) {
+    tools.addAll(
+      createWebSearchTools(
+        searchSource: options.webSearchSource,
+        pageLoader: options.webPageLoader,
+        navigationPolicy: options.webNavigationPolicy,
+        options: options.webSearchToolOptions,
+      ),
+    );
+  }
+
   // Connectivity is always last: see [buildFlutterHarnessCapabilities].
   if (options.enableConnectivity) {
     providers.add(ConnectivityContextProvider(connectivityMonitor!));
@@ -120,6 +132,15 @@ FlutterHarnessCapabilities buildFlutterHarnessCapabilities(
 
   return (providers: providers, tools: tools);
 }
+
+/// Whether [options] expose any local Flutter web tools.
+bool usesLocalWebTools(FlutterHarnessAgentOptions options) =>
+    !options.disableWebSearch &&
+    (options.webSearchSource != null || options.webPageLoader != null);
+
+/// Whether [options] replace hosted search with the local search function.
+bool usesLocalWebSearch(FlutterHarnessAgentOptions options) =>
+    !options.disableWebSearch && options.webSearchSource != null;
 
 /// Populates the device and app info caches from the platform in the
 /// background, swallowing any plugin failures.

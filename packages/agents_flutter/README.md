@@ -33,10 +33,21 @@ ones your app uses:
 | Photo picker | `NSPhotoLibraryUsageDescription` | — |
 | Audio capture | `NSMicrophoneUsageDescription` | `RECORD_AUDIO` |
 | Downloads, model fetching | — | `INTERNET` |
+| Headless web browsing | — | `INTERNET` |
 
 On macOS, `flutter_secure_storage` also needs the Keychain Sharing capability
 in both the debug and release entitlements files. See each plugin's own README
 for the authoritative list.
+
+Headless web browsing supports Android, iOS, macOS, and Windows. Sandboxed
+macOS apps must enable the `com.apple.security.network.client` entitlement in
+their debug/profile and release entitlements. Windows hosts need the WebView2
+runtime and NuGet CLI required by
+[`flutter_inappwebview`](https://pub.dev/packages/flutter_inappwebview). Flutter
+web is intentionally unsupported because a cross-origin iframe cannot provide
+equivalent DOM extraction. See the plugin's
+[headless WebView documentation](https://inappwebview.dev/docs/webview/headless-in-app-webview/)
+for its native setup details.
 
 ## What's included
 
@@ -113,6 +124,61 @@ final options = ChatClientAgentOptions()
 
 The wake-lock tool controls automatic screen sleep only; it does not keep the
 app or CPU running in the background.
+
+## Local web search and page opening
+
+The Flutter harness normally exposes the model provider's hosted web-search
+marker. Supplying a local search source replaces that marker with two ordinary
+function tools:
+
+- `web_search` asks the host-provided backend for titles, URLs, and snippets.
+- `open_web_page` accepts a direct URL and extracts readable text in a fresh,
+  incognito, headless system WebView.
+
+The library never embeds a search API key. Implement `WebSearchSource` in the
+host application and keep its credentials outside the model-visible tool
+arguments:
+
+```dart
+final agent = chatClient.asFlutterHarnessAgent(
+  1050000,
+  128000,
+  options: FlutterHarnessAgentOptions(
+    webSearchSource: MySearchSource(apiKey: searchApiKey),
+  ),
+);
+```
+
+Configure only a page loader to add direct page opening without replacing the
+harness's hosted search marker:
+
+```dart
+final options = FlutterHarnessAgentOptions(
+  webPageLoader: HeadlessWebViewPageLoader(),
+);
+```
+
+By default, `open_web_page` accepts public HTTP and HTTPS URLs and rejects
+embedded credentials, local names, and private, loopback, link-local,
+multicast, or otherwise non-public resolved addresses. A host can inject a
+`WebNavigationPolicy` to permit a different scope, but doing so can expose
+device or LAN services to model-directed requests. An injected
+`WebPageLoader` owns its own navigation and redirect safeguards;
+`webNavigationPolicy` configures the built-in headless loader.
+
+Each call creates and disposes its own incognito WebView. The implementation
+does not clear or reuse the plugin's shared cookie store, override the system
+user agent, simulate clicks or scrolling, solve CAPTCHAs, or attempt to bypass
+site protections. Sites may still identify the client as an embedded WebView.
+
+The native smoke fixture is opt-in and is not part of Linux CI. Because this
+package does not carry generated native runner projects, run the fixture from
+a Flutter host application that depends on this checkout (and has the required
+network permissions):
+
+```sh
+flutter test integration_test/headless_web_view_page_loader_test.dart -d macos
+```
 
 ## Authoring a new device-context provider
 

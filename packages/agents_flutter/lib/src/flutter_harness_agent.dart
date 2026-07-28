@@ -76,6 +76,11 @@ final class FlutterHarnessAgent extends DelegatingAIAgent
       appInfo: appInfo,
       locationResolver: locationResolver,
     );
+    if (usesLocalWebSearch(effectiveOptions)) {
+      // The local function is also named web_search, so suppress the hosted
+      // marker before the base harness builds its tool list.
+      effectiveOptions.disableWebSearch = true;
+    }
 
     effectiveOptions.aiContextProviders = [
       ...?effectiveOptions.aiContextProviders,

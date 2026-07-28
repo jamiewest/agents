@@ -12,6 +12,10 @@ import 'flutter_harness_capabilities.dart';
 import 'location/location_resolver.dart';
 import 'network/network_context_provider.dart';
 import 'package_info/app_info.dart';
+import 'web/web_navigation_policy.dart';
+import 'web/web_page_loader.dart';
+import 'web/web_search_source.dart';
+import 'web/web_search_tool_options.dart';
 
 /// Creates a [FlutterHarnessAgent] from a [ChatClient].
 extension ChatClientFlutterHarnessExtensions on ChatClient {
@@ -69,6 +73,10 @@ extension FlutterHarnessChatClientAgentOptionsExtensions
     AppInfo? appInfo,
     LocationResolver? locationResolver,
     NetworkInfoSource? networkInfoSource,
+    WebSearchSource? webSearchSource,
+    WebPageLoader? webPageLoader,
+    WebNavigationPolicy? webNavigationPolicy,
+    WebSearchToolOptions? webSearchToolOptions,
   }) {
     final capabilityOptions = FlutterHarnessAgentOptions(
       enableTemporal: enableTemporal,
@@ -79,6 +87,10 @@ extension FlutterHarnessChatClientAgentOptionsExtensions
       enableNetworkInfo: enableNetworkInfo,
       enableWakeLock: enableWakeLock,
       timeZoneId: timeZoneId,
+      webSearchSource: webSearchSource,
+      webPageLoader: webPageLoader,
+      webNavigationPolicy: webNavigationPolicy,
+      webSearchToolOptions: webSearchToolOptions,
     );
 
     final effectiveDeviceInfo = deviceInfo ?? DeviceInfo();
