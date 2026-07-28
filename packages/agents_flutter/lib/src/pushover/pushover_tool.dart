@@ -21,6 +21,70 @@ const String pushoverReceiptToolName = 'check_pushover_receipt';
 typedef PushoverAttachmentResolver =
     Future<PushoverAttachment?> Function(String reference);
 
+/// Configuration for the Pushover tools built by the Flutter harness when
+/// `FlutterHarnessAgentOptions.pushoverClient` is set.
+///
+/// Mirrors the parameters of [createSendPushoverNotificationTool],
+/// [createPushoverLimitsTool], and [createPushoverReceiptTool]; the client
+/// itself stays on the harness options so per-agent access settings can
+/// remove it without touching this configuration.
+class PushoverToolOptions {
+  /// Creates a [PushoverToolOptions].
+  PushoverToolOptions({
+    this.includeLimitsTool = true,
+    this.allowEmergencyPriority = false,
+    this.allowDeviceTargeting = false,
+    this.encryptByDefault = false,
+    this.attachmentResolver,
+  });
+
+  /// Whether the quota tool from [createPushoverLimitsTool] is included.
+  /// Defaults to `true`.
+  bool includeLimitsTool;
+
+  /// Whether the send tool accepts emergency priority. When `true`, the
+  /// receipt tool from [createPushoverReceiptTool] is included alongside it.
+  /// Defaults to `false`.
+  bool allowEmergencyPriority;
+
+  /// Whether the send tool accepts a `device` argument naming the
+  /// recipient's own devices. Defaults to `false`.
+  bool allowDeviceTargeting;
+
+  /// Whether every message is sent encrypted. Only meaningful when the
+  /// client holds an encryptor. Defaults to `false`.
+  bool encryptByDefault;
+
+  /// Resolves model-supplied attachment references into image bytes, or
+  /// `null` to omit the `attachment` argument.
+  PushoverAttachmentResolver? attachmentResolver;
+}
+
+/// Builds the Pushover tool set for [client] as configured by [options].
+///
+/// The send tool always leads; the quota and receipt tools follow when
+/// [PushoverToolOptions.includeLimitsTool] and
+/// [PushoverToolOptions.allowEmergencyPriority] ask for them. A `null`
+/// [options] uses the defaults.
+List<AIFunction> createPushoverTools({
+  required PushoverClient client,
+  PushoverToolOptions? options,
+}) {
+  final effective = options ?? PushoverToolOptions();
+  return [
+    createSendPushoverNotificationTool(
+      client: client,
+      allowEmergencyPriority: effective.allowEmergencyPriority,
+      allowDeviceTargeting: effective.allowDeviceTargeting,
+      encryptByDefault: effective.encryptByDefault,
+      attachmentResolver: effective.attachmentResolver,
+    ),
+    if (effective.includeLimitsTool) createPushoverLimitsTool(client: client),
+    if (effective.allowEmergencyPriority)
+      createPushoverReceiptTool(client: client),
+  ];
+}
+
 /// Creates a tool that pushes a notification to the [client]'s recipient.
 ///
 /// The recipient and the application token come from [client], not from the

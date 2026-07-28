@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.1
+
+- Pushover as a harness capability with per-agent gating:
+  - `FlutterHarnessAgentOptions.pushoverClient` (plus
+    `pushoverToolOptions`) — when a host attaches a configured
+    `PushoverClient`, the harness adds the Pushover tools. Client-gated
+    rather than flag-gated: the tools send real notifications, so they
+    exist exactly when the host attached a client.
+  - `AgentAccessConfig.enablePushover` — opt-in per saved agent, `false` by
+    default. `ConfiguredAgentFactory` strips the client from agents that
+    have an access record without the opt-in, wherever the client was
+    attached; agents without an access record keep the harness default.
+  - `createPushoverTools` and `PushoverToolOptions` — builds the send,
+    quota, and receipt tool set from one configuration.
+
 ## 0.2.0
 
 - Require `agents: ^1.6.0`, including the new live shell output stream and

@@ -118,6 +118,22 @@ void main() {
       expect(restored.enableShell, isFalse);
     });
 
+    test('AgentAccessConfig round trips the pushover toggle', () {
+      const access = AgentAccessConfig(enablePushover: true);
+
+      final restored = AgentAccessConfig.fromJson(access.toJson());
+
+      expect(restored.enablePushover, isTrue);
+    });
+
+    test('AgentAccessConfig defaults the pushover toggle off', () {
+      expect(const AgentAccessConfig().enablePushover, isFalse);
+      final restored = AgentAccessConfig.fromJson(const {
+        'enableFileAccess': true,
+      });
+      expect(restored.enablePushover, isFalse);
+    });
+
     test('SavedAgentConfig keeps legacy access unset when absent', () {
       final restored = SavedAgentConfig.fromJson(const {
         'id': 'a1',

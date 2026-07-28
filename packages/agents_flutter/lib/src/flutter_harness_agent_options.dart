@@ -1,5 +1,8 @@
 import 'package:agents/agents.dart';
 
+import 'pushover/pushover_api.dart';
+import 'pushover/pushover_tool.dart';
+
 /// Configuration for a [FlutterHarnessAgent].
 ///
 /// Extends [HarnessAgentOptions] with toggles for the Flutter device-capability
@@ -23,6 +26,8 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
     this.enableNetworkInfo = false,
     this.enableWakeLock = false,
     this.timeZoneId,
+    this.pushoverClient,
+    this.pushoverToolOptions,
   });
 
   /// When `true`, adds the temporal context provider and `get_current_time`
@@ -59,6 +64,22 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
   /// detect the device zone.
   String? timeZoneId;
 
+  /// When set, adds the Pushover notification tools bound to this client.
+  ///
+  /// Unlike the passive device capabilities, these tools send a real
+  /// notification to a real person, so there is no enable flag: the tools
+  /// exist exactly when the host has attached a configured client. The
+  /// recipient is fixed by the client, never chosen by the model.
+  ///
+  /// Saved-agent access settings gate this per agent: `ConfiguredAgentFactory`
+  /// removes the client for agents whose `AgentAccessConfig.enablePushover`
+  /// is `false`.
+  PushoverClient? pushoverClient;
+
+  /// Configuration for the tools added by [pushoverClient], or `null` for
+  /// the defaults (send + quota tools, no emergency priority).
+  PushoverToolOptions? pushoverToolOptions;
+
   /// Returns a shallow copy of these options.
   ///
   /// [chatOptions] is cloned and [aiContextProviders] is copied into a new list,
@@ -74,6 +95,8 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
         enableNetworkInfo: enableNetworkInfo,
         enableWakeLock: enableWakeLock,
         timeZoneId: timeZoneId,
+        pushoverClient: pushoverClient,
+        pushoverToolOptions: pushoverToolOptions,
       )
       ..id = id
       ..name = name

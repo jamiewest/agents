@@ -18,6 +18,7 @@ import 'network/network_tool.dart';
 import 'package_info/app_info.dart';
 import 'package_info/app_info_loader.dart';
 import 'package_info/package_info_tool.dart';
+import 'pushover/pushover_tool.dart';
 import 'temporal/temporal_context_provider.dart';
 import 'temporal/temporal_tool.dart';
 import 'wake_lock/wake_lock_tool.dart';
@@ -97,6 +98,18 @@ FlutterHarnessCapabilities buildFlutterHarnessCapabilities(
 
   if (options.enableWakeLock) {
     tools.add(createWakeLockTool());
+  }
+
+  // Pushover is client-gated rather than flag-gated: the tools send real
+  // notifications, so they exist exactly when the host attached a client.
+  final pushoverClient = options.pushoverClient;
+  if (pushoverClient != null) {
+    tools.addAll(
+      createPushoverTools(
+        client: pushoverClient,
+        options: options.pushoverToolOptions,
+      ),
+    );
   }
 
   // Connectivity is always last: see [buildFlutterHarnessCapabilities].

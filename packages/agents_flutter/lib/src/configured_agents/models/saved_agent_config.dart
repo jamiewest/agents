@@ -194,6 +194,7 @@ class AgentAccessConfig {
     this.enableLocation = false,
     this.enableNetworkInfo = false,
     this.enableWakeLock = false,
+    this.enablePushover = false,
   });
 
   /// Whether the agent may use file-backed memory context.
@@ -252,6 +253,14 @@ class AgentAccessConfig {
   /// Whether the wake-lock tool is available.
   final bool enableWakeLock;
 
+  /// Whether the host-configured Pushover notification tools are available.
+  ///
+  /// Only meaningful when the host has attached a Pushover client to the
+  /// harness options; without one there are no tools to enable. Sends real
+  /// notifications to the recipient the host configured, so it is opt-in
+  /// per agent. Defaults to `false`.
+  final bool enablePushover;
+
   /// Returns a copy with the given fields replaced.
   AgentAccessConfig copyWith({
     bool? enableFileMemory,
@@ -270,6 +279,7 @@ class AgentAccessConfig {
     bool? enableLocation,
     bool? enableNetworkInfo,
     bool? enableWakeLock,
+    bool? enablePushover,
   }) => AgentAccessConfig(
     enableFileMemory: enableFileMemory ?? this.enableFileMemory,
     enableFileAccess: enableFileAccess ?? this.enableFileAccess,
@@ -287,6 +297,7 @@ class AgentAccessConfig {
     enableLocation: enableLocation ?? this.enableLocation,
     enableNetworkInfo: enableNetworkInfo ?? this.enableNetworkInfo,
     enableWakeLock: enableWakeLock ?? this.enableWakeLock,
+    enablePushover: enablePushover ?? this.enablePushover,
   );
 
   /// Serializes this access config to JSON.
@@ -307,6 +318,7 @@ class AgentAccessConfig {
     'enableLocation': enableLocation,
     'enableNetworkInfo': enableNetworkInfo,
     'enableWakeLock': enableWakeLock,
+    'enablePushover': enablePushover,
   };
 
   /// Reconstructs an [AgentAccessConfig] from [json].
@@ -331,5 +343,6 @@ class AgentAccessConfig {
         enableLocation: (json['enableLocation'] as bool?) ?? false,
         enableNetworkInfo: (json['enableNetworkInfo'] as bool?) ?? false,
         enableWakeLock: (json['enableWakeLock'] as bool?) ?? false,
+        enablePushover: (json['enablePushover'] as bool?) ?? false,
       );
 }

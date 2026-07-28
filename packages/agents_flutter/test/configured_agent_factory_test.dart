@@ -588,6 +588,96 @@ void main() {
       },
     );
 
+    group('pushover access gating', () {
+      Future<List<String>> toolNamesFor(
+        SavedAgentConfig agent, {
+        void Function(FlutterHarnessAgentOptions options)? configureHarness,
+        ConfigureHarnessForScope? configureHarnessForScope,
+        AgentScope? scope,
+      }) async {
+        final manager = buildManager();
+        await manager.saveSource(_openAiSource, apiKey: 'sk-openai');
+        await manager.saveModel(_openAiModel);
+        await manager.saveAgent(agent);
+
+        final built = await ConfiguredAgentFactory(
+          manager,
+          configureHarness: configureHarness,
+          configureHarnessForScope: configureHarnessForScope,
+        ).createAgent(agent, scope: scope);
+        final chatOptions = built.getServiceOf<ChatOptions>()!;
+        return chatOptions.tools!.map((tool) => tool.name).toList();
+      }
+
+      void attachClient(FlutterHarnessAgentOptions options) =>
+          options.pushoverClient = PushoverClient(
+            token: 'app-token',
+            user: 'user',
+          );
+
+      test('an opted-in agent gets the harness-attached tools', () async {
+        final toolNames = await toolNamesFor(
+          const SavedAgentConfig(
+            id: 'a1',
+            name: 'Helper',
+            modelId: 'm-openai',
+            access: AgentAccessConfig(enablePushover: true),
+          ),
+          configureHarness: attachClient,
+        );
+
+        expect(toolNames, contains('send_pushover_notification'));
+        expect(toolNames, contains('get_pushover_limits'));
+      });
+
+      test('an access record without the opt-in strips the client', () async {
+        final toolNames = await toolNamesFor(
+          const SavedAgentConfig(
+            id: 'a1',
+            name: 'Helper',
+            modelId: 'm-openai',
+            access: AgentAccessConfig(),
+          ),
+          configureHarness: attachClient,
+        );
+
+        expect(toolNames, isNot(contains('send_pushover_notification')));
+        expect(toolNames, isNot(contains('get_pushover_limits')));
+      });
+
+      test('an agent without an access record keeps the client', () async {
+        // Matches every other capability: a missing record falls back to
+        // the harness-configured defaults.
+        final toolNames = await toolNamesFor(
+          const SavedAgentConfig(id: 'a1', name: 'Helper', modelId: 'm-openai'),
+          configureHarness: attachClient,
+        );
+
+        expect(toolNames, contains('send_pushover_notification'));
+      });
+
+      test('a client attached by the scope callback is also gated', () async {
+        final scope = AgentScope(
+          conversationId: 'c1',
+          sessionIdResolver: () => 's1',
+        );
+        const agent = SavedAgentConfig(
+          id: 'a1',
+          name: 'Helper',
+          modelId: 'm-openai',
+          access: AgentAccessConfig(),
+        );
+
+        final toolNames = await toolNamesFor(
+          agent,
+          configureHarnessForScope: (_, options, _) => attachClient(options),
+          scope: scope,
+        );
+
+        expect(toolNames, isNot(contains('send_pushover_notification')));
+      });
+    });
+
     test(
       'wraps the agent for file tool auto-approval, keeping the harness',
       () async {

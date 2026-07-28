@@ -211,6 +211,14 @@ class ConfiguredAgentFactory {
     if (scope != null) {
       _configureHarnessForScope?.call(agent, options, scope);
     }
+    // Applied after the scope callback — hosts may attach the Pushover
+    // client there as well as in the global harness callback — so an agent
+    // that has not opted in loses the client no matter where it was set.
+    // Agents without an access record keep the harness-configured client,
+    // matching how every other capability falls back to harness defaults.
+    if (access != null && !access.enablePushover) {
+      options.pushoverClient = null;
+    }
     // Applied after the scope callback so the policy sees the scoped file
     // store when it has to rebuild the file access provider.
     ToolApprovalAgentOptions? toolApprovalOptions;

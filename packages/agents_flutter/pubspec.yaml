@@ -3,7 +3,7 @@ description: >-
   Flutter integration for the agents framework: a preconfigured harness agent,
   device-capability context providers and tools, chat history persistence, and
   configurable model profiles.
-version: 0.2.0
+version: 0.2.1
 repository: https://github.com/jamiewest/agents
 issue_tracker: https://github.com/jamiewest/agents/issues
 resolution: workspace

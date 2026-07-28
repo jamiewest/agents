@@ -108,12 +108,58 @@ void main() {
       expect(toolNames(result.tools), ['set_wake_lock']);
     });
 
+    test('a pushover client adds the send and quota tools, no provider', () {
+      final result = build(
+        FlutterHarnessAgentOptions()
+          ..enableTemporal = false
+          ..enableDeviceInfo = false
+          ..enableAppInfo = false
+          ..enableConnectivity = false
+          ..pushoverClient = PushoverClient(token: 'app-token', user: 'user'),
+      );
+
+      expect(result.providers, isEmpty);
+      expect(toolNames(result.tools), [
+        'send_pushover_notification',
+        'get_pushover_limits',
+      ]);
+    });
+
+    test('pushover tool options select the quota and receipt tools', () {
+      final result = build(
+        FlutterHarnessAgentOptions()
+          ..enableTemporal = false
+          ..enableDeviceInfo = false
+          ..enableAppInfo = false
+          ..enableConnectivity = false
+          ..pushoverClient = PushoverClient(token: 'app-token', user: 'user')
+          ..pushoverToolOptions = (PushoverToolOptions()
+            ..includeLimitsTool = false
+            ..allowEmergencyPriority = true),
+      );
+
+      expect(toolNames(result.tools), [
+        'send_pushover_notification',
+        'check_pushover_receipt',
+      ]);
+    });
+
+    test('no pushover client, no pushover tools', () {
+      final result = build(FlutterHarnessAgentOptions());
+
+      expect(
+        toolNames(result.tools),
+        isNot(contains('send_pushover_notification')),
+      );
+    });
+
     test('connectivity stays last with every capability enabled', () {
       final result = build(
         FlutterHarnessAgentOptions()
           ..enableLocation = true
           ..enableNetworkInfo = true
-          ..enableWakeLock = true,
+          ..enableWakeLock = true
+          ..pushoverClient = PushoverClient(token: 'app-token', user: 'user'),
       );
 
       expect(result.providers.last, isA<ConnectivityContextProvider>());
@@ -255,6 +301,9 @@ void main() {
   group('FlutterHarnessAgentOptions.clone', () {
     test('preserves standard options and capability flags', () {
       final marker = _MarkerProvider();
+      final pushoverClient = PushoverClient(token: 'app-token', user: 'user');
+      final pushoverToolOptions = PushoverToolOptions()
+        ..allowEmergencyPriority = true;
       final original =
           FlutterHarnessAgentOptions(
               enableConnectivity: false,
@@ -263,7 +312,9 @@ void main() {
             )
             ..harnessInstructions = 'keep me'
             ..aiContextProviders = [marker]
-            ..chatOptions = (ChatOptions()..temperature = 0.25);
+            ..chatOptions = (ChatOptions()..temperature = 0.25)
+            ..pushoverClient = pushoverClient
+            ..pushoverToolOptions = pushoverToolOptions;
 
       final copy = original.clone();
 
@@ -273,6 +324,8 @@ void main() {
       expect(copy.timeZoneId, 'Asia/Tokyo');
       expect(copy.aiContextProviders, [marker]);
       expect(copy.chatOptions!.temperature, 0.25);
+      expect(copy.pushoverClient, same(pushoverClient));
+      expect(copy.pushoverToolOptions, same(pushoverToolOptions));
     });
 
     test('isolates the provider list and chatOptions from the original', () {
