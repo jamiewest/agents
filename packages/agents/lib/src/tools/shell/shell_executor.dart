@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:extensions/system.dart';
 
+import 'shell_output_chunk.dart';
 import 'shell_result.dart';
 
 /// Pluggable backend that runs shell commands on behalf of a tool.
@@ -19,6 +22,13 @@ import 'shell_result.dart';
 /// process backs every call and carries mutable state. Build one executor per
 /// session and dispose it when the session ends.
 abstract class ShellExecutor {
+  /// Live stdout and stderr produced by commands run through this executor.
+  ///
+  /// Built-in executors expose a broadcast stream. The default is an empty
+  /// stream so custom executors remain source-compatible.
+  Stream<ShellOutputChunk> get outputEvents =>
+      const Stream<ShellOutputChunk>.empty();
+
   /// Eagerly initialize the backend. Idempotent; subsequent calls are no-ops
   /// once the executor is started.
   Future<void> initializeAsync({CancellationToken? cancellationToken}) =>

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math';
 
@@ -13,6 +14,7 @@ import 'process_exit.dart';
 import 'shell_executor.dart';
 import 'shell_family.dart';
 import 'shell_mode.dart';
+import 'shell_output_chunk.dart';
 import 'shell_policy.dart';
 import 'shell_resolver.dart';
 import 'shell_result.dart';
@@ -36,8 +38,14 @@ class DockerShellExecutor extends ShellExecutor {
       containerName = (options?.containerName) ?? 'af-shell-${_randomSuffix()}';
 
   final DockerShellExecutorOptions _options;
+  final StreamController<ShellOutputChunk> _outputController =
+      StreamController<ShellOutputChunk>.broadcast(sync: true);
   ShellSession? _session;
   bool _containerStarted = false;
+  int _nextCommandId = 0;
+
+  @override
+  Stream<ShellOutputChunk> get outputEvents => _outputController.stream;
 
   /// The name of the Docker container managed by this executor.
   final String containerName;
@@ -171,10 +179,11 @@ class DockerShellExecutor extends ShellExecutor {
       }
     }
 
+    final commandId = _nextCommandId++;
     if (_options.mode == ShellMode.stateless) {
-      return _runStateless(command);
+      return _runStateless(command, commandId);
     }
-    return _runPersistent(command);
+    return _runPersistent(command, commandId);
   }
 
   Future<void> _ensureContainerRunning() async {
@@ -208,7 +217,7 @@ class DockerShellExecutor extends ShellExecutor {
     }
   }
 
-  Future<ShellResult> _runStateless(String command) async {
+  Future<ShellResult> _runStateless(String command, int commandId) async {
     final resolved = ShellResolver.resolveArgv(['/bin/bash']);
     final argv = resolved.statelessArgvForCommand(command);
 
@@ -251,11 +260,17 @@ class DockerShellExecutor extends ShellExecutor {
     final stdoutDone = process.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
-        .forEach(stdoutBuf.appendLine);
+        .forEach((line) {
+          stdoutBuf.appendLine(line);
+          _emitOutput(commandId, command, ShellOutputChannel.stdout, line);
+        });
     final stderrDone = process.stderr
         .transform(utf8.decoder)
         .transform(const LineSplitter())
-        .forEach(stderrBuf.appendLine);
+        .forEach((line) {
+          stderrBuf.appendLine(line);
+          _emitOutput(commandId, command, ShellOutputChannel.stderr, line);
+        });
 
     final exit = await waitForProcessExit(process, timeout: _options.timeout);
 
@@ -275,7 +290,7 @@ class DockerShellExecutor extends ShellExecutor {
     );
   }
 
-  Future<ShellResult> _runPersistent(String command) async {
+  Future<ShellResult> _runPersistent(String command, int commandId) async {
     if (_session == null) {
       await _ensureContainerRunning();
       final execArgv = buildExecArgv(_options.dockerBinary, containerName);
@@ -293,7 +308,37 @@ class DockerShellExecutor extends ShellExecutor {
       command,
       timeout: _options.timeout,
       maxOutputBytes: _options.maxOutputBytes,
+      onOutput: (channel, line) {
+        _emitOutput(commandId, command, channel, line);
+      },
     );
+  }
+
+  void _emitOutput(
+    int commandId,
+    String command,
+    ShellOutputChannel channel,
+    String line,
+  ) {
+    final chunk = ShellOutputChunk(
+      commandId: commandId,
+      command: command,
+      channel: channel,
+      text: '$line\n',
+    );
+    if (!_outputController.isClosed) {
+      _outputController.add(chunk);
+    }
+    try {
+      _options.onOutput?.call(chunk);
+    } catch (error, stackTrace) {
+      developer.log(
+        'DockerShellExecutor onOutput callback failed.',
+        name: 'agents.shell',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   @override
@@ -307,6 +352,7 @@ class DockerShellExecutor extends ShellExecutor {
         await Process.run(_options.dockerBinary, ['rm', '-f', containerName]);
       } catch (_) {}
     }
+    await _outputController.close();
   }
 
   // ── AI function ───────────────────────────────────────────────────────────

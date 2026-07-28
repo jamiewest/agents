@@ -1,22 +1,28 @@
 name: agents_flutter
 description: >-
-  Flutter device-capability context providers and tools for the agents
-  package, feeding signals such as date and connectivity to an agent through
-  the AIContextProvider interface.
-version: 0.0.1
-publish_to: none
+  Flutter integration for the agents framework: a preconfigured harness agent,
+  device-capability context providers and tools, chat history persistence, and
+  configurable model profiles.
+version: 0.1.0
 repository: https://github.com/jamiewest/agents
+issue_tracker: https://github.com/jamiewest/agents/issues
 resolution: workspace
+
+topics:
+  - ai
+  - agents
+  - llm
+  - chat
 
 environment:
   sdk: ^3.12.0
-  flutter: ">=1.17.0"
+  flutter: ">=3.44.0"
 
 dependencies:
   a2a: ^4.2.0
-  agents:
-    path: ../agents
+  agents: ^1.5.0
   anthropic_sdk_dart: ^5.0.0
+  archive: ^4.0.9
   background_downloader: ^9.5.5
   clock: ^1.1.2
   connectivity_plus: ^7.1.1
@@ -36,12 +42,14 @@ dependencies:
   geocoding: ^4.0.0
   geolocator: ^14.0.3
   http: ^1.6.0
+  http_parser: ^4.1.2
   image_picker: ^1.2.2
   intl: ^0.20.2
   mime: ^2.0.0
   network_info_plus: ^8.1.0
   package_info_plus: ^10.2.0
   path_provider: ^2.1.6
+  pointycastle: ^4.0.0
   sembast: ^3.8.9+1
   sembast_web: ^2.4.5+1
   shared_preferences: ^2.5.5

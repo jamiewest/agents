@@ -1,9 +1,42 @@
 # agents_flutter
 
-Flutter device-capability providers and tools for the
-[`agents`](../agents) package. Each provider feeds a device signal to an agent
-through the `AIContextProvider` interface; matching tools let the agent query a
-signal on demand.
+Flutter integration layer for the
+[`agents`](https://pub.dev/packages/agents) package: a preconfigured harness
+agent, device-capability context providers and tools, chat history persistence,
+and configurable model profiles.
+
+Each device-capability provider feeds a signal to an agent through the
+`AIContextProvider` interface; matching tools let the agent query a signal on
+demand.
+
+## Installation
+
+```sh
+flutter pub add agents_flutter
+```
+
+A runnable single-screen app lives in
+[`example/`](https://github.com/jamiewest/agents/tree/main/packages/agents_flutter/example).
+
+### Platform setup
+
+This package pulls in plugins that need platform permission declarations. Only
+the capabilities you actually enable require them, but iOS builds are rejected
+at review if a linked framework's usage description is missing — so declare the
+ones your app uses:
+
+| Capability | iOS `Info.plist` | Android `AndroidManifest.xml` |
+|---|---|---|
+| Location (`enableLocation`) | `NSLocationWhenInUseUsageDescription` | `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` |
+| Network info (`enableNetworkInfo`) | `NSLocationWhenInUseUsageDescription` (iOS gates SSID behind location) | `ACCESS_WIFI_STATE`, `ACCESS_NETWORK_STATE` |
+| Camera / image capture | `NSCameraUsageDescription` | `CAMERA` |
+| Photo picker | `NSPhotoLibraryUsageDescription` | — |
+| Audio capture | `NSMicrophoneUsageDescription` | `RECORD_AUDIO` |
+| Downloads, model fetching | — | `INTERNET` |
+
+On macOS, `flutter_secure_storage` also needs the Keychain Sharing capability
+in both the debug and release entitlements files. See each plugin's own README
+for the authoritative list.
 
 ## What's included
 
@@ -20,8 +53,9 @@ the `LocationContextProvider` + `get_current_location`/`geocode_address`, and th
 ## Flutter harness agent
 
 `FlutterHarnessAgent` is the one-call way to get a full
-[`HarnessAgent`](../agents) — compaction, function invocation, per-call chat
-history persistence — preconfigured with the Flutter capabilities. Safe-core
+[`HarnessAgent`](https://pub.dev/packages/agents) — compaction, function
+invocation, per-call chat history persistence — preconfigured with the Flutter
+capabilities. Safe-core
 capabilities (temporal, connectivity, app info, device info) are on by default;
 location, detailed network info, and the wake-lock tool are opt-in.
 
@@ -82,7 +116,7 @@ app or CPU running in the background.
 
 ## Authoring a new device-context provider
 
-One folder per capability, mirroring `temporal_service/` and `connectivity/`:
+One folder per capability, mirroring `temporal/` and `connectivity/`:
 
 - `<capability>_context_provider.dart` — extends `AIContextProvider`.
 - `<capability>_monitor.dart` (optional) — for volatile device state, subscribe

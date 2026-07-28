@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 import 'package:agents/src/tools/shell/local_shell_executor.dart';
 import 'package:agents/src/tools/shell/local_shell_executor_options.dart';
 import 'package:agents/src/tools/shell/shell_mode.dart';
+import 'package:agents/src/tools/shell/shell_output_chunk.dart';
 import 'package:agents/src/tools/shell/shell_policy.dart';
 
 // Deny-list patterns mirroring the C# test suite. ShellPolicy ships with no
@@ -183,6 +184,63 @@ void main() {
       expect(result.stderr, contains('err-from-shell'));
     });
 
+    test('stateless — emits live output before completion', () async {
+      final callbackChunks = <ShellOutputChunk>[];
+      final streamChunks = <ShellOutputChunk>[];
+      final shell = LocalShellExecutor(
+        LocalShellExecutorOptions(
+          mode: ShellMode.stateless,
+          timeout: const Duration(seconds: 20),
+          onOutput: callbackChunks.add,
+        ),
+      );
+      final subscription = shell.outputEvents.listen(streamChunks.add);
+      final firstOutput = shell.outputEvents.first;
+      final script = Platform.isWindows
+          ? "Write-Output 'live-start'; "
+                'Start-Sleep -Milliseconds 700; '
+                "Write-Output 'live-end'"
+          : "printf 'live-start\\n'; sleep 0.7; printf 'live-end\\n'";
+
+      var completed = false;
+      final resultFuture = shell.runAsync(script).whenComplete(() {
+        completed = true;
+      });
+
+      final first = await firstOutput.timeout(const Duration(seconds: 5));
+      expect(completed, isFalse);
+      expect(first.commandId, equals(0));
+      expect(first.command, equals(script));
+      expect(first.channel, equals(ShellOutputChannel.stdout));
+      expect(first.text, contains('live-start'));
+
+      final result = await resultFuture;
+      await subscription.cancel();
+      await shell.dispose();
+
+      expect(result.stdout, contains('live-end'));
+      expect(
+        streamChunks.map((chunk) => chunk.text).join(),
+        contains('live-end'),
+      );
+      expect(callbackChunks, equals(streamChunks));
+    });
+
+    test('output callback exceptions do not interrupt execution', () async {
+      final shell = LocalShellExecutor(
+        LocalShellExecutorOptions(
+          mode: ShellMode.stateless,
+          onOutput: (_) => throw StateError('callback failed'),
+        ),
+      );
+
+      final result = await shell.runAsync('echo callback-safe');
+      await shell.dispose();
+
+      expect(result.exitCode, equals(0));
+      expect(result.stdout, contains('callback-safe'));
+    });
+
     test('persistent — carries working directory across calls', () async {
       final shell = LocalShellExecutor(
         LocalShellExecutorOptions(
@@ -225,6 +283,85 @@ void main() {
       await shell.dispose();
       expect(read.exitCode, equals(0));
       expect(read.stdout, contains('persisted-value'));
+    });
+
+    test('persistent — streams and captures stdout and stderr', () async {
+      final chunks = <ShellOutputChunk>[];
+      final shell = LocalShellExecutor(
+        LocalShellExecutorOptions(
+          mode: ShellMode.persistent,
+          timeout: const Duration(seconds: 20),
+          onOutput: chunks.add,
+        ),
+      );
+      final firstOutput = shell.outputEvents.first;
+      final script = Platform.isWindows
+          ? "Write-Output 'persistent-out'; "
+                "[Console]::Error.WriteLine('persistent-err'); "
+                'Start-Sleep -Milliseconds 700; '
+                "Write-Output 'persistent-done'"
+          : "printf 'persistent-out\\n'; "
+                "printf 'persistent-err\\n' >&2; "
+                "sleep 0.7; printf 'persistent-done\\n'";
+
+      var completed = false;
+      final resultFuture = shell.runAsync(script).whenComplete(() {
+        completed = true;
+      });
+
+      final first = await firstOutput.timeout(const Duration(seconds: 5));
+      expect(completed, isFalse);
+      expect(first.commandId, equals(0));
+
+      final result = await resultFuture;
+      await shell.dispose();
+
+      expect(result.exitCode, equals(0));
+      expect(result.stdout, contains('persistent-out'));
+      expect(result.stdout, contains('persistent-done'));
+      expect(result.stderr, contains('persistent-err'));
+      expect(
+        chunks.any(
+          (chunk) =>
+              chunk.channel == ShellOutputChannel.stdout &&
+              chunk.text.contains('persistent-out'),
+        ),
+        isTrue,
+      );
+      expect(
+        chunks.any(
+          (chunk) =>
+              chunk.channel == ShellOutputChannel.stderr &&
+              chunk.text.contains('persistent-err'),
+        ),
+        isTrue,
+      );
+      expect(chunks.every((chunk) => chunk.commandId == 0), isTrue);
+    });
+
+    test('live output command IDs increase between commands', () async {
+      final chunks = <ShellOutputChunk>[];
+      final shell = LocalShellExecutor(
+        LocalShellExecutorOptions(
+          mode: ShellMode.persistent,
+          onOutput: chunks.add,
+        ),
+      );
+
+      await shell.runAsync('echo first-command');
+      await shell.runAsync('echo second-command');
+      await shell.dispose();
+
+      final firstIds = chunks
+          .where((chunk) => chunk.text.contains('first-command'))
+          .map((chunk) => chunk.commandId);
+      final secondIds = chunks
+          .where((chunk) => chunk.text.contains('second-command'))
+          .map((chunk) => chunk.commandId);
+      expect(firstIds, isNotEmpty);
+      expect(secondIds, isNotEmpty);
+      expect(firstIds, everyElement(0));
+      expect(secondIds, everyElement(1));
     });
 
     test('persistent — timeout returns exit code 124', () async {

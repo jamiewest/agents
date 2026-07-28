@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'head_tail_buffer.dart';
 import 'shell_family.dart';
+import 'shell_output_chunk.dart';
 import 'shell_result.dart';
 
 /// Manages a persistent shell subprocess using a sentinel protocol to bracket
@@ -43,9 +44,13 @@ class ShellSession {
 
   Process? _process;
   StreamSubscription<String>? _stdoutSub;
+  StreamSubscription<String>? _stderrSub;
   final List<String> _stdoutLines = [];
+  final List<String> _stderrLines = [];
   String? _currentSentinelEnd;
   Completer<int>? _commandCompleter;
+  void Function(ShellOutputChannel channel, String line)? _onOutput;
+  bool _commandActive = false;
   bool _initialized = false;
   int _cmdCounter = 0;
 
@@ -186,12 +191,10 @@ class ShellSession {
     );
     _process = process;
 
-    // Drain stderr to prevent pipe stalls. Persistent-mode stderr is not
-    // captured per-command (only stateless mode captures stderr).
-    process.stderr
+    _stderrSub = process.stderr
         .transform(utf8.decoder)
         .transform(const LineSplitter())
-        .listen((_) {});
+        .listen(_onStderrLine);
 
     // Subscribe to stdout; dispatch each line to the active command.
     _stdoutSub = process.stdout
@@ -214,6 +217,13 @@ class ShellSession {
     }
 
     _stdoutLines.add(line);
+    _onOutput?.call(ShellOutputChannel.stdout, line);
+  }
+
+  void _onStderrLine(String line) {
+    if (!_commandActive) return; // Idle — discard startup noise.
+    _stderrLines.add(line);
+    _onOutput?.call(ShellOutputChannel.stderr, line);
   }
 
   // ── Command execution ─────────────────────────────────────────────────────
@@ -225,6 +235,7 @@ class ShellSession {
     Duration? timeout,
     int maxOutputBytes = 64 * 1024,
     String? confineWorkingDirectory,
+    void Function(ShellOutputChannel channel, String line)? onOutput,
   }) async {
     final process = _process;
     if (process == null) throw StateError('ShellSession not initialized.');
@@ -233,7 +244,10 @@ class ShellSession {
         '__AF_END_${DateTime.now().microsecondsSinceEpoch}_${_cmdCounter++}__';
     _currentSentinelEnd = sentinelEnd;
     _stdoutLines.clear();
+    _stderrLines.clear();
     _commandCompleter = Completer<int>();
+    _onOutput = onOutput;
+    _commandActive = true;
 
     final wrappedCmd = _wrapCommand(
       command,
@@ -255,6 +269,8 @@ class ShellSession {
           timedOut = true;
           _commandCompleter = null;
           _currentSentinelEnd = null;
+          _commandActive = false;
+          _onOutput = null;
           try {
             process.kill(ProcessSignal.sigint);
           } catch (_) {}
@@ -265,20 +281,31 @@ class ShellSession {
       exitCode = await _commandCompleter!.future;
     }
 
+    if (!timedOut) {
+      // Let late stderr from the completing command drain before snapshotting.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
     stopwatch.stop();
 
-    final buf = HeadTailBuffer(maxOutputBytes);
+    final stdoutBuf = HeadTailBuffer(maxOutputBytes);
     for (final line in _stdoutLines) {
-      buf.appendLine(line);
+      stdoutBuf.appendLine(line);
     }
-    final (stdout, truncated) = buf.toFinalString();
+    final stderrBuf = HeadTailBuffer(maxOutputBytes);
+    for (final line in _stderrLines) {
+      stderrBuf.appendLine(line);
+    }
+    final (stdout, stdoutTruncated) = stdoutBuf.toFinalString();
+    final (stderr, stderrTruncated) = stderrBuf.toFinalString();
+    _commandActive = false;
+    _onOutput = null;
 
     return ShellResult(
       stdout: stdout,
-      stderr: '',
+      stderr: stderr,
       exitCode: exitCode,
       duration: stopwatch.elapsed,
-      truncated: truncated,
+      truncated: stdoutTruncated || stderrTruncated,
       timedOut: timedOut,
     );
   }
@@ -333,6 +360,10 @@ class ShellSession {
   Future<void> dispose() async {
     await _stdoutSub?.cancel();
     _stdoutSub = null;
+    await _stderrSub?.cancel();
+    _stderrSub = null;
+    _commandActive = false;
+    _onOutput = null;
     final process = _process;
     _process = null;
     if (process != null) {

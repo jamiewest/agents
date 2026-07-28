@@ -1,6 +1,7 @@
 import 'container_user.dart';
 import 'docker_network_mode.dart';
 import 'shell_mode.dart';
+import 'shell_output_chunk.dart';
 import 'shell_policy.dart';
 
 /// Configuration options for [DockerShellExecutor].
@@ -24,6 +25,7 @@ class DockerShellExecutorOptions {
     this.timeout = const Duration(seconds: 30),
     this.maxOutputBytes = 64 * 1024,
     this.dockerBinary = 'docker',
+    this.onOutput,
   });
 
   /// OCI container image to use. Must include bash and sleep.
@@ -81,4 +83,10 @@ class DockerShellExecutorOptions {
 
   /// Docker (or compatible runtime) binary name or path. Defaults to `'docker'`.
   final String dockerBinary;
+
+  /// Optional callback invoked for each stdout or stderr line while a command
+  /// is running.
+  ///
+  /// Callback exceptions are logged and do not interrupt command execution.
+  final ShellOutputCallback? onOutput;
 }

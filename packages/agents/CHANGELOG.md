@@ -58,6 +58,10 @@
 - Export `InvokedContext` and `InvokingContext` as standalone libraries
   (previously hidden from the public API) and publicly export
   `ChatMessageJsonConverter`.
+- Add live shell output reporting: `ShellExecutor.outputEvents` broadcasts
+  typed `ShellOutputChunk` values while commands run, local and Docker options
+  accept an `onOutput` callback, and persistent shell sessions now capture
+  stderr instead of discarding it.
 - Fix `AIContextProvider.getService` to resolve requests for concrete
   provider types (matching the `runtimeType` idiom used by `AgentSession`
   and `DelegatingAIAgent`); concrete-type lookups previously returned

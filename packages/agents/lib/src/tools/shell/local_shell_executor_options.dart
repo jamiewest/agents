@@ -1,4 +1,5 @@
 import 'shell_mode.dart';
+import 'shell_output_chunk.dart';
 import 'shell_policy.dart';
 
 /// Configuration options for [LocalShellExecutor].
@@ -16,6 +17,7 @@ class LocalShellExecutorOptions {
     this.timeout = const Duration(seconds: 30),
     this.maxOutputBytes = 64 * 1024,
     this.acknowledgeUnsafe = false,
+    this.onOutput,
   });
 
   /// Whether to run each command in a fresh process or reuse a persistent
@@ -60,4 +62,10 @@ class LocalShellExecutorOptions {
   /// commands without approval is unsafe. For [DockerShellExecutor], no
   /// acknowledgement is required.
   final bool acknowledgeUnsafe;
+
+  /// Optional callback invoked for each stdout or stderr line while a command
+  /// is running.
+  ///
+  /// Callback exceptions are logged and do not interrupt command execution.
+  final ShellOutputCallback? onOutput;
 }

@@ -268,6 +268,7 @@ export 'src/tools/shell/shell_environment_snapshot.dart';
 export 'src/tools/shell/shell_executor.dart';
 export 'src/tools/shell/shell_family.dart';
 export 'src/tools/shell/shell_mode.dart';
+export 'src/tools/shell/shell_output_chunk.dart';
 export 'src/tools/shell/shell_policy.dart';
 export 'src/tools/shell/shell_resolver.dart';
 export 'src/tools/shell/shell_result.dart';
