@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0
+
+- Require `agents: ^1.6.0`, including the new live shell output stream and
+  callback APIs and persistent-shell stderr capture.
+
 ## 0.1.0
 
 First public release. Flutter integration layer for the
