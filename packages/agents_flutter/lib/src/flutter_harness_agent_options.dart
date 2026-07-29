@@ -2,6 +2,7 @@ import 'package:agents/agents.dart';
 
 import 'pushover/pushover_api.dart';
 import 'pushover/pushover_tool.dart';
+import 'web/web_block_scorer.dart';
 import 'web/web_navigation_policy.dart';
 import 'web/web_page_loader.dart';
 import 'web/web_search_source.dart';
@@ -37,6 +38,7 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
     this.webPageLoader,
     this.webNavigationPolicy,
     this.webSearchToolOptions,
+    this.webBlockScorer,
   });
 
   /// When `true`, adds the temporal context provider and `get_current_time`
@@ -122,6 +124,13 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
   /// Limits and timeouts for the local web tools.
   WebSearchToolOptions? webSearchToolOptions;
 
+  /// Ranks page blocks for the query-aware web tools, or `null` for the
+  /// built-in lexical scorer.
+  ///
+  /// The seam for semantic ranking: a host can supply an embedding-backed
+  /// scorer without touching the tools.
+  BlockScorer? webBlockScorer;
+
   /// Returns a shallow copy of these options.
   ///
   /// [chatOptions] is cloned and [aiContextProviders] is copied into a new list,
@@ -144,6 +153,7 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
         webPageLoader: webPageLoader,
         webNavigationPolicy: webNavigationPolicy,
         webSearchToolOptions: webSearchToolOptions,
+        webBlockScorer: webBlockScorer,
       )
       ..id = id
       ..name = name

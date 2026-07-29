@@ -311,6 +311,8 @@ void main() {
       expect(toolNames(options.chatOptions!.tools!.toList()), <String>[
         webSearchToolName,
         openWebPageToolName,
+        expandPageToolName,
+        findInPageToolName,
       ]);
     });
   });

@@ -108,7 +108,7 @@ void main() {
     test('opens an arbitrary direct URL without a prior search', () async {
       final loader = _FakePageLoader();
       final tools = createWebSearchTools(pageLoader: loader);
-      final open = tools.single;
+      final open = tools.first;
 
       final result =
           await open.invoke(
@@ -143,7 +143,7 @@ void main() {
       final tools = createWebSearchTools(pageLoader: loader);
       final source = CancellationTokenSource();
 
-      await tools.single.invoke(
+      await tools.first.invoke(
         AIFunctionArguments(<String, Object?>{'url': 'https://example.com'}),
         cancellationToken: source.token,
       );
@@ -154,7 +154,7 @@ void main() {
 
     test('returns invalid_argument without calling the loader', () async {
       final loader = _FakePageLoader();
-      final open = createWebSearchTools(pageLoader: loader).single;
+      final open = createWebSearchTools(pageLoader: loader).first;
 
       final result =
           await open.invoke(
@@ -204,7 +204,7 @@ void main() {
       expect(results.first['url'], 'https://example.com/one');
     });
 
-    test('source-only configuration creates both tools', () {
+    test('source-only configuration creates all four tools', () {
       final tools = createWebSearchTools(
         searchSource: _FakeSearchSource(const <WebSearchResult>[]),
       );
@@ -212,6 +212,8 @@ void main() {
       expect(tools.map((tool) => tool.name), <String>[
         webSearchToolName,
         openWebPageToolName,
+        expandPageToolName,
+        findInPageToolName,
       ]);
     });
 
@@ -313,10 +315,259 @@ void main() {
       expect(result['message'], contains('finance'));
     });
 
-    test('page-loader-only configuration creates only open_web_page', () {
+    test('page-loader-only configuration omits only the search tool', () {
       final tools = createWebSearchTools(pageLoader: _FakePageLoader());
 
-      expect(tools.map((tool) => tool.name), <String>[openWebPageToolName]);
+      expect(tools.map((tool) => tool.name), <String>[
+        openWebPageToolName,
+        expandPageToolName,
+        findInPageToolName,
+      ]);
+    });
+
+    test('an objective focuses open_web_page on matching blocks', () async {
+      final tools = createWebSearchTools(pageLoader: _FakeBlockPageLoader());
+
+      final opened =
+          await tools.first.invoke(
+                AIFunctionArguments(<String, Object?>{
+                  'url': 'https://example.gov/guide',
+                  'objective': 'fees for electronic copies',
+                }),
+              )
+              as Map<String, Object?>;
+
+      expect(opened['pageId'], 'page-1');
+      final content = opened['content']! as String;
+      expect(content, contains('Focused on: fees for electronic copies'));
+      expect(content, contains('### Fees'));
+      expect(content, contains('Electronic copies are twenty-five dollars.'));
+      expect(content, contains('[…]'));
+      expect(content, isNot(contains('Intro paragraph.')));
+      expect(opened.containsKey('note'), isFalse);
+    });
+
+    test(
+      'an unmatched objective falls back to lead content with a note',
+      () async {
+        final tools = createWebSearchTools(pageLoader: _FakeBlockPageLoader());
+
+        final opened =
+            await tools.first.invoke(
+                  AIFunctionArguments(<String, Object?>{
+                    'url': 'https://example.gov/guide',
+                    'objective': 'quantum chromodynamics',
+                  }),
+                )
+                as Map<String, Object?>;
+
+        expect(opened['note'], contains('Nothing matched'));
+        expect(opened['content'], contains('Intro paragraph.'));
+      },
+    );
+
+    test('find_in_page ranks cached blocks for a new question', () async {
+      final tools = createWebSearchTools(pageLoader: _FakeBlockPageLoader());
+      final find = tools.singleWhere((tool) => tool.name == findInPageToolName);
+      await tools.first.invoke(
+        AIFunctionArguments(<String, Object?>{
+          'url': 'https://example.gov/guide',
+        }),
+      );
+
+      final found =
+          await find.invoke(
+                AIFunctionArguments(<String, Object?>{
+                  'pageId': 'page-1',
+                  'query': 'electronic copies',
+                }),
+              )
+              as Map<String, Object?>;
+      expect(found['status'], 'success');
+      expect(found['blocks'], contains('b3'));
+      expect(
+        found['content'],
+        contains('Electronic copies are twenty-five dollars.'),
+      );
+
+      final unmatched =
+          await find.invoke(
+                AIFunctionArguments(<String, Object?>{
+                  'pageId': 'page-1',
+                  'query': 'zebra migration',
+                }),
+              )
+              as Map<String, Object?>;
+      expect(unmatched['status'], 'no_matches');
+      expect(unmatched['outline'], isNotEmpty);
+
+      final expired =
+          await find.invoke(
+                AIFunctionArguments(<String, Object?>{
+                  'pageId': 'page-9',
+                  'query': 'anything',
+                }),
+              )
+              as Map<String, Object?>;
+      expect(expired['status'], 'not_found');
+    });
+
+    test('open_web_page returns a pageId that expand_page resolves', () async {
+      final tools = createWebSearchTools(pageLoader: _FakeBlockPageLoader());
+      final open = tools.first;
+      final expand = tools.singleWhere(
+        (tool) => tool.name == expandPageToolName,
+      );
+
+      final opened =
+          await open.invoke(
+                AIFunctionArguments(<String, Object?>{
+                  'url': 'https://example.gov/guide',
+                }),
+              )
+              as Map<String, Object?>;
+      expect(opened['pageId'], 'page-1');
+      expect(opened['content'], contains('# Fixture'));
+
+      final expanded =
+          await expand.invoke(
+                AIFunctionArguments(<String, Object?>{
+                  'pageId': 'page-1',
+                  'blockIds': <Object?>['b3'],
+                }),
+              )
+              as Map<String, Object?>;
+      expect(expanded['status'], 'success');
+      expect(expanded['blocks'], <String>['b3']);
+      expect(
+        expanded['content'],
+        contains('Electronic copies are twenty-five dollars.'),
+      );
+      expect(expanded['content'], contains('Under: Guide > Fees'));
+    });
+
+    test('expand_page expands a whole section by heading', () async {
+      final tools = createWebSearchTools(pageLoader: _FakeBlockPageLoader());
+      await tools.first.invoke(
+        AIFunctionArguments(<String, Object?>{
+          'url': 'https://example.gov/guide',
+        }),
+      );
+
+      final expanded =
+          await tools
+                  .singleWhere((tool) => tool.name == expandPageToolName)
+                  .invoke(
+                    AIFunctionArguments(<String, Object?>{
+                      'pageId': 'page-1',
+                      'heading': 'fees',
+                    }),
+                  )
+              as Map<String, Object?>;
+      expect(expanded['status'], 'success');
+      expect(expanded['blocks'], <String>['b2', 'b3']);
+      expect(expanded['content'], contains('### Fees'));
+    });
+
+    test('expand_page reports expired and malformed requests', () async {
+      final tools = createWebSearchTools(pageLoader: _FakeBlockPageLoader());
+      final expand = tools.singleWhere(
+        (tool) => tool.name == expandPageToolName,
+      );
+
+      final missing =
+          await expand.invoke(
+                AIFunctionArguments(<String, Object?>{'pageId': 'page-9'}),
+              )
+              as Map<String, Object?>;
+      expect(missing['status'], 'not_found');
+      expect(missing['message'], contains('open_web_page'));
+
+      await tools.first.invoke(
+        AIFunctionArguments(<String, Object?>{
+          'url': 'https://example.gov/guide',
+        }),
+      );
+      final selectorless =
+          await expand.invoke(
+                AIFunctionArguments(<String, Object?>{'pageId': 'page-1'}),
+              )
+              as Map<String, Object?>;
+      expect(selectorless['status'], 'invalid_argument');
+      expect(selectorless['outline'], contains('# Guide [b0-b3]'));
+
+      final unknownBlocks =
+          await expand.invoke(
+                AIFunctionArguments(<String, Object?>{
+                  'pageId': 'page-1',
+                  'blockIds': <Object?>['b99'],
+                }),
+              )
+              as Map<String, Object?>;
+      expect(unknownBlocks['status'], 'invalid_argument');
+      expect(unknownBlocks['message'], contains('b0-b3'));
+
+      final wrongHeading =
+          await expand.invoke(
+                AIFunctionArguments(<String, Object?>{
+                  'pageId': 'page-1',
+                  'heading': 'Pricing',
+                }),
+              )
+              as Map<String, Object?>;
+      expect(wrongHeading['status'], 'invalid_argument');
+      expect(wrongHeading['message'], contains('Pricing'));
+    });
+
+    test('the page cache honors maxCachedPages', () async {
+      final tools = createWebSearchTools(
+        pageLoader: _FakeBlockPageLoader(),
+        options: WebSearchToolOptions(maxCachedPages: 1),
+      );
+      await tools.first.invoke(
+        AIFunctionArguments(<String, Object?>{'url': 'https://a.example.com'}),
+      );
+      await tools.first.invoke(
+        AIFunctionArguments(<String, Object?>{'url': 'https://b.example.com'}),
+      );
+
+      final evicted =
+          await tools
+                  .singleWhere((tool) => tool.name == expandPageToolName)
+                  .invoke(
+                    AIFunctionArguments(<String, Object?>{
+                      'pageId': 'page-1',
+                      'blockIds': <Object?>['b0'],
+                    }),
+                  )
+              as Map<String, Object?>;
+      expect(evicted['status'], 'not_found');
+
+      final kept =
+          await tools
+                  .singleWhere((tool) => tool.name == expandPageToolName)
+                  .invoke(
+                    AIFunctionArguments(<String, Object?>{
+                      'pageId': 'page-2',
+                      'blockIds': <Object?>['b0'],
+                    }),
+                  )
+              as Map<String, Object?>;
+      expect(kept['status'], 'success');
+    });
+
+    test('loads without blocks return no pageId', () async {
+      final tools = createWebSearchTools(pageLoader: _FakePageLoader());
+
+      final opened =
+          await tools.first.invoke(
+                AIFunctionArguments(<String, Object?>{
+                  'url': 'https://example.com',
+                }),
+              )
+              as Map<String, Object?>;
+
+      expect(opened.containsKey('pageId'), isFalse);
     });
 
     test('validates option bounds', () {
@@ -382,6 +633,59 @@ final class _FakeSearchSource implements WebSearchSource {
     this.query = query;
     this.maxResults = maxResults;
     return results;
+  }
+}
+
+/// Serves a fixed block-structured page for any URL, like a Phase 1
+/// extraction would produce.
+final class _FakeBlockPageLoader implements WebPageLoader {
+  @override
+  Future<WebPageContent> load(
+    Uri url, {
+    CancellationToken? cancellationToken,
+  }) async {
+    final extraction = WebPageExtraction.parse(<String, Object?>{
+      'meta': <String, Object?>{'title': 'Fixture'},
+      'blocks': <Object?>[
+        <String, Object?>{
+          'kind': 'heading',
+          'level': 1,
+          'text': 'Guide',
+          'container': 'main',
+        },
+        <String, Object?>{
+          'kind': 'paragraph',
+          'text': 'Intro paragraph.',
+          'container': 'main',
+        },
+        <String, Object?>{
+          'kind': 'heading',
+          'level': 2,
+          'text': 'Fees',
+          'container': 'main',
+        },
+        <String, Object?>{
+          'kind': 'paragraph',
+          'text': 'Electronic copies are twenty-five dollars.',
+          'container': 'main',
+        },
+      ],
+    });
+    final rendered = renderWebPageMarkdown(
+      extraction: extraction,
+      sourceUrl: url,
+      maxCharacters: 20000,
+    );
+    return WebPageContent(
+      status: WebPageLoadStatus.success,
+      requestedUrl: url,
+      finalUrl: url,
+      title: extraction.title,
+      text: extraction.plainText,
+      blocks: extraction.blocks,
+      outline: extraction.outline,
+      contentMarkdown: rendered.markdown,
+    );
   }
 }
 

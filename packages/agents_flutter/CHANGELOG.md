@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.6.1
+
+- `HeadlessWebViewPageLoader` accepts an optional `userAgent`, sent with
+  every page load in place of the platform WebView's default. Hosts opt
+  in explicitly (for example from a user-managed profile); when omitted,
+  behavior is unchanged and the system default is sent.
+
+## 0.6.0
+
+- Query-aware ranking (Phase 3 of the web evidence plan) completes the
+  four-tool web surface:
+  - `open_web_page` accepts an optional `objective`; the returned
+    `content` is then the blocks most relevant to that question — ranked
+    by a BM25-style lexical scorer with heading-path credit, block-type
+    weights (tables and definitions boosted for numeric questions), and
+    a positional prior — instead of the page's lead content. A
+    `Focused on:` header line and `[…]` gap markers keep the selection
+    honest; an unmatched objective falls back to lead content with a
+    note.
+  - **Adjacency grouping:** a selected block always brings the headings
+    above it and a short intro paragraph directly before it, so a bare
+    `$25` table row never travels without its "Fees" heading.
+  - New `find_in_page(pageId, query)` function ranks a cached page's
+    blocks for a new question and returns the best matches with their
+    `b<n>` ids; unmatched queries return the outline instead of guesses.
+  - Repeated blocks are marked `duplicateOf` and skipped in rendering and
+    ranking (`duplicateBlocks` count on page results), so syndication
+    banners and print footers are never mistaken for independent
+    confirmation.
+  - `BlockScorer` seam (`FlutterHarnessAgentOptions.webBlockScorer`,
+    `createWebSearchTools(blockScorer:)`) lets hosts substitute a
+    semantic scorer later; scores stay internal and are never exposed to
+    the model.
+
+## 0.5.0
+
+- Page sessions and the escalation loop (Phase 2 of the web evidence
+  plan): opened pages are cached per tool set so agents can pull more of
+  a page without reloading it.
+  - `WebPageSessionStore` — a small LRU (default 8 pages, configurable
+    via `WebSearchToolOptions.maxCachedPages`) created per
+    `createWebSearchTools` call, so `page-N` ids are scoped to one agent
+    build and never leak across conversations. Reopening a URL replaces
+    its earlier entry.
+  - `open_web_page` results now include a `pageId` for block-bearing
+    loads, and its description teaches the loop: package → outline →
+    `expand_page`.
+  - New `expand_page(pageId, blockIds?, heading?)` function returns the
+    full text of chosen blocks or a whole outline section, each run
+    prefixed with its `Under: A > B` heading context. Expired ids get a
+    "reopen the URL" result; malformed requests return the outline to
+    steer the next call. Budget caps are reported, never silent.
+
+## 0.4.0
+
+- `open_web_page` returns structured evidence packages (Phase 1 of the web
+  evidence plan, `docs/WEB_EVIDENCE_PLAN.md`). The extraction script is now
+  a thin DOM walker emitting typed blocks; Dart classifies them, assigns
+  heading paths, builds the page outline, and renders compact markdown:
+  - `WebPageContent` gains `blocks` (`WebContentBlock` with heading paths,
+    links, and table cells), `outline`, `structuredData` (JSON-LD, labeled
+    by origin), `siteName`/`publishedTime`/`modifiedTime`/`author`,
+    `contentMarkdown`, and `omittedBlocks`/`boilerplateBlocks` counts.
+  - Tool results carry `content` markdown plus an `outline` with `b<n>`
+    block ranges instead of flat `text`; the flat shape remains the
+    fallback when block extraction yields nothing. Navigation, header,
+    footer, and aside chrome is suppressed from the markdown and counted,
+    never silently dropped; in-script caps and the character budget are
+    reported through `omittedBlocks` and `truncated`.
+  - `WebPageLoader`'s interface is unchanged and all new
+    `WebPageContent` fields are additive with defaults.
+
 ## 0.3.1
 
 - Focus-category search routing for the local `web_search` function:

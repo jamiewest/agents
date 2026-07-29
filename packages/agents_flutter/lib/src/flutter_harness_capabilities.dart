@@ -121,6 +121,7 @@ FlutterHarnessCapabilities buildFlutterHarnessCapabilities(
         pageLoader: options.webPageLoader,
         navigationPolicy: options.webNavigationPolicy,
         options: options.webSearchToolOptions,
+        blockScorer: options.webBlockScorer,
       ),
     );
   }

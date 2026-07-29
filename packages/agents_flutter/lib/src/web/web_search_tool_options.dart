@@ -7,6 +7,7 @@ class WebSearchToolOptions {
     this.pageLoadTimeout = const Duration(seconds: 20),
     this.domSettleDelay = const Duration(milliseconds: 500),
     this.maxPageCharacters = 20000,
+    this.maxCachedPages = 8,
   });
 
   /// Result count used when the model omits `maxResults`.
@@ -23,6 +24,11 @@ class WebSearchToolOptions {
 
   /// Maximum number of page-text characters returned to the model.
   int maxPageCharacters;
+
+  /// Opened pages kept for `expand_page` before the least recently used
+  /// is dropped. Block texts are already capped in-script, so this bounds
+  /// the cache's memory alongside those caps.
+  int maxCachedPages;
 
   /// Throws when any option is outside its supported range.
   void validate() {
@@ -51,6 +57,13 @@ class WebSearchToolOptions {
       throw ArgumentError.value(
         maxPageCharacters,
         'maxPageCharacters',
+        'Must be greater than zero.',
+      );
+    }
+    if (maxCachedPages < 1) {
+      throw ArgumentError.value(
+        maxCachedPages,
+        'maxCachedPages',
         'Must be greater than zero.',
       );
     }

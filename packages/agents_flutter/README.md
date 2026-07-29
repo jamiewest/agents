@@ -132,8 +132,27 @@ marker. Supplying a local search source replaces that marker with two ordinary
 function tools:
 
 - `web_search` asks the host-provided backend for titles, URLs, and snippets.
-- `open_web_page` accepts a direct URL and extracts readable text in a fresh,
-  incognito, headless system WebView.
+- `open_web_page` accepts a direct URL and returns a structured evidence
+  package extracted in a fresh, incognito, headless system WebView: compact
+  markdown built from typed semantic blocks (headings, paragraphs, lists,
+  tables, code, quotes) with navigation/footer chrome suppressed, a heading
+  outline with block ranges, page facts (site, published/modified, author),
+  and labeled JSON-LD structured data. Caps are always reported — see
+  `docs/WEB_EVIDENCE_PLAN.md` for the pipeline's design and roadmap.
+- `expand_page` returns the full text of chosen blocks or a whole outline
+  section of a previously opened page, by `pageId`, without reloading it.
+  Opened pages sit in a small per-conversation LRU cache
+  (`WebSearchToolOptions.maxCachedPages`), so the model can escalate from
+  the compact package to full sections on demand.
+- `find_in_page` ranks a cached page's blocks against a new question and
+  returns the best matches with their block ids and heading context.
+
+`open_web_page` also accepts an `objective` — the question the page should
+help answer — which focuses extraction on the matching blocks (with their
+headings and intro context) instead of the page's lead content. Ranking is
+lexical and structural by default; supply a custom `BlockScorer` via
+`FlutterHarnessAgentOptions.webBlockScorer` for semantic ranking. Scores
+are internal and never shown to the model.
 
 The library never embeds a search API key. Implement `WebSearchSource` in the
 host application and keep its credentials outside the model-visible tool
@@ -184,9 +203,11 @@ device or LAN services to model-directed requests. An injected
 `webNavigationPolicy` configures the built-in headless loader.
 
 Each call creates and disposes its own incognito WebView. The implementation
-does not clear or reuse the plugin's shared cookie store, override the system
-user agent, simulate clicks or scrolling, solve CAPTCHAs, or attempt to bypass
-site protections. Sites may still identify the client as an embedded WebView.
+does not clear or reuse the plugin's shared cookie store, simulate clicks or
+scrolling, solve CAPTCHAs, or attempt to bypass site protections. By default
+the system WebView's user agent is sent — sites may identify the client as an
+embedded WebView — and a host can supply a fixed `userAgent` on
+`HeadlessWebViewPageLoader` (for example from a user-managed profile).
 
 The native smoke fixture is opt-in and is not part of Linux CI. Because this
 package does not carry generated native runner projects, run the fixture from

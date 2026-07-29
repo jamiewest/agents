@@ -78,6 +78,39 @@ void main() {
       expect(content.truncated, isTrue);
     }, skip: !supported);
 
+    test('extracts structured blocks, outline, and JSON-LD', () async {
+      final content = await _loader().load(origin.resolve('/structured'));
+
+      expect(content.status, WebPageLoadStatus.success);
+      expect(
+        content.blocks.map((block) => block.type),
+        containsAll(<WebContentBlockType>[
+          WebContentBlockType.heading,
+          WebContentBlockType.paragraph,
+          WebContentBlockType.table,
+        ]),
+      );
+      final table = content.blocks.singleWhere(
+        (block) => block.type == WebContentBlockType.table,
+      );
+      expect(table.headingPath, contains('Fees'));
+      expect(content.contentMarkdown, contains('### Fees'));
+      expect(content.contentMarkdown, contains(r'| Electronic | $25 |'));
+      expect(content.contentMarkdown, isNot(contains('Site navigation')));
+      expect(content.outline.map((s) => s.heading), contains('Fees'));
+      expect(content.structuredData.single.schemaType, 'Dataset');
+      expect(content.boilerplateBlocks, greaterThan(0));
+    }, skip: !supported);
+
+    test('sends a custom browsing user agent when configured', () async {
+      final loader = _loader(userAgent: 'AgentsBrowser/1.0');
+
+      final content = await loader.load(origin.resolve('/user-agent'));
+
+      expect(content.status, WebPageLoadStatus.success);
+      expect(content.text, contains('AgentsBrowser/1.0'));
+    }, skip: !supported);
+
     test('reports verification pages without interacting', () async {
       final content = await _loader().load(origin.resolve('/challenge'));
 
@@ -104,6 +137,7 @@ HeadlessWebViewPageLoader _loader({
   Duration timeout = const Duration(seconds: 2),
   int maxPageCharacters = 20000,
   Set<String> blockedPaths = const <String>{},
+  String? userAgent,
 }) => HeadlessWebViewPageLoader(
   navigationPolicy: _FixturePolicy(blockedPaths),
   options: WebSearchToolOptions(
@@ -111,6 +145,7 @@ HeadlessWebViewPageLoader _loader({
     domSettleDelay: const Duration(milliseconds: 50),
     maxPageCharacters: maxPageCharacters,
   ),
+  userAgent: userAgent,
 );
 
 Future<void> _serve(HttpRequest request) async {
@@ -164,6 +199,40 @@ Future<void> _serve(HttpRequest request) async {
       request.response
         ..headers.contentType = ContentType.html
         ..write('<main>${''.padLeft(100, 'x')}</main>');
+    case '/structured':
+      request.response
+        ..headers.contentType = ContentType.html
+        ..write(r'''
+<!doctype html>
+<html>
+  <head>
+    <title>Records fixture</title>
+    <script type="application/ld+json">
+      {"@type": "Dataset", "name": "Assessment roll"}
+    </script>
+  </head>
+  <body>
+    <nav><a href="/">Site navigation</a></nav>
+    <main>
+      <h1>Public Records</h1>
+      <p>Request copies of county records.</p>
+      <h2>Fees</h2>
+      <table>
+        <tr><th>Format</th><th>Fee</th></tr>
+        <tr><td>Electronic</td><td>$25</td></tr>
+      </table>
+    </main>
+  </body>
+</html>
+''');
+    case '/user-agent':
+      request.response
+        ..headers.contentType = ContentType.html
+        ..write(
+          '<main>Agent: '
+          '${request.headers.value(HttpHeaders.userAgentHeader) ?? 'none'}'
+          '</main>',
+        );
     case '/challenge':
       request.response
         ..headers.contentType = ContentType.html

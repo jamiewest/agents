@@ -6,7 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'web_navigation_policy.dart';
+import 'web_page_extraction.dart';
 import 'web_page_loader.dart';
+import 'web_page_renderer.dart';
 import 'web_search_tool_options.dart';
 
 /// Loads pages in a fresh, off-screen system WebView.
@@ -19,10 +21,16 @@ class HeadlessWebViewPageLoader implements WebPageLoader {
   HeadlessWebViewPageLoader({
     WebNavigationPolicy? navigationPolicy,
     WebSearchToolOptions? options,
+    this.userAgent,
   }) : _navigationPolicy = navigationPolicy ?? PublicWebNavigationPolicy(),
        _options = options ?? WebSearchToolOptions() {
     _options.validate();
   }
+
+  /// The `User-Agent` sent with page loads, or `null` for the platform
+  /// WebView's default (which may identify the client as an embedded
+  /// WebView).
+  final String? userAgent;
 
   final WebNavigationPolicy _navigationPolicy;
   final WebSearchToolOptions _options;
@@ -119,6 +127,9 @@ class HeadlessWebViewPageLoader implements WebPageLoader {
       initialSettings: InAppWebViewSettings(
         incognito: true,
         cacheEnabled: false,
+        userAgent: (userAgent?.trim().isEmpty ?? true)
+            ? null
+            : userAgent!.trim(),
         javaScriptEnabled: true,
         javaScriptCanOpenWindowsAutomatically: false,
         safeBrowsingEnabled: true,
@@ -332,15 +343,24 @@ class HeadlessWebViewPageLoader implements WebPageLoader {
     Uri finalUrl,
     Map<String, Object?> extracted,
   ) {
-    final rawText = (extracted['text'] as String? ?? '').trim();
-    final truncated = rawText.length > _options.maxPageCharacters;
-    final text = truncated
+    final extraction = WebPageExtraction.parse(extracted);
+    final rawText = extraction.plainText.trim();
+    final textCapped = rawText.length > _options.maxPageCharacters;
+    final text = textCapped
         ? rawText.substring(0, _options.maxPageCharacters)
         : rawText;
-    final challenge = extracted['challenge'] == true;
+    final rendered = extraction.blocks.isEmpty
+        ? null
+        : renderWebPageMarkdown(
+            extraction: extraction,
+            sourceUrl: finalUrl,
+            maxCharacters: _options.maxPageCharacters,
+          );
+    final challenge = extraction.challenge;
+    final empty = (rendered?.markdown.isEmpty ?? true) && text.isEmpty;
     final status = challenge
         ? WebPageLoadStatus.challengeDetected
-        : text.isEmpty
+        : empty
         ? WebPageLoadStatus.emptyContent
         : WebPageLoadStatus.success;
 
@@ -348,14 +368,34 @@ class HeadlessWebViewPageLoader implements WebPageLoader {
       status: status,
       requestedUrl: requestedUrl,
       finalUrl: finalUrl,
-      title: _nonEmpty(extracted['title']),
-      canonicalUrl: _tryParseUri(_nonEmpty(extracted['canonicalUrl'])),
-      description: _nonEmpty(extracted['description']),
+      title: extraction.title,
+      canonicalUrl: _tryParseUri(extraction.canonicalUrl),
+      description: extraction.description,
       text: text,
-      truncated: truncated,
+      truncated:
+          textCapped ||
+          extraction.omittedBlocks > 0 ||
+          (rendered?.omittedForBudget ?? 0) > 0,
+      blocks: extraction.blocks,
+      outline: extraction.outline,
+      structuredData: extraction.structuredData,
+      siteName: extraction.siteName,
+      publishedTime: extraction.published,
+      modifiedTime: extraction.modified,
+      author: extraction.author,
+      contentMarkdown: rendered?.markdown,
+      omittedBlocks:
+          extraction.omittedBlocks + (rendered?.omittedForBudget ?? 0),
+      scriptOmittedBlocks: extraction.omittedBlocks,
+      boilerplateBlocks: rendered?.boilerplateBlocks ?? 0,
+      duplicateBlocks: extraction.blocks
+          .where(
+            (block) => !block.isBoilerplate && block.duplicateOfIndex != null,
+          )
+          .length,
       message: challenge
           ? 'The page appears to require login, consent, CAPTCHA, or human verification.'
-          : text.isEmpty
+          : empty
           ? 'The page contained no readable text.'
           : null,
     );
@@ -370,11 +410,6 @@ class HeadlessWebViewPageLoader implements WebPageLoader {
       for (final entry in decoded.entries)
         if (entry.key is String) entry.key as String: entry.value,
     };
-  }
-
-  static String? _nonEmpty(Object? value) {
-    final text = value?.toString().trim();
-    return text == null || text.isEmpty ? null : text;
   }
 
   static Uri? _tryParseUri(String? value) =>
@@ -397,37 +432,284 @@ class HeadlessWebViewPageLoader implements WebPageLoader {
     };
   }
 
+  /// A thin DOM walker: it emits raw typed blocks with container context
+  /// plus page metadata and JSON-LD payloads, all capped in-script because
+  /// the JavaScript bridge bounds result sizes. Classification, heading
+  /// paths, outlines, and rendering happen in Dart (`WebPageExtraction`),
+  /// where they are testable without a WebView.
   static const String _extractionScript = r'''
 (() => {
-  const clean = (value) => (value || '').replace(/\r/g, '').trim();
-  const root =
-    document.querySelector('article') ||
-    document.querySelector('main') ||
-    document.querySelector('[role="main"]') ||
-    document.body;
-  const text = clean(root ? root.innerText : '');
-  const title = clean(document.title);
+  const MAX_BLOCKS = 500;
+  const MAX_TEXT = 6000;
+  const MAX_ITEMS = 40;
+  const MAX_ITEM_TEXT = 300;
+  const MAX_ROWS = 30;
+  const MAX_COLS = 12;
+  const MAX_CELL = 120;
+  const MAX_LINKS = 10;
+  const MAX_LINK_TEXT = 80;
+  const MAX_STRUCTURED = 5;
+  const MAX_STRUCTURED_TEXT = 20000;
+
+  const clean = (value) => (value || '')
+    .replace(/\r/g, '')
+    .replace(/[ \t\u00a0]+/g, ' ')
+    .replace(/\s*\n\s*/g, '\n')
+    .trim();
+  const capped = (value, max) => {
+    const text = clean(value);
+    return text.length > max ? text.slice(0, max) : text;
+  };
+
+  const blocks = [];
+  let total = 0;
+  const emit = (block) => {
+    total += 1;
+    if (blocks.length < MAX_BLOCKS) blocks.push(block);
+  };
+
+  const hidden = (el) => {
+    if (el.getAttribute('aria-hidden') === 'true' || el.hasAttribute('hidden')) {
+      return true;
+    }
+    const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+    return !!style && (style.display === 'none' || style.visibility === 'hidden');
+  };
+
+  const containerOf = (tag, role, current) => {
+    if (tag === 'NAV' || role === 'navigation') return 'nav';
+    if (tag === 'HEADER' || role === 'banner') return 'header';
+    if (tag === 'FOOTER' || role === 'contentinfo') return 'footer';
+    if (tag === 'ASIDE' || role === 'complementary') return 'aside';
+    if (tag === 'MAIN' || tag === 'ARTICLE' || role === 'main') return 'main';
+    return current;
+  };
+
+  const pathOf = (el) => {
+    const parts = [];
+    let node = el;
+    while (node && node.nodeType === 1 && node !== document.body && parts.length < 6) {
+      let index = 1;
+      let sibling = node.previousElementSibling;
+      while (sibling) {
+        if (sibling.tagName === node.tagName) index += 1;
+        sibling = sibling.previousElementSibling;
+      }
+      parts.unshift(node.tagName.toLowerCase() + (index > 1 ? ':' + index : ''));
+      node = node.parentElement;
+    }
+    return parts.join('>');
+  };
+
+  const linksOf = (el) => {
+    const links = [];
+    for (const anchor of el.querySelectorAll('a[href]')) {
+      if (links.length >= MAX_LINKS) break;
+      const href = anchor.href || '';
+      if (!/^https?:/i.test(href)) continue;
+      links.push({ t: capped(anchor.innerText, MAX_LINK_TEXT), h: href });
+    }
+    return links;
+  };
+
+  const emitText = (kind, el, container, extra) => {
+    const text = kind === 'code'
+      ? (el.innerText || '').replace(/\r/g, '').trim().slice(0, MAX_TEXT)
+      : capped(el.innerText, MAX_TEXT);
+    if (!text) return;
+    emit(Object.assign(
+      { kind, text, container, path: pathOf(el), links: linksOf(el) },
+      extra || {}));
+  };
+
+  const emitList = (el, container, ordered) => {
+    const items = [];
+    for (const li of el.children) {
+      if (li.tagName !== 'LI' || items.length >= MAX_ITEMS) continue;
+      const text = capped(li.innerText, MAX_ITEM_TEXT);
+      if (text) items.push(text);
+    }
+    if (!items.length) return;
+    emit({ kind: 'list', text: '', ordered: !!ordered, items,
+      container, path: pathOf(el), links: linksOf(el) });
+  };
+
+  const emitDefinitions = (el, container) => {
+    const items = [];
+    let term = '';
+    for (const child of el.children) {
+      if (child.tagName === 'DT') term = capped(child.innerText, MAX_ITEM_TEXT);
+      if (child.tagName === 'DD' && items.length < MAX_ITEMS) {
+        const def = capped(child.innerText, MAX_ITEM_TEXT);
+        if (term || def) items.push((term ? term + ' — ' : '') + def);
+      }
+    }
+    if (items.length) {
+      emit({ kind: 'definition', text: '', items, container, path: pathOf(el) });
+    }
+  };
+
+  const emitTable = (el, container) => {
+    const caption = el.caption ? capped(el.caption.innerText, MAX_ITEM_TEXT) : '';
+    const headRow = el.tHead && el.tHead.rows.length ? el.tHead.rows[0] : null;
+    const columns = [];
+    if (headRow) {
+      for (const cell of headRow.cells) {
+        if (columns.length < MAX_COLS) columns.push(capped(cell.innerText, MAX_CELL));
+      }
+    }
+    const rows = [];
+    for (const tr of el.rows) {
+      if (tr === headRow) continue;
+      if (rows.length >= MAX_ROWS) break;
+      const cells = Array.from(tr.cells);
+      const texts = cells.slice(0, MAX_COLS).map((c) => capped(c.innerText, MAX_CELL));
+      if (!columns.length && cells.length && cells.every((c) => c.tagName === 'TH')) {
+        columns.push(...texts);
+        continue;
+      }
+      if (texts.some((t) => t)) rows.push(texts);
+    }
+    if (!columns.length && !rows.length) return;
+    emit({ kind: 'table', text: '',
+      table: { caption, columns, rows },
+      container, path: pathOf(el), links: linksOf(el) });
+  };
+
+  const emitForm = (el, container) => {
+    const parts = [];
+    for (const label of el.querySelectorAll('label')) {
+      if (parts.length >= MAX_ITEMS) break;
+      const text = capped(label.innerText, MAX_ITEM_TEXT);
+      if (text) parts.push(text);
+    }
+    for (const field of el.querySelectorAll('input[placeholder], textarea[placeholder]')) {
+      if (parts.length >= MAX_ITEMS) break;
+      const text = capped(field.getAttribute('placeholder'), MAX_ITEM_TEXT);
+      if (text) parts.push(text);
+    }
+    for (const button of el.querySelectorAll('button, input[type="submit"]')) {
+      if (parts.length >= MAX_ITEMS) break;
+      const text = capped(button.innerText || button.value, MAX_ITEM_TEXT);
+      if (text) parts.push('[' + text + ']');
+    }
+    if (parts.length) {
+      emit({ kind: 'form', text: parts.join(' · '), container, path: pathOf(el) });
+    }
+  };
+
+  const INLINE = new Set(['A', 'B', 'I', 'EM', 'STRONG', 'SPAN', 'CODE',
+    'SMALL', 'SUB', 'SUP', 'MARK', 'ABBR', 'TIME', 'U', 'S', 'LABEL',
+    'BR', 'WBR', 'IMG', 'PICTURE', 'SOURCE']);
+  const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'IFRAME',
+    'CANVAS', 'SVG', 'VIDEO', 'AUDIO', 'OBJECT', 'EMBED', 'SELECT',
+    'OPTION', 'DIALOG', 'BUTTON', 'INPUT', 'TEXTAREA', 'LINK', 'META']);
+
+  const walk = (el, container) => {
+    let inlineText = [];
+    let inlineLinks = [];
+    const flush = () => {
+      const text = capped(inlineText.join(' '), MAX_TEXT);
+      const links = inlineLinks.slice(0, MAX_LINKS);
+      inlineText = [];
+      inlineLinks = [];
+      if (text) {
+        emit({ kind: 'paragraph', text, container, path: pathOf(el), links });
+      }
+    };
+    for (const node of el.childNodes) {
+      if (node.nodeType === 3) {
+        const text = clean(node.textContent);
+        if (text) inlineText.push(text);
+        continue;
+      }
+      if (node.nodeType !== 1) continue;
+      const tag = node.tagName;
+      if (SKIP.has(tag) || hidden(node)) continue;
+      if (INLINE.has(tag)) {
+        if (tag === 'IMG') {
+          const alt = clean(node.getAttribute('alt'));
+          if (alt) {
+            emit({ kind: 'media', text: alt.slice(0, MAX_ITEM_TEXT),
+              container, path: pathOf(node) });
+          }
+          continue;
+        }
+        if (tag === 'A' && /^https?:/i.test(node.href || '') &&
+            inlineLinks.length < MAX_LINKS) {
+          inlineLinks.push({ t: capped(node.innerText, MAX_LINK_TEXT), h: node.href });
+        }
+        const text = clean(node.innerText);
+        if (text) inlineText.push(text);
+        continue;
+      }
+      flush();
+      const childContainer = containerOf(tag, node.getAttribute('role') || '', container);
+      if (/^H[1-6]$/.test(tag)) {
+        emitText('heading', node, childContainer, { level: +tag[1] });
+      } else if (tag === 'P' || tag === 'FIGCAPTION') {
+        emitText('paragraph', node, childContainer);
+      } else if (tag === 'UL' || tag === 'OL' || tag === 'MENU') {
+        emitList(node, childContainer, tag === 'OL');
+      } else if (tag === 'DL') {
+        emitDefinitions(node, childContainer);
+      } else if (tag === 'TABLE') {
+        emitTable(node, childContainer);
+      } else if (tag === 'PRE') {
+        emitText('code', node, childContainer);
+      } else if (tag === 'BLOCKQUOTE') {
+        emitText('quote', node, childContainer);
+      } else if (tag === 'FORM') {
+        emitForm(node, childContainer);
+      } else {
+        walk(node, childContainer);
+      }
+    }
+    flush();
+  };
+
+  walk(document.body, '');
+
+  const metaContent = (selector) => {
+    const el = document.querySelector(selector);
+    return el ? clean(el.getAttribute('content')) : '';
+  };
   const canonical = document.querySelector('link[rel~="canonical"]');
-  const description =
-    document.querySelector('meta[name="description"]') ||
-    document.querySelector('meta[property="og:description"]');
-  const challengeText = `${title}\n${text.slice(0, 5000)}`.toLowerCase();
-  const challenge =
-    Boolean(document.querySelector(
-      'input[type="password"], iframe[src*="captcha"], [class*="captcha"], [id*="captcha"]'
-    )) ||
-    challengeText.includes('verify you are human') ||
-    challengeText.includes('checking your browser') ||
-    challengeText.includes('unusual traffic') ||
-    challengeText.includes('access denied') ||
-    challengeText.includes('consent required');
+  const meta = {
+    title: clean(document.title),
+    canonicalUrl: canonical ? canonical.href : '',
+    description: metaContent('meta[name="description"]') ||
+      metaContent('meta[property="og:description"]'),
+    siteName: metaContent('meta[property="og:site_name"]'),
+    published: metaContent('meta[property="article:published_time"]') ||
+      metaContent('meta[itemprop="datePublished"]'),
+    modified: metaContent('meta[property="article:modified_time"]') ||
+      metaContent('meta[itemprop="dateModified"]'),
+    author: metaContent('meta[name="author"]')
+  };
+
+  const structured = [];
+  for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+    if (structured.length >= MAX_STRUCTURED) break;
+    const text = (script.textContent || '').trim();
+    if (text) structured.push(text.slice(0, MAX_STRUCTURED_TEXT));
+  }
+
+  const challenge = Boolean(document.querySelector(
+    'input[type="password"], iframe[src*="captcha"], [class*="captcha"], [id*="captcha"]'
+  ));
+
+  let fallbackText = '';
+  if (!blocks.length) {
+    const root = document.querySelector('article') ||
+      document.querySelector('main') ||
+      document.querySelector('[role="main"]') ||
+      document.body;
+    fallbackText = capped(root ? root.innerText : '', 20000);
+  }
 
   return JSON.stringify({
-    title,
-    canonicalUrl: canonical ? canonical.href : '',
-    description: description ? description.content : '',
-    text,
-    challenge
+    meta, blocks, structured, challenge, totalBlocks: total, fallbackText
   });
 })()
 ''';
