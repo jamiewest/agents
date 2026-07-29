@@ -117,6 +117,7 @@ FlutterHarnessCapabilities buildFlutterHarnessCapabilities(
     tools.addAll(
       createWebSearchTools(
         searchSource: options.webSearchSource,
+        categorizedSearchSources: options.webSearchSourcesByCategory,
         pageLoader: options.webPageLoader,
         navigationPolicy: options.webNavigationPolicy,
         options: options.webSearchToolOptions,
@@ -136,11 +137,15 @@ FlutterHarnessCapabilities buildFlutterHarnessCapabilities(
 /// Whether [options] expose any local Flutter web tools.
 bool usesLocalWebTools(FlutterHarnessAgentOptions options) =>
     !options.disableWebSearch &&
-    (options.webSearchSource != null || options.webPageLoader != null);
+    (options.webSearchSource != null ||
+        (options.webSearchSourcesByCategory?.isNotEmpty ?? false) ||
+        options.webPageLoader != null);
 
 /// Whether [options] replace hosted search with the local search function.
 bool usesLocalWebSearch(FlutterHarnessAgentOptions options) =>
-    !options.disableWebSearch && options.webSearchSource != null;
+    !options.disableWebSearch &&
+    (options.webSearchSource != null ||
+        (options.webSearchSourcesByCategory?.isNotEmpty ?? false));
 
 /// Populates the device and app info caches from the platform in the
 /// background, swallowing any plugin failures.

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1
+
+- Focus-category search routing for the local `web_search` function:
+  `FlutterHarnessAgentOptions.webSearchSourcesByCategory` (and the matching
+  `createWebSearchTools` and `addFlutterHarnessContext` parameters) maps
+  category labels — "finance", "technology" — to dedicated search sources.
+  The labels become an enum on the function's `category` parameter so the
+  model can steer a query to the source suited to its topic; they are the
+  only part of the host's search configuration the model sees. Uncategorized
+  calls use `webSearchSource`; with no default source, `category` is
+  required.
+
 ## 0.3.0
 
 - Add vendor-neutral local web search and direct page-opening tools for the

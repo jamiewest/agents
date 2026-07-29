@@ -149,6 +149,23 @@ final agent = chatClient.asFlutterHarnessAgent(
 );
 ```
 
+Hosts with topic-specific backends can add focus categories. The category
+labels become an enum on `web_search`'s `category` parameter so the model
+steers each query to the source suited to its topic — a history question
+never hits the finance endpoint. The labels are the only part of the search
+configuration the model sees; calls without a category use
+`webSearchSource`, and when that is omitted a category is required:
+
+```dart
+final options = FlutterHarnessAgentOptions(
+  webSearchSource: MySearchSource(apiKey: searchApiKey),
+  webSearchSourcesByCategory: {
+    'finance': MyFinanceSearchSource(),
+    'technology': MyTechnologySearchSource(),
+  },
+);
+```
+
 Configure only a page loader to add direct page opening without replacing the
 harness's hosted search marker:
 

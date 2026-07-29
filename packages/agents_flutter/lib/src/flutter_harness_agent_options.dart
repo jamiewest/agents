@@ -33,6 +33,7 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
     this.pushoverClient,
     this.pushoverToolOptions,
     this.webSearchSource,
+    this.webSearchSourcesByCategory,
     this.webPageLoader,
     this.webNavigationPolicy,
     this.webSearchToolOptions,
@@ -95,6 +96,17 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
   /// true. The host owns any credentials held by this source.
   WebSearchSource? webSearchSource;
 
+  /// Focus-category search backends for the local `web_search` function,
+  /// keyed by category label — "finance", "technology".
+  ///
+  /// The labels become an enum on the function's `category` parameter so
+  /// the model can steer a query to the source suited to its topic; they
+  /// are the only part of the host's search configuration the model sees.
+  /// Calls without a category use [webSearchSource]; when that is `null`,
+  /// a category is required instead. Like [webSearchSource], a non-empty
+  /// map enables the local web tools.
+  Map<String, WebSearchSource>? webSearchSourcesByCategory;
+
   /// Optional page loader used by `open_web_page`.
   ///
   /// Setting this without [webSearchSource] exposes only `open_web_page`.
@@ -128,6 +140,7 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
         pushoverClient: pushoverClient,
         pushoverToolOptions: pushoverToolOptions,
         webSearchSource: webSearchSource,
+        webSearchSourcesByCategory: webSearchSourcesByCategory,
         webPageLoader: webPageLoader,
         webNavigationPolicy: webNavigationPolicy,
         webSearchToolOptions: webSearchToolOptions,

@@ -215,6 +215,104 @@ void main() {
       ]);
     });
 
+    test('categorized sources add a category enum to the schema', () {
+      final search = createWebSearchTools(
+        searchSource: _FakeSearchSource(const <WebSearchResult>[]),
+        categorizedSearchSources: <String, WebSearchSource>{
+          'finance': _FakeSearchSource(const <WebSearchResult>[]),
+          'technology': _FakeSearchSource(const <WebSearchResult>[]),
+        },
+      ).first;
+
+      final properties =
+          search.parametersSchema!['properties']! as Map<String, Object?>;
+      final category = properties['category']! as Map<String, Object?>;
+      expect(category['enum'], <String>['finance', 'technology']);
+      expect(search.parametersSchema!['required'], <String>['query']);
+      expect(search.description, contains('finance, technology'));
+    });
+
+    test('without categories the schema carries no category property', () {
+      final search = createWebSearchTools(
+        searchSource: _FakeSearchSource(const <WebSearchResult>[]),
+      ).first;
+
+      final properties =
+          search.parametersSchema!['properties']! as Map<String, Object?>;
+      expect(properties.containsKey('category'), isFalse);
+    });
+
+    test('routes a category to its source, case-insensitively', () async {
+      final general = _FakeSearchSource(const <WebSearchResult>[]);
+      final finance = _FakeSearchSource(const <WebSearchResult>[
+        WebSearchResult(title: 'Rates', url: 'https://finance.example.com/'),
+      ]);
+      final search = createWebSearchTools(
+        searchSource: general,
+        categorizedSearchSources: <String, WebSearchSource>{'finance': finance},
+      ).first;
+
+      final result =
+          await search.invoke(
+                AIFunctionArguments(<String, Object?>{
+                  'query': 'bond yields',
+                  'category': 'Finance',
+                }),
+              )
+              as Map<String, Object?>;
+
+      expect(finance.query, 'bond yields');
+      expect(general.query, isNull);
+      expect(result['category'], 'finance');
+    });
+
+    test('an unknown category falls back to the default with a note', () async {
+      final general = _FakeSearchSource(const <WebSearchResult>[]);
+      final search = createWebSearchTools(
+        searchSource: general,
+        categorizedSearchSources: <String, WebSearchSource>{
+          'finance': _FakeSearchSource(const <WebSearchResult>[]),
+        },
+      ).first;
+
+      final result =
+          await search.invoke(
+                AIFunctionArguments(<String, Object?>{
+                  'query': 'anything',
+                  'category': 'sports',
+                }),
+              )
+              as Map<String, Object?>;
+
+      expect(general.query, 'anything');
+      expect(result['status'], 'success');
+      expect(result['note'], contains('sports'));
+    });
+
+    test('categories without a default source require the parameter', () async {
+      final search = createWebSearchTools(
+        categorizedSearchSources: <String, WebSearchSource>{
+          'finance': _FakeSearchSource(const <WebSearchResult>[]),
+        },
+      ).first;
+
+      expect(search.parametersSchema!['required'], <String>[
+        'query',
+        'category',
+      ]);
+
+      final result =
+          await search.invoke(
+                AIFunctionArguments(<String, Object?>{
+                  'query': 'anything',
+                  'category': 'sports',
+                }),
+              )
+              as Map<String, Object?>;
+      expect(result['status'], 'invalid_argument');
+      expect(result['message'], contains('finance'));
+    });
+
     test('page-loader-only configuration creates only open_web_page', () {
       final tools = createWebSearchTools(pageLoader: _FakePageLoader());
 
