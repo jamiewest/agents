@@ -138,7 +138,7 @@ function tools:
   tables, code, quotes) with navigation/footer chrome suppressed, a heading
   outline with block ranges, page facts (site, published/modified, author),
   and labeled JSON-LD structured data. Caps are always reported — see
-  `docs/WEB_EVIDENCE_PLAN.md` for the pipeline's design and roadmap.
+  `doc/WEB_EVIDENCE_PLAN.md` for the pipeline's design and roadmap.
 - `expand_page` returns the full text of chosen blocks or a whole outline
   section of a previously opened page, by `pageId`, without reloading it.
   Opened pages sit in a small per-conversation LRU cache

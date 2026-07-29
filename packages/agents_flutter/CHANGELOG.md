@@ -56,7 +56,7 @@
 ## 0.4.0
 
 - `open_web_page` returns structured evidence packages (Phase 1 of the web
-  evidence plan, `docs/WEB_EVIDENCE_PLAN.md`). The extraction script is now
+  evidence plan, `doc/WEB_EVIDENCE_PLAN.md`). The extraction script is now
   a thin DOM walker emitting typed blocks; Dart classifies them, assigns
   heading paths, builds the page outline, and renders compact markdown:
   - `WebPageContent` gains `blocks` (`WebContentBlock` with heading paths,
