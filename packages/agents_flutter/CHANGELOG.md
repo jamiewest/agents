@@ -1,5 +1,92 @@
 # Changelog
 
+## 0.7.0
+
+- **Breaking:** `ConfiguredChatClientFactory.customClientResolver` gains an
+  `AgentScope? scope` parameter, forwarded from `createChatClient`. Host
+  resolvers can now key per-conversation state (for example a local model's
+  KV-cache lineage) to the conversation a client serves, removing the need
+  for scope-aware factory subclasses.
+- Removed the empty, never-exported `src/ai_agent_provider.dart` placeholder.
+- New `telemetry/` subsystem, folded in from the downstream app: `UsageStore`
+  (the durable `usage_records` ledger implementing `UsageRecordSink`, now
+  living beside `UsageTrackingChatClient`), `AgentRunTelemetryStore` with
+  crash recovery (`recoverInterrupted`), `AgentRunScope` (an `AgentScope`
+  carrying agent and run ids for usage attribution), and
+  `AgentCenterOverview` time-series aggregation over the two ledgers.
+- New `activity/` subsystem: `AppActivityMonitor` (app-wide idle signal;
+  hosts report foreground transitions via `reportForeground(bool)` — a
+  deliberate change from the app's `reportLifecycle(AppLifecycleState)` so
+  the class stays free of Flutter imports) and the `ToolActivity` registry
+  with `ToolActivityTrackingChatClient`.
+- `a2a/` gains the host side to match its existing pairing client:
+  `A2AHostService` (a `shelf`-backed HTTP server exposing local configured
+  agents to paired devices, with single-use pairing tokens, SHA-256 bearer
+  authorization, and per-caller session isolation) behind an io/stub
+  conditional facade, plus `NetworkSharingSettings`. Adds `shelf` and
+  `pool` dependencies (server platforms only at runtime; the web stub
+  reports hosting unsupported).
+- `web/` gains the search side folded in from the app:
+  `SearchUrlWebSearchSource` (query any `q=`-style endpoint; JSON/SearXNG
+  or HTML parsing with redirect unwrapping), `WebSearchSettings`
+  (SecretStore-backed multi-endpoint config with categories and user-agent
+  profiles), `WebSearchTraceLog` + `TracingWebPageLoader` (opt-in HTTP
+  tracing), and `WebPageHtmlRenderer` (renamed from the app's
+  `WebPageRenderer` to avoid colliding with this package's
+  `web_page_renderer.dart` markdown helpers) with
+  `HeadlessWebViewHtmlRenderer` — a reimplementation of the app's
+  webview_flutter renderer on `flutter_inappwebview`, gated by a static
+  `isSupported` (Android/iOS/macOS/Windows). The app no longer needs
+  `webview_flutter`; one WebView stack serves both loading and rendering.
+- Settings colocated with the subsystems they configure:
+  `PushoverSettings` (→ `pushover/`), `EmbeddingSettings` (→ `memory/`,
+  it *is* the `MemoryScorer` handed to `RecordStoreVectorStore`),
+  `ThinkingSettings` (→ `configured_agents/`), and a new `user_profile/`
+  capability folder (`UserProfileSettings` + `UserProfileContextProvider`).
+  Persisted key literals are unchanged (including historical `agents_app.`
+  prefixes) so existing installs keep their data.
+- `activity/` also gains the chat terminal subsystem, reworked during the
+  fold-in from an xterm-backed buffer to a terminal-widget-free design:
+  `ChatTerminalSession` records a capped ring of semantic `TerminalEvent`s
+  (command started / output chunk / completed / failed / cleared) with a
+  sync broadcast `onEvent` stream and `events` replay, the `TerminalActivity`
+  registry keys sessions per conversation (delegate scopes fold onto the
+  parent), and `TerminalMirroringShellExecutor` mirrors any `ShellExecutor`
+  into a session. Presentation — prompt markers, ANSI colors, CRLF, status
+  lines — is the host renderer's job (the reference app binds events to an
+  xterm buffer).
+- New `package:agents_flutter/chat_provider.dart` entry point: the chat
+  view-model contract folded in from the downstream app — `LlmProvider`,
+  the UI-facing `ChatMessage`/`Attachment`/`MessageOrigin`/`ToolApproval`
+  types, `LlmException`, `TokenSmoother`, `AgentLlmProvider` (bridges an
+  `AIAgent` into the contract with tool-approval pause/resume, run
+  telemetry, and activity reporting), and `EchoLlmProvider` (renamed from
+  the app's `EchoProvider`; useful as a UI test double). It is a separate
+  library, not part of the main barrel, because the UI-facing `ChatMessage`
+  would collide with `package:extensions/ai.dart`'s wire-level
+  `ChatMessage` in any file importing both.
+- New `conversations/` subsystem: the `Conversation`/`ConversationSession`/
+  `Channel` domain, `ConversationStore` + `ConversationSessionStore` +
+  `ChannelStore` (RecordStore-backed, collection names unchanged from the
+  app), `ConversationService`, the `ChatsQuery` filter model, the
+  `ChatTitleSummarizer` background service, and an `addConversations()` /
+  `addChatTitleSummarizer(residentTitleClient:)` registration pair.
+- New `tasks/` subsystem: `AgentTask` (+ recurrence), `AgentTaskStore`,
+  `TaskSchedulerService`, and `addTaskScheduler()`. The scheduler stays a
+  plain singleton the host starts explicitly.
+- `chat_history/` gains `ChatTranscriptStore`, co-located with
+  `ChatMessageCodec`/`ChatMessageRecords` whose record shape it reads; a
+  contract test now pins the record field literals and the write→read
+  round-trip.
+- `logging/` gains `PromptLog` and `PromptLoggingChatClient` (+
+  `renderRequest`); `configured_agents/` gains
+  `LoggingConfiguredChatClientFactory` (prompt capture, usage attribution,
+  tool-activity tracking in one decorator stack) and
+  `chooseLocalWarmupTarget` for pre-loading a local model at startup.
+  The chat-client decorator is named `PromptLoggingChatClient` — not the
+  app's original `LoggingChatClient` — to avoid colliding with
+  `package:extensions/ai.dart`'s class of that name.
+
 ## 0.6.1
 
 - `HeadlessWebViewPageLoader` accepts an optional `userAgent`, sent with

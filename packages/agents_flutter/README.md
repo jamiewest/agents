@@ -61,6 +61,38 @@ Also available: `get_app_info`, the `DeviceContextProvider` + `get_device_info`,
 the `LocationContextProvider` + `get_current_location`/`geocode_address`, and the
 `NetworkContextProvider` + `get_current_network_info`.
 
+Beyond harness capabilities, the package ships app-level service subsystems
+(plain classes registered via `ServiceCollection`, not options flags):
+
+- `telemetry/` — `UsageStore` (durable per-call token ledger implementing
+  `UsageRecordSink`), `AgentRunTelemetryStore` (one record per agent run,
+  with `recoverInterrupted()` crash recovery), `AgentRunScope`, and
+  `AgentCenterOverview` aggregation.
+- `activity/` — `AppActivityMonitor` (app-wide idle signal; the host maps
+  its lifecycle events to `reportForeground(bool)`), the `ToolActivity`
+  live-tool registry with `ToolActivityTrackingChatClient`, and the chat
+  terminal: `TerminalActivity` sessions record semantic `TerminalEvent`s
+  fed by `TerminalMirroringShellExecutor`; the host renders them (e.g.
+  into an xterm buffer).
+- `chat_provider/` — the chat view-model contract (`LlmProvider`, UI-facing
+  `ChatMessage`, attachments, tool approvals, `AgentLlmProvider`,
+  `TokenSmoother`). Imported via the separate
+  `package:agents_flutter/chat_provider.dart` entry point so its
+  `ChatMessage` never collides with `package:extensions/ai.dart`'s.
+- `conversations/` — the conversation/channel domain and stores, the
+  `ChatsQuery` filter model, and the idle-gated `ChatTitleSummarizer`.
+  Register with `addConversations()` and
+  `addChatTitleSummarizer(residentTitleClient:)`.
+- `tasks/` — scheduled agent tasks (`AgentTask`, `AgentTaskStore`,
+  `TaskSchedulerService`); register with `addTaskScheduler()` and call
+  `start()` on the resolved scheduler when the host is ready.
+- `chat_history/` — alongside the model-facing `FlutterChatHistoryProvider`,
+  `ChatTranscriptStore` reads the same records for display UIs.
+- `logging/` also holds `PromptLog` + `PromptLoggingChatClient`, and
+  `configured_agents/` holds `LoggingConfiguredChatClientFactory`, which
+  stacks prompt capture, usage attribution, and tool-activity tracking onto
+  every client it produces.
+
 ## Flutter harness agent
 
 `FlutterHarnessAgent` is the one-call way to get a full

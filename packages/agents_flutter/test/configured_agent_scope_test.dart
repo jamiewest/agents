@@ -25,6 +25,7 @@ ChatClient _staticEchoResolver({
   required ModelSourceConfig source,
   required ModelConfig model,
   http.Client? httpClient,
+  AgentScope? scope,
 }) => _EchoChatClient();
 
 final class _EchoChatClient extends ChatClient {

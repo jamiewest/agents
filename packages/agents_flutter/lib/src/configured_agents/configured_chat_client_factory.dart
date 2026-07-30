@@ -47,10 +47,16 @@ class ConfiguredChatClientFactory {
   final bool isWeb;
 
   /// Optional host-app resolver for providers outside this package.
+  ///
+  /// [scope] identifies the conversation the client will serve (null for
+  /// scope-less internal callers such as hosting infrastructure), letting a
+  /// resolver key per-conversation state — for example a local model's
+  /// KV-cache lineage — to the conversation it serves.
   final ChatClient Function({
     required ModelSourceConfig source,
     required ModelConfig model,
     http.Client? httpClient,
+    AgentScope? scope,
   })?
   customClientResolver;
 
@@ -62,9 +68,9 @@ class ConfiguredChatClientFactory {
   /// class for why the wrapper must stay innermost.
   ///
   /// Supply [httpClient] to inject a fake transport in tests. [scope]
-  /// identifies the conversation the client serves; this base factory does
-  /// not use it, but decorating subclasses rely on it to attribute each
-  /// model call (for example, usage tracking).
+  /// identifies the conversation the client serves; the base factory forwards
+  /// it to [customClientResolver], and decorating subclasses rely on it to
+  /// attribute each model call (for example, usage tracking).
   ChatClient createChatClient({
     required ModelSourceConfig source,
     required ModelConfig model,
@@ -77,6 +83,7 @@ class ConfiguredChatClientFactory {
       model: model,
       apiKey: apiKey,
       httpClient: httpClient,
+      scope: scope,
     ),
   );
 
@@ -85,6 +92,7 @@ class ConfiguredChatClientFactory {
     required ModelConfig model,
     String? apiKey,
     http.Client? httpClient,
+    AgentScope? scope,
   }) {
     final endpoint = source.endpoint;
     final hasEndpoint = endpoint != null && endpoint.isNotEmpty;
@@ -129,7 +137,12 @@ class ConfiguredChatClientFactory {
         if (resolver == null) {
           throw ConfiguredAgentException('No local-model provider registered.');
         }
-        return resolver(source: source, model: model, httpClient: httpClient);
+        return resolver(
+          source: source,
+          model: model,
+          httpClient: httpClient,
+          scope: scope,
+        );
       case ProviderType.network:
         // Network sources resolve to a remote A2A agent, not a chat client;
         // ConfiguredAgentFactory branches before reaching this factory.
