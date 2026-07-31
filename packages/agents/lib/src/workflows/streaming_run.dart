@@ -92,12 +92,38 @@ class StreamingRun {
     await _events.close();
   }
 
+  /// Whether [complete] or [disposeAsync] has closed the event stream.
+  bool get isCompleted => _disposed || _events.isClosed;
+
   /// Asynchronously streams workflow events as they occur.
+  ///
+  /// Events already recorded in [outgoingEvents] are replayed first, then
+  /// live events follow, so a watcher that subscribes after the run has
+  /// started (or even after it has ended) still observes the full event
+  /// sequence.
   Stream<WorkflowEvent> watchStreamAsync({
     CancellationToken? cancellationToken,
-  }) async* {
+  }) {
     cancellationToken?.throwIfCancellationRequested();
-    yield* _events.stream;
+    late final StreamController<WorkflowEvent> controller;
+    StreamSubscription<WorkflowEvent>? subscription;
+    controller = StreamController<WorkflowEvent>(
+      onListen: () {
+        // Subscribing and snapshotting happen in the same synchronous block,
+        // so no event can slip between the replayed prefix and the live tail.
+        final replay = List<WorkflowEvent>.of(_outgoingEvents);
+        subscription = _events.stream.listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: controller.close,
+        );
+        replay.forEach(controller.add);
+      },
+      onPause: () => subscription?.pause(),
+      onResume: () => subscription?.resume(),
+      onCancel: () => subscription?.cancel(),
+    );
+    return controller.stream;
   }
 
   /// Attempts to send [message] to the workflow.

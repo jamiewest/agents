@@ -26,6 +26,7 @@ import '../workflow_context.dart';
 import '../workflow_event.dart';
 import '../workflow_output_event.dart';
 import 'in_proc_step_tracer.dart';
+import 'in_process_runner.dart';
 
 /// Workflow context extended with state read/write support and sub-workflow
 /// attachment for in-process execution.
@@ -214,31 +215,74 @@ final class InProcessRunnerContext implements SuperStepJoinContext {
     });
   }
 
-  /// Queues an external [response] for delivery to the waiting executor.
+  /// Queues an external [response] for delivery to the executor that issued
+  /// the matching request.
+  ///
+  /// Responses are routed by [ExternalResponse.requestId] back to the
+  /// pending [ExternalRequest]'s source executor (searching joined
+  /// sub-workflow runners as well), never by the response payload's runtime
+  /// type. Throws a [StateError] immediately when the response cannot be
+  /// routed, leaving the run's pending requests untouched.
   void addExternalResponse(ExternalResponse<dynamic> response) {
     _checkEnded();
-    _queuedExternalDeliveries.add(() async {
-      _completeRequest(response.requestId);
-      final portId = response.port.id;
-      for (final entry in _executors.entries) {
-        final executor = entry.value;
-        if (executor.canAccept(response.response?.runtimeType ?? Null)) {
-          final envelope = MessageEnvelope(
-            targetExecutorId: entry.key,
-            message: response.response,
-          );
-          _nextStep.putIfAbsent(entry.key, () => []).add(envelope);
-          return;
-        }
-      }
+    final resolved = _resolveResponse(response);
+    if (resolved == null) {
       throw StateError(
-        'No executor found to handle response for port "$portId".',
+        'No pending external request "${response.requestId}" for port '
+        '"${response.port.id}". Responses must be created from the '
+        'ExternalRequest surfaced by a RequestInfoEvent of this run.',
       );
+    }
+    final (context, request) = resolved;
+    final targetId = request.sourceExecutorId;
+    if (targetId == null) {
+      throw StateError(
+        'External request "${response.requestId}" on port '
+        '"${response.port.id}" does not record its source executor, so its '
+        'response cannot be routed.',
+      );
+    }
+    final target = context._executors[targetId];
+    if (target != null &&
+        !target.canAccept(response.response?.runtimeType ?? Null)) {
+      throw StateError(
+        'Executor "$targetId" issued request "${response.requestId}" on '
+        'port "${response.port.id}" but does not accept the response '
+        'payload type ${response.response?.runtimeType ?? Null}.',
+      );
+    }
+    _queuedExternalDeliveries.add(() async {
+      if (context._externalRequests.remove(response.requestId) == null) {
+        throw StateError(
+          'External request "${response.requestId}" was already completed.',
+        );
+      }
+      context._nextStep
+          .putIfAbsent(targetId, () => [])
+          .add(
+            MessageEnvelope(
+              targetExecutorId: targetId,
+              message: response.response,
+            ),
+          );
     });
   }
 
-  bool _completeRequest(String requestId) =>
-      _externalRequests.remove(requestId) != null;
+  /// Finds the context owning the pending request that [response] satisfies,
+  /// searching this runner and joined sub-workflow runners.
+  (InProcessRunnerContext, ExternalRequest<dynamic, dynamic>)? _resolveResponse(
+    ExternalResponse<dynamic> response,
+  ) {
+    final request = _externalRequests[response.requestId];
+    if (request != null) return (this, request);
+    for (final runner in _joinedRunners.values) {
+      if (runner is InProcessRunner) {
+        final resolved = runner.context._resolveResponse(response);
+        if (resolved != null) return resolved;
+      }
+    }
+    return null;
+  }
 
   // ── step management ──────────────────────────────────────────────────────
 
@@ -488,14 +532,14 @@ class _BoundContext implements WorkflowStateContext {
       requestId: requestId,
       port: port,
       request: request,
+      sourceExecutorId: executorId,
     );
     await _ctx.postExternalRequestAsync(externalRequest);
     // The response arrives later via addExternalResponse / advanceAsync.
     // Return a placeholder; the caller must await a future superstep.
-    return ExternalResponse<TResponse>(
+    return ExternalResponse<TResponse>.pending(
       requestId: requestId,
       port: port.toDescriptor(),
-      response: null as TResponse,
     );
   }
 

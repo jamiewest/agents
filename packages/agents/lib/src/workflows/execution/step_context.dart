@@ -9,7 +9,20 @@ import 'message_envelope.dart';
 /// Workflow context for a single executor invocation.
 class StepContext implements WorkflowContext {
   /// Creates a step context.
-  StepContext(this.executorId);
+  ///
+  /// When [onOutput] or [onRequest] are supplied, yielded outputs and
+  /// external requests are forwarded to them at the moment they are
+  /// produced, letting the runner surface events while the executor is
+  /// still running. They are also collected into [outputs] and [requests].
+  StepContext(
+    this.executorId, {
+    void Function(Object? output)? onOutput,
+    void Function(ExternalRequest<Object?, Object?> request)? onRequest,
+  }) : _onOutput = onOutput,
+       _onRequest = onRequest;
+
+  final void Function(Object? output)? _onOutput;
+  final void Function(ExternalRequest<Object?, Object?> request)? _onRequest;
 
   final List<MessageEnvelope> _sentMessages = <MessageEnvelope>[];
   final List<Object?> _outputs = <Object?>[];
@@ -60,6 +73,7 @@ class StepContext implements WorkflowContext {
   }) async {
     cancellationToken?.throwIfCancellationRequested();
     _outputs.add(output);
+    _onOutput?.call(output);
   }
 
   @override
@@ -73,12 +87,13 @@ class StepContext implements WorkflowContext {
       requestId: '$executorId-${_requests.length + 1}',
       port: port,
       request: request,
+      sourceExecutorId: executorId,
     );
     _requests.add(externalRequest as ExternalRequest<Object?, Object?>);
-    return ExternalResponse<TResponse>(
+    _onRequest?.call(externalRequest);
+    return ExternalResponse<TResponse>.pending(
       requestId: externalRequest.requestId,
       port: port.toDescriptor(),
-      response: null as TResponse,
     );
   }
 }

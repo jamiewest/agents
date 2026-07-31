@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:extensions/system.dart';
 
 import '../checkpoint_info.dart';
@@ -6,11 +8,13 @@ import '../checkpointing/checkpoint.dart';
 import '../checkpointing/checkpoint_manager_impl.dart';
 import '../edge_id.dart';
 import '../execution/concurrent_event_sink.dart';
+import '../execution/execution_mode.dart';
 import '../execution/message_envelope.dart';
 import '../run.dart';
 import '../run_status.dart';
 import '../streaming_run.dart';
 import '../workflow.dart';
+import '../workflow_error_event.dart';
 import '../workflow_event.dart';
 import '../workflow_execution_environment.dart';
 import '../workflow_session.dart';
@@ -66,6 +70,20 @@ class InProcExecutionEnvironment implements WorkflowExecutionEnvironment {
     );
   }
 
+  /// Starts [workflow] and returns a live [StreamingRun].
+  ///
+  /// The workflow is driven in the background; the returned run's
+  /// [StreamingRun.watchStreamAsync] observes events while executors are
+  /// still running. In [ExecutionMode.offThread] (the default) every event
+  /// streams out the moment it is created — including outputs yielded
+  /// mid-invocation, such as streamed agent updates. In
+  /// [ExecutionMode.lockstep] events are batched and published together
+  /// after each superstep completes. [StreamingRun.outgoingEvents] is only
+  /// complete once the run has ended; watch the stream rather than reading
+  /// it right after this method returns.
+  ///
+  /// External responses sent via [StreamingRun.sendResponseAsync] (and
+  /// messages via [StreamingRun.trySendMessageAsync]) resume the run.
   @override
   Future<StreamingRun> streamAsync<TInput>(
     Workflow workflow, {
@@ -77,36 +95,17 @@ class InProcExecutionEnvironment implements WorkflowExecutionEnvironment {
     final token = cancellationToken ?? CancellationToken.none;
     token.throwIfCancellationRequested();
     final session = WorkflowSession(workflow: workflow, sessionId: sessionId);
-    final events = <WorkflowEvent>[];
-    final sink = ConcurrentEventSink()
-      ..eventRaised = (_, event) async => events.add(event);
-
-    final runner = InProcessRunner.topLevel(
+    return _openStreamingRun(
       workflow: workflow,
       sessionId: session.sessionId,
-      outgoingEvents: sink,
-      options: options,
       checkpointManager: checkpointManager,
+      token: token,
+      start: (runner) async {
+        if (input != null) {
+          runner.context.addExternalMessage(input as Object);
+        }
+      },
     );
-    if (input != null) {
-      runner.context.addExternalMessage(input as Object);
-    }
-
-    final status = await _driveAsync(runner, token);
-    await runner.endRunAsync();
-
-    final streamingRun = StreamingRun(
-      sessionId: session.sessionId,
-      status: status,
-      lastCheckpoint: _lastCheckpoint(runner),
-    );
-    for (final event in events) {
-      streamingRun.addEvent(event);
-    }
-    if (status == RunStatus.ended) {
-      await streamingRun.complete();
-    }
-    return streamingRun;
   }
 
   @override
@@ -156,6 +155,11 @@ class InProcExecutionEnvironment implements WorkflowExecutionEnvironment {
     );
   }
 
+  /// Resumes [workflow] from [checkpoint] as a live [StreamingRun].
+  ///
+  /// Streams with the same semantics as [streamAsync]: the run is driven in
+  /// the background and events are observed via
+  /// [StreamingRun.watchStreamAsync].
   @override
   Future<StreamingRun> resumeStreamAsync(
     Workflow workflow,
@@ -168,37 +172,67 @@ class InProcExecutionEnvironment implements WorkflowExecutionEnvironment {
     token.throwIfCancellationRequested();
     final restored = await _restoreCheckpoint(checkpointManager, checkpoint);
     final effectiveSessionId = sessionId ?? restored.sessionId;
-    final events = <WorkflowEvent>[];
+    return _openStreamingRun(
+      workflow: workflow,
+      sessionId: effectiveSessionId,
+      checkpointManager: checkpointManager,
+      token: token,
+      fallbackCheckpoint: checkpoint,
+      start: (runner) => _importCheckpointAsync(runner, restored, token),
+    );
+  }
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  StreamingRun _openStreamingRun({
+    required Workflow workflow,
+    required String sessionId,
+    required CancellationToken token,
+    required Future<void> Function(InProcessRunner runner) start,
+    CheckpointManager? checkpointManager,
+    CheckpointInfo? fallbackCheckpoint,
+  }) {
+    late final _StreamingRunDriver driver;
     final sink = ConcurrentEventSink()
-      ..eventRaised = (_, event) async => events.add(event);
+      ..eventRaised = (_, event) => driver.enqueue(event);
 
     final runner = InProcessRunner.topLevel(
       workflow: workflow,
-      sessionId: effectiveSessionId,
+      sessionId: sessionId,
       outgoingEvents: sink,
       options: options,
       checkpointManager: checkpointManager,
     );
-    await _importCheckpointAsync(runner, restored, token);
-
-    final status = await _driveAsync(runner, token);
-    await runner.endRunAsync();
-
     final streamingRun = StreamingRun(
-      sessionId: effectiveSessionId,
-      status: status,
-      lastCheckpoint: _lastCheckpoint(runner) ?? checkpoint,
+      sessionId: sessionId,
+      status: RunStatus.running,
+      lastCheckpoint: fallbackCheckpoint,
+      sendMessageCallback: (message, cancellationToken) async {
+        if (message == null) return false;
+        runner.context.addExternalMessage(message);
+        await driver.pump(cancellationToken);
+        return true;
+      },
+      sendResponseCallback: (response, cancellationToken) async {
+        runner.context.addExternalResponse(response);
+        await driver.pump(cancellationToken);
+      },
+      cancelCallback: () => runner.endRunAsync(),
+      disposeCallback: () => runner.endRunAsync(),
     );
-    for (final event in events) {
-      streamingRun.addEvent(event);
-    }
-    if (status == RunStatus.ended) {
-      await streamingRun.complete();
-    }
+    driver = _StreamingRunDriver(
+      runner: runner,
+      run: streamingRun,
+      lockstep: options.executionMode == ExecutionMode.lockstep,
+    );
+    unawaited(
+      driver.kickoff(() => start(runner), token).catchError((Object _) {
+        // Failures are surfaced on the stream as WorkflowErrorEvents and the
+        // run is completed by the driver; nothing is left to propagate here.
+      }),
+    );
     return streamingRun;
   }
-
-  // ── helpers ──────────────────────────────────────────────────────────────
 
   Future<RunStatus> _driveAsync(
     InProcessRunner runner,
@@ -269,3 +303,117 @@ class InProcExecutionEnvironment implements WorkflowExecutionEnvironment {
 
 /// Default [InProcExecutionEnvironment] instance.
 const inProcExecution = InProcExecutionEnvironment();
+
+// ── private ──────────────────────────────────────────────────────────────────
+
+/// Drives an [InProcessRunner] in the background and publishes its events to
+/// a [StreamingRun] — immediately in off-thread mode, or batched per
+/// superstep in lockstep mode.
+final class _StreamingRunDriver {
+  _StreamingRunDriver({
+    required this.runner,
+    required this.run,
+    required this.lockstep,
+  });
+
+  final InProcessRunner runner;
+  final StreamingRun run;
+  final bool lockstep;
+  final List<WorkflowEvent> _buffer = [];
+  Future<void>? _active;
+
+  Future<void> enqueue(WorkflowEvent event) async {
+    if (lockstep) {
+      _buffer.add(event);
+    } else {
+      _publish(event);
+    }
+  }
+
+  /// Registers the initial prepare-and-drive pass.
+  ///
+  /// Runs synchronously up to the first suspension point in [prepare], so
+  /// the pass is chained into [_active] before any caller can [pump].
+  Future<void> kickoff(
+    Future<void> Function() prepare,
+    CancellationToken token,
+  ) {
+    final pass = () async {
+      await prepare();
+      await _pumpOnce(token);
+    }();
+    _active = pass;
+    return pass;
+  }
+
+  /// Runs supersteps until the runner is quiescent, then completes the run's
+  /// event stream unless external requests are still outstanding.
+  ///
+  /// Concurrent calls are serialized: a call made while a drive is in
+  /// flight waits for it, then drives again so deliveries queued in the
+  /// meantime (external messages and responses) are processed before the
+  /// returned future completes.
+  Future<void> pump(CancellationToken? cancellationToken) {
+    final previous = _active;
+    final pass = () async {
+      if (previous != null) {
+        // Only this pass's own errors belong to this caller.
+        try {
+          await previous;
+        } catch (_) {}
+      }
+      await _pumpOnce(cancellationToken ?? CancellationToken.none);
+    }();
+    _active = pass;
+    return pass;
+  }
+
+  Future<void> _pumpOnce(CancellationToken token) async {
+    if (run.isCompleted) return;
+    try {
+      while (runner.hasUnprocessedMessages) {
+        token.throwIfCancellationRequested();
+        await runner.runSuperStepAsync(cancellationToken: token);
+        _flushBuffer();
+      }
+    } catch (error) {
+      _flushBuffer();
+      // Executor failures were already evented by the runner; anything else
+      // (for example a response with an unknown requestId) has not been.
+      if (!_alreadyEvented(error)) {
+        _publish(WorkflowErrorEvent(error));
+      }
+      await _endAsync();
+      rethrow;
+    }
+    if (!runner.hasUnservicedRequests) {
+      await _endAsync();
+    }
+  }
+
+  bool _alreadyEvented(Object error) => run.outgoingEvents.any(
+    (event) => event is WorkflowErrorEvent && identical(event.data, error),
+  );
+
+  void _flushBuffer() {
+    if (_buffer.isEmpty) return;
+    final batch = List<WorkflowEvent>.of(_buffer);
+    _buffer.clear();
+    batch.forEach(_publish);
+  }
+
+  void _publish(WorkflowEvent event) {
+    if (!run.isCompleted) {
+      run.addEvent(event);
+    }
+  }
+
+  Future<void> _endAsync() async {
+    run.lastCheckpoint =
+        runner.context.stepTracer.checkpoint ?? run.lastCheckpoint;
+    await runner.endRunAsync();
+    if (!run.isCompleted) {
+      await run.complete();
+    }
+  }
+}

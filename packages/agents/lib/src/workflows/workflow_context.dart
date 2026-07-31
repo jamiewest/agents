@@ -20,6 +20,11 @@ abstract interface class WorkflowContext {
   Future<void> yieldOutput<T>(T output, {CancellationToken? cancellationToken});
 
   /// Sends an external request through [port].
+  ///
+  /// Returns a pending [ExternalResponse] placeholder; the actual response
+  /// is delivered back to this executor as a message in a later superstep,
+  /// once it is supplied to the run (for example via
+  /// `StreamingRun.sendResponseAsync`).
   Future<ExternalResponse<TResponse>> sendRequest<TRequest, TResponse>(
     RequestPort<TRequest, TResponse> port,
     TRequest request, {
@@ -75,12 +80,12 @@ class CollectingWorkflowContext implements WorkflowContext {
       requestId: '${requests.length + 1}',
       port: port,
       request: request,
+      sourceExecutorId: executorId,
     );
     requests.add(externalRequest as ExternalRequest<Object?, Object?>);
-    return ExternalResponse<TResponse>(
+    return ExternalResponse<TResponse>.pending(
       requestId: externalRequest.requestId,
       port: port.toDescriptor(),
-      response: null as TResponse,
     );
   }
 }

@@ -63,8 +63,12 @@ Hosting.A2A.AspNetCore, Hosting.AGUI.AspNetCore, Aspire.*.
   ProgressLedgerUpdated + manager warnings arrive as
   `WorkflowOutputEvent.data` (no `addEvent` on the executor-facing
   `WorkflowContext`; matches the `AgentResponseEvent` precedent).
-  `MagenticPlanReviewResponse` is nullable because the runtime's
-  `sendRequest` placeholder does `null as TResponse`.
+  `MagenticPlanReviewResponse` is nullable: originally forced, because the
+  runtime's `sendRequest` placeholder did `null as TResponse`. As of
+  2026-07-31 the placeholder is `ExternalResponse.pending`, which no longer
+  forces null into `TResponse`, so the port's
+  `RequestPort<MagenticPlanReviewRequest, MagenticPlanReviewResponse?>` is now
+  a free choice rather than a workaround — left as-is pending a decision.
 - **Loop family** (2026-06-18, `ai/harness/loop/`): C# `Continue` renamed
   `proceed` (Dart keyword); `LoopJsonContext` skipped (source-gen);
   `AIJudgeLoopEvaluator` has no generic `ChatResponse<T>` in `extensions` —
@@ -152,6 +156,20 @@ Hosting.A2A.AspNetCore, Hosting.AGUI.AspNetCore, Aspire.*.
 - **A2A card resolution** maps upstream `A2ACardResolverExtensions` onto
   `extension A2AAgentCardExtensions on A2AAgentCard`
   (`a2a/extensions/a2a_agent_card_extensions.dart`).
+- **Checkpoint wire values use a type-id converter registry** (2026-07-31,
+  `workflows/checkpointing/wire_marshaller.dart`). Checkpointing serializes
+  pending message payloads to JSON text, so payloads outside the JSON model
+  (chat messages, for example) cannot round-trip on their own. With no
+  reflection to fall back on, `WireMarshaller` carries a static
+  `valueConverters` map of `WireValueConverter` (`toWire`/`fromWire`) keyed by
+  the payload's `runtimeType.toString()` — the same type id already stored in
+  `JsonWireSerializedValue.typeId`, so the converter that serialized a value
+  is the one that revives it. Payloads already inside the JSON model need no
+  entry and pass through untouched. Same reflection-free idiom as
+  `ChatMessageJsonConverter` and the per-provider `stateRehydrator`, except
+  the registry is process-global rather than per-run or per-instance:
+  registration is a host bootstrap step, and two payload types whose
+  `runtimeType.toString()` collides would collide here too.
 
 ## Verified faithful (do NOT re-flag as bugs)
 

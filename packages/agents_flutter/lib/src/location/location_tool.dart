@@ -1,6 +1,5 @@
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
-import 'package:geocoding/geocoding.dart';
 
 import 'coarse_area.dart';
 import 'location_source.dart';
@@ -17,7 +16,7 @@ AIFunction createCurrentLocationTool({
   ReverseGeocoder? reverseGeocode,
 }) {
   final resolve = resolvePosition ?? resolveCurrentPosition;
-  final geocode = reverseGeocode ?? placemarkFromCoordinates;
+  final geocode = reverseGeocode ?? reverseGeocodeCoordinates;
 
   return AIFunctionFactory.create(
     name: 'get_current_location',
@@ -70,7 +69,7 @@ AIFunction createCurrentLocationTool({
 ///
 /// [forwardGeocode] can be overridden with a fake in tests.
 AIFunction createGeocodeAddressTool({ForwardGeocoder? forwardGeocode}) {
-  final geocode = forwardGeocode ?? locationFromAddress;
+  final geocode = forwardGeocode ?? forwardGeocodeAddress;
 
   return AIFunctionFactory.create(
     name: 'geocode_address',

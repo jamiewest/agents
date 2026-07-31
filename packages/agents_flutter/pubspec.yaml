@@ -3,7 +3,7 @@ description: >-
   Flutter integration for the agents framework: a preconfigured harness agent,
   device-capability context providers and tools, chat history persistence, and
   configurable model profiles.
-version: 0.7.0
+version: 0.8.0
 repository: https://github.com/jamiewest/agents
 issue_tracker: https://github.com/jamiewest/agents/issues
 resolution: workspace
@@ -20,8 +20,8 @@ environment:
 
 dependencies:
   a2a: ^4.2.0
-  agents: ^1.6.0
-  anthropic_sdk_dart: ^5.0.0
+  agents: ^2.0.0
+  anthropic_sdk_dart: ^6.0.0
   archive: ^4.0.9
   background_downloader: ^9.5.5
   characters: ^1.4.1
@@ -32,14 +32,14 @@ dependencies:
   cross_file: ^0.3.5+2
   crypto: ^3.0.7
   device_info_plus: ^13.2.0
-  extensions: ^0.5.0
-  extensions_flutter: ^0.4.6
+  extensions: ^0.6.0
+  extensions_flutter: ^0.5.0
   flutter:
     sdk: flutter
   flutter_inappwebview: ^6.1.5
   flutter_secure_storage: ^10.3.1
   flutter_timezone: ^5.1.0
-  geocoding: ^4.0.0
+  geocoding: ^5.0.0
   geolocator: ^14.0.3
   http: ^1.6.0
   http_parser: ^4.1.2

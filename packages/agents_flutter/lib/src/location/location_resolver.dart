@@ -1,5 +1,4 @@
 import 'package:extensions/system.dart';
-import 'package:geocoding/geocoding.dart';
 
 import 'coarse_area.dart';
 import 'location_source.dart';
@@ -25,7 +24,7 @@ final class LocationResolver implements Disposable {
     CurrentPositionResolver? resolvePosition,
     ReverseGeocoder? reverseGeocode,
   }) : _resolvePosition = resolvePosition ?? resolveCurrentPosition,
-       _reverseGeocode = reverseGeocode ?? placemarkFromCoordinates;
+       _reverseGeocode = reverseGeocode ?? reverseGeocodeCoordinates;
 
   final CurrentPositionResolver _resolvePosition;
   final ReverseGeocoder _reverseGeocode;

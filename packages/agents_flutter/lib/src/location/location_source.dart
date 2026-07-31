@@ -10,16 +10,36 @@ typedef CurrentPositionResolver = Future<Position?> Function();
 
 /// Reverse-geocodes a coordinate into candidate placemarks.
 ///
-/// Defaults to `geocoding`'s [placemarkFromCoordinates]; override with a fake
-/// in tests.
+/// Defaults to [reverseGeocodeCoordinates]; override with a fake in tests.
 typedef ReverseGeocoder =
     Future<List<Placemark>> Function(double latitude, double longitude);
 
 /// Forward-geocodes a free-text address into candidate locations.
 ///
-/// Defaults to `geocoding`'s [locationFromAddress]; override with a fake in
-/// tests.
+/// Defaults to [forwardGeocodeAddress]; override with a fake in tests.
 typedef ForwardGeocoder = Future<List<Location>> Function(String address);
+
+/// The `geocoding` entry point backing the default geocoders.
+///
+/// `geocoding` 5.0.0 moved its top-level functions onto this class, so one
+/// lazily created instance is shared rather than constructing a new one per
+/// call.
+final _geocoding = Geocoding();
+
+/// The default [ReverseGeocoder], backed by `geocoding`.
+///
+/// Returns an empty list when the platform has no match for the coordinate
+/// (offline, emulator, or open ocean), so callers degrade to an unknown area.
+Future<List<Placemark>> reverseGeocodeCoordinates(
+  double latitude,
+  double longitude,
+) => _geocoding.placemarkFromCoordinates(latitude, longitude);
+
+/// The default [ForwardGeocoder], backed by `geocoding`.
+///
+/// Returns an empty list when the address cannot be resolved.
+Future<List<Location>> forwardGeocodeAddress(String address) =>
+    _geocoding.locationFromAddress(address);
 
 /// The default [CurrentPositionResolver], backed by `geolocator`.
 ///

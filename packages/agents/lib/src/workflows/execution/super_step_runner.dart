@@ -84,7 +84,19 @@ class SuperStepRunner {
           );
         }
         activatedExecutors.add(executor.id);
-        final stepContext = StepContext(executor.id);
+        // Outputs and requests surface as events at the moment the executor
+        // yields them, not after handle() returns.
+        final stepContext = StepContext(
+          executor.id,
+          onOutput: (output) => context.addEvent(
+            WorkflowOutputEvent(
+              executorId: executor.id,
+              data: output,
+              tags: context.outputTagsFor(executor.id),
+            ),
+          ),
+          onRequest: (request) => context.addEvent(RequestInfoEvent(request)),
+        );
         context.addEvent(
           ExecutorInvokedEvent(executorId: executor.id, data: delivery.message),
         );
@@ -107,18 +119,6 @@ class SuperStepRunner {
           return RunStatus.ended;
         }
 
-        for (final yieldedOutput in stepContext.outputs) {
-          context.addEvent(
-            WorkflowOutputEvent(
-              executorId: executor.id,
-              data: yieldedOutput,
-              tags: context.outputTagsFor(executor.id),
-            ),
-          );
-        }
-        for (final request in stepContext.requests) {
-          context.addEvent(RequestInfoEvent(request));
-        }
         next.addAll(stepContext.sentMessages.map(MessageDelivery.new));
 
         if (context.isOutputExecutor(executor.id) && output != null) {

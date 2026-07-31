@@ -1,4 +1,5 @@
 import 'package:agents/src/workflows/direct_edge_data.dart';
+import 'package:agents/src/workflows/executor_completed_event.dart';
 import 'package:agents/src/workflows/executor_instance_binding.dart';
 import 'package:agents/src/workflows/function_executor.dart';
 import 'package:agents/src/workflows/in_process_execution.dart';
@@ -143,6 +144,38 @@ void main() {
 
       expect(await run.getStatusAsync(), RunStatus.ended);
       expect(_outputs(run.outgoingEvents), ['output:x']);
+    });
+
+    test('yielded outputs are evented before executor completion', () async {
+      final start = FunctionExecutor<String, String>('start', (
+        input,
+        context,
+        cancellationToken,
+      ) async {
+        await context.yieldOutput('mid');
+        return 'done';
+      });
+      final workflow = WorkflowBuilder(
+        ExecutorInstanceBinding(start),
+      ).addOutput('start').build();
+
+      final run = await inProcessExecution.runAsync(workflow, 'x');
+
+      final events = run.outgoingEvents.toList();
+      final outputIndex = events.indexWhere(
+        (event) => event is WorkflowOutputEvent && event.data == 'mid',
+      );
+      final completedIndex = events.indexWhere(
+        (event) =>
+            event is ExecutorCompletedEvent && event.executorId == 'start',
+      );
+      expect(outputIndex, isNonNegative);
+      expect(completedIndex, isNonNegative);
+      expect(
+        outputIndex,
+        lessThan(completedIndex),
+        reason: 'outputs are evented at yield time, not after handle returns',
+      );
     });
   });
 }

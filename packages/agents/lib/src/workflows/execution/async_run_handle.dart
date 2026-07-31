@@ -8,6 +8,7 @@ import '../in_proc/in_process_execution_options.dart';
 import '../in_proc/in_process_runner.dart';
 import '../run_status.dart';
 import '../workflow.dart';
+import '../workflow_error_event.dart';
 import '../workflow_event.dart';
 import '../workflow_output_event.dart';
 import '../workflow_session.dart';
@@ -31,7 +32,7 @@ final class AsyncRunHandle<TOutput> {
   final InProcessRunner _runner;
   final StreamingRunEventStream _eventStream;
   RunStatus _status = RunStatus.notStarted;
-  bool _isDriving = false;
+  Future<void>? _driveTask;
 
   /// The session identifier for this run.
   final String sessionId;
@@ -113,17 +114,42 @@ final class AsyncRunHandle<TOutput> {
 
   // ── drive loop ────────────────────────────────────────────────────────────
 
-  /// Ensures the drive loop is running; idempotent while already running.
-  Future<void> _ensureDriving() async {
-    if (_isDriving) return;
-    _isDriving = true;
+  /// Ensures pending work is driven to quiescence.
+  ///
+  /// Concurrent calls are serialized: a call made while a drive loop is in
+  /// flight waits for it and then drives again, so deliveries queued in the
+  /// meantime (messages and responses) are processed before the returned
+  /// future completes.
+  Future<void> _ensureDriving() {
+    final previous = _driveTask;
+    final pass = () async {
+      if (previous != null) {
+        // Only this pass's own errors belong to this caller.
+        try {
+          await previous;
+        } catch (_) {}
+      }
+      await _driveOnce();
+    }();
+    _driveTask = pass;
+    return pass;
+  }
+
+  Future<void> _driveOnce() async {
+    if (_status == RunStatus.ended) return;
     _status = RunStatus.running;
     try {
       while (_runner.hasUnprocessedMessages) {
         await _runner.runSuperStepAsync();
       }
-    } finally {
-      _isDriving = false;
+    } catch (error) {
+      // The initial drive runs in a microtask with no awaiting caller; an
+      // unraised failure would leave stream observers waiting forever.
+      // The event stream is the error channel: report and end the run.
+      _status = RunStatus.ended;
+      await _eventStream.enqueue(WorkflowErrorEvent(error));
+      await _eventStream.completeAsync();
+      return;
     }
     _status = _runner.hasUnservicedRequests
         ? RunStatus.pendingRequests

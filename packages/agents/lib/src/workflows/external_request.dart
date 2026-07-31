@@ -8,6 +8,7 @@ class ExternalRequest<TRequest, TResponse> {
     required this.requestId,
     required this.port,
     required this.request,
+    this.sourceExecutorId,
   });
 
   /// Gets the request identifier.
@@ -18,6 +19,12 @@ class ExternalRequest<TRequest, TResponse> {
 
   /// Gets the request payload.
   final TRequest request;
+
+  /// Gets the executor that issued this request, when known.
+  ///
+  /// The runtime uses this to deliver the external response back to the
+  /// requesting executor.
+  final String? sourceExecutorId;
 
   /// Creates a response paired to this request.
   ExternalResponse<TResponse> createResponse(TResponse response) =>

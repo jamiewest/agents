@@ -52,7 +52,7 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  agents: ^1.0.0
+  agents: ^2.0.0
 ```
 
 Then fetch dependencies:

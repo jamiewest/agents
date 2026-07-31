@@ -1,5 +1,67 @@
 # Changelog
 
+## 2.0.0
+
+- **Breaking: `streamAsync` and `resumeStreamAsync` now return a live run.**
+  Both used to drive the workflow to quiescence before returning, so the
+  returned `StreamingRun` was already finished and its `outgoingEvents` was
+  complete. They now return as soon as the run is open and drive it in the
+  background. Observe progress with `StreamingRun.watchStreamAsync()`; reading
+  `outgoingEvents` immediately after the await yields only the events produced
+  so far. External responses sent via `sendResponseAsync` (and messages via
+  `trySendMessageAsync`) resume the run.
+  - In `ExecutionMode.offThread` (the default) every event is published the
+    moment it is created, including outputs yielded part-way through an
+    executor invocation — streamed agent updates now surface live. In
+    `ExecutionMode.lockstep` events are still batched and published together
+    after each superstep.
+  - `watchStreamAsync` replays the events already recorded before switching to
+    the live tail, so a watcher that subscribes late — even after the run has
+    ended — still observes the full sequence.
+  - Added `StreamingRun.isCompleted`.
+- **Breaking: external responses route by request, not by payload type.**
+  `addExternalResponse` previously completed the request and then handed the
+  payload to the first executor whose input type accepted it. It now resolves
+  the pending `ExternalRequest` by `requestId` (searching joined sub-workflow
+  runners too) and delivers the response to the executor that issued it. It
+  throws a `StateError` — leaving pending requests untouched — when the
+  request id is unknown, already serviced, or the issuing executor does not
+  accept the payload type. Workflows that relied on the old loose matching
+  must respond with the `ExternalRequest` surfaced by the run's
+  `RequestInfoEvent`.
+  - `ExternalRequest` gained `sourceExecutorId`, recording the issuing
+    executor.
+- `WorkflowContext.sendRequest` now returns `ExternalResponse.pending`, an
+  explicit placeholder, instead of forcing `null` into `TResponse`. Reading
+  `response` on a placeholder throws a `StateError` naming the request and
+  port rather than failing with an opaque cast error; the real response
+  arrives as a message in a later superstep.
+- Added `WireMarshaller.valueConverters`, a registry of `WireValueConverter`s
+  keyed by payload type id. Checkpointing serializes pending message payloads
+  to JSON text, which fails for payloads outside the JSON model (chat
+  messages, for example); hosts can now register a converter to serialize and
+  revive those types.
+- `AsyncRunHandle` serializes concurrent drive passes, so a caller that
+  delivers a message or response while a drive is in flight waits for the
+  queued work to be processed. A failure in the initial background drive is
+  now reported as a `WorkflowErrorEvent` and ends the run instead of leaving
+  stream observers waiting forever.
+- **Breaking: requires `extensions: ^0.6.0`**, which changes AI function
+  invocation. Reaching `maximumIterationsPerRequest` now issues one more
+  provider call with function declarations withheld so the model produces a
+  real answer, instead of returning unanswered tool calls; exceeding
+  `maximumConsecutiveErrorsPerRequest` now throws (a single failure rethrown
+  as-is, several combined into an `AggregateException`) instead of returning a
+  partial response; and the limit comparison changed from `>=` to `>`, so a
+  limit of `0` surfaces the first tool failure immediately. Also inherits
+  `AIContent.annotations` and the completed OpenTelemetry decorator set.
+- **Breaking: requires `anthropic_sdk_dart: ^6.0.0`.** Its types appear in
+  this package's public API (`AnthropicChatClient.client` and the
+  `AnthropicClient` builder extensions), so dependents pinning the SDK
+  directly must move to 6.x as well.
+- Verified against the current releases of the unchanged constraints, notably
+  `mcp_dart` 2.4.0.
+
 ## 1.6.0
 
 - Add live shell output reporting: `ShellExecutor.outputEvents` broadcasts

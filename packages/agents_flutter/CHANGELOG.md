@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.8.0
+
+- **Breaking: requires `agents: ^2.0.0`.** Inherits the workflow changes:
+  `streamAsync` / `resumeStreamAsync` now return a live run driven in the
+  background (watch `StreamingRun.watchStreamAsync()` rather than reading
+  `outgoingEvents` straight after the await), external responses route by
+  request id back to the issuing executor and throw when they cannot be
+  routed, and `WireMarshaller.valueConverters` lets hosts checkpoint payloads
+  outside the JSON model.
+- **Breaking: requires `extensions: ^0.6.0` and `extensions_flutter: ^0.5.0`.**
+  Inherits the AI function-invocation change: the invocation loop withholds
+  function declarations on a final tool-free round trip instead of returning
+  unanswered tool calls, and throws once
+  `maximumConsecutiveErrorsPerRequest` is exceeded rather than returning a
+  partial response. Agents configured with a low iteration or error limit will
+  see one extra provider call, or a thrown error where a partial response used
+  to come back.
+- **Breaking: requires `geocoding: ^5.0.0`**, which moved its top-level
+  functions onto a `Geocoding` class. The `ReverseGeocoder` and
+  `ForwardGeocoder` defaults are now the new top-level
+  `reverseGeocodeCoordinates` and `forwardGeocodeAddress` functions in this
+  package, which wrap a shared `Geocoding` instance. Injected fakes are
+  unaffected, and the `Placemark` / `Location` types are unchanged. Reverse
+  geocoding now also works on macOS, via the new `geocoding_darwin`
+  implementation.
+- **Breaking: requires `anthropic_sdk_dart: ^6.0.0`**, whose types appear in
+  the configured-chat-client factory surface.
+- Verified against the current releases of the unchanged constraints,
+  including `background_downloader` 9.5.7, `connectivity_plus` 7.3.1, `intl`
+  0.20.3, `network_info_plus` 8.2.1, `timezone` 0.11.1, and `wakelock_plus`
+  1.7.0.
+
 ## 0.7.0
 
 - **Breaking:** `ConfiguredChatClientFactory.customClientResolver` gains an
