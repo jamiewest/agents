@@ -179,7 +179,7 @@ class ConfiguredAgentFactory {
 
     if (source.providerType == ProviderType.network) {
       return _withTrafficLogging(
-        _createNetworkAgent(agent, model, source, bearer: apiKey),
+        await _createNetworkAgent(agent, model, source, bearer: apiKey),
       );
     }
 
@@ -329,12 +329,12 @@ class ConfiguredAgentFactory {
   /// base URL; the pairing bearer is stored where API keys live. Remote
   /// agents run inside the host's own harness, so local harness options,
   /// access toggles, and delegations do not apply.
-  AIAgent _createNetworkAgent(
+  Future<AIAgent> _createNetworkAgent(
     SavedAgentConfig agent,
     ModelConfig model,
     ModelSourceConfig source, {
     required String? bearer,
-  }) {
+  }) async {
     final endpoint = source.endpoint;
     if (endpoint == null || endpoint.isEmpty) {
       throw ConfiguredAgentException(
@@ -349,10 +349,27 @@ class ConfiguredAgentFactory {
       );
     }
     final baseUrl = endpoint.replaceAll(RegExp(r'/$'), '') + model.modelId;
-    return A2AClient(
+    // The card is fetched here rather than on the client's own background
+    // timer. That timer fires 10ms after construction, which is a race the
+    // first message usually wins over anything slower than a LAN — and a
+    // client with no card refuses to stream, reporting it as the host not
+    // supporting streaming rather than as a card that never arrived.
+    final client = A2AClient(
       baseUrl,
       customHeaders: {'authorization': 'Bearer $bearer'},
-    ).asAIAgent(
+      agentCardBackgroundFetch: false,
+    );
+    try {
+      await client.init();
+    } on Object catch (error) {
+      throw ConfiguredAgentException(
+        'Could not reach "${source.displayName}" at $baseUrl. '
+        'Check the other device is running and still sharing this agent, '
+        'and that Tor is connected if it was paired over an onion address. '
+        '($error)',
+      );
+    }
+    return client.asAIAgent(
       id: agent.id,
       name: agent.name,
       description: agent.description.isEmpty ? null : agent.description,

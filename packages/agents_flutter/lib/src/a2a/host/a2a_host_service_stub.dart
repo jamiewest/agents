@@ -22,8 +22,11 @@ class A2AHostService {
   int? get port => null;
 
   /// Unsupported on the web.
-  Future<void> start(List<SavedAgentConfig> agents, {int port = 41888}) =>
-      throw UnsupportedError('Hosting agents is not available on the web.');
+  Future<void> start(
+    List<SavedAgentConfig> agents, {
+    int port = 41888,
+    bool loopbackOnly = false,
+  }) => throw UnsupportedError('Hosting agents is not available on the web.');
 
   /// Unsupported on the web.
   Future<void> setSharedAgents(List<SavedAgentConfig> agents) =>
@@ -33,6 +36,8 @@ class A2AHostService {
   Future<void> stop() async {}
 
   /// Unsupported on the web.
-  Future<PairingPayload> createPairingOffer() =>
-      throw UnsupportedError('Hosting agents is not available on the web.');
+  Future<PairingPayload> createPairingOffer({
+    String? advertisedHost,
+    int? advertisedPort,
+  }) => throw UnsupportedError('Hosting agents is not available on the web.');
 }

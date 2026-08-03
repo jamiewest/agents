@@ -37,6 +37,7 @@ class NetworkSharingSettings extends ChangeNotifier {
   A2AHostService? _host;
   String? _error;
   bool _busy = false;
+  bool _loopbackOnly = false;
 
   /// Whether this platform can serve agents at all. Browsers cannot open
   /// server sockets, so the whole feature is hidden there.
@@ -47,6 +48,28 @@ class NetworkSharingSettings extends ChangeNotifier {
 
   /// The bound port, when serving.
   int? get port => _host?.port;
+
+  /// The running host, when serving.
+  ///
+  /// Exposed so an app can publish it through another transport — an onion
+  /// service, say — and issue offers advertising that address instead of the
+  /// LAN one.
+  A2AHostService? get host => _host;
+
+  /// Whether the host binds loopback only, for peers that reach it through a
+  /// local forward rather than across the network.
+  bool get loopbackOnly => _loopbackOnly;
+
+  /// Rebinds the host to loopback only, or back to the network.
+  ///
+  /// Awaitable because the socket is rebound: a caller that reads [port]
+  /// straight after would otherwise see the old port, or none at all. A no-op
+  /// when the value is unchanged, since rebinding drops connected peers.
+  Future<void> setLoopbackOnly(bool value) async {
+    if (value == _loopbackOnly) return;
+    _loopbackOnly = value;
+    if (_shared.isNotEmpty) await _restart();
+  }
 
   /// The last failure to start, stop, or re-route the host, if any.
   String? get error => _error;
@@ -100,12 +123,20 @@ class NetworkSharingSettings extends ChangeNotifier {
   ///
   /// Throws when nothing is shared yet, since there is no server to pair
   /// with. The returned token must never be logged or put in model context.
-  Future<PairingPayload> createPairingOffer() async {
+  /// [advertisedHost] and [advertisedPort] override where the offer points,
+  /// for hosts reached through a forward rather than directly.
+  Future<PairingPayload> createPairingOffer({
+    String? advertisedHost,
+    int? advertisedPort,
+  }) async {
     final host = _host;
     if (host == null || !host.isRunning) {
       throw StateError('Share an agent before creating a pairing code.');
     }
-    return host.createPairingOffer();
+    return host.createPairingOffer(
+      advertisedHost: advertisedHost,
+      advertisedPort: advertisedPort,
+    );
   }
 
   /// Forgets shared ids that are not in [existingAgentIds].
@@ -117,6 +148,12 @@ class NetworkSharingSettings extends ChangeNotifier {
       _shared.remove(agentId);
       await keyValueStore.delete('$_prefix$agentId');
     }
+  }
+
+  /// Rebinds the host, so a changed bind address takes effect.
+  Future<void> _restart() async {
+    await _host?.stop();
+    await _apply();
   }
 
   /// Rebuilds the host's routing table from the shared set.
@@ -146,7 +183,7 @@ class NetworkSharingSettings extends ChangeNotifier {
         if (host.isRunning) {
           await host.setSharedAgents(shared);
         } else {
-          await host.start(shared);
+          await host.start(shared, loopbackOnly: _loopbackOnly);
         }
       }
     } catch (error) {

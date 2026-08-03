@@ -139,15 +139,27 @@ class A2AHostService {
   }
 
   /// Starts serving [agents], preferring [port] with an ephemeral fallback.
-  Future<void> start(List<SavedAgentConfig> agents, {int port = 41888}) async {
+  ///
+  /// Binds `anyIPv4` by default, which is what LAN sharing needs. Set
+  /// [loopbackOnly] when peers reach this host through a local forward — an
+  /// onion service, say — so the agents are not simultaneously offered to
+  /// everyone on the local network.
+  Future<void> start(
+    List<SavedAgentConfig> agents, {
+    int port = 41888,
+    bool loopbackOnly = false,
+  }) async {
     await stop();
     await setSharedAgents(agents);
 
+    final address = loopbackOnly
+        ? InternetAddress.loopbackIPv4
+        : InternetAddress.anyIPv4;
     try {
-      _server = await shelf_io.serve(_handle, InternetAddress.anyIPv4, port);
+      _server = await shelf_io.serve(_handle, address, port);
     } on SocketException {
       // The preferred stable port is taken; fall back to an OS-assigned one.
-      _server = await shelf_io.serve(_handle, InternetAddress.anyIPv4, 0);
+      _server = await shelf_io.serve(_handle, address, 0);
     }
   }
 
@@ -210,7 +222,15 @@ class A2AHostService {
   ///
   /// The returned payload's token is single-use and expires in two
   /// minutes. It must never be logged or placed in model context.
-  Future<PairingPayload> createPairingOffer() async {
+  /// [advertisedHost] and [advertisedPort] override where the offer tells the
+  /// peer to connect, for hosts reached through a forward rather than
+  /// directly. An onion service passes its `.onion` address and virtual port;
+  /// the peer's own transport resolves it, so the LAN address this device
+  /// happens to hold is not merely unhelpful but wrong to advertise.
+  Future<PairingPayload> createPairingOffer({
+    String? advertisedHost,
+    int? advertisedPort,
+  }) async {
     final server = _server;
     if (server == null) {
       throw StateError('Start hosting before creating a pairing offer.');
@@ -220,8 +240,8 @@ class A2AHostService {
     _tokens.issue(token, expiresAt);
     return PairingPayload(
       hostId: await _ensureHostId(),
-      host: await _lanAddress(),
-      port: server.port,
+      host: advertisedHost ?? await _lanAddress(),
+      port: advertisedPort ?? server.port,
       token: token,
       expiresAt: expiresAt,
     );
@@ -247,12 +267,19 @@ class A2AHostService {
     return candidate ?? InternetAddress.loopbackIPv4.address;
   }
 
-  a2a.A2AAgentCard _cardFor(SavedAgentConfig config, String path) =>
+  /// Builds the card describing [config], advertising [endpointUrl] as the
+  /// RPC endpoint.
+  ///
+  /// [endpointUrl] must be absolute wherever the card is actually served,
+  /// since it is what the client POSTs to. The copy handed to the request
+  /// handler is only used for server-side capability checks and never leaves
+  /// the process, so it can carry the bare path.
+  a2a.A2AAgentCard _cardFor(SavedAgentConfig config, String endpointUrl) =>
       a2a.A2AAgentCard()
         ..name = config.name
         ..description = config.description
         ..version = '1.0.0'
-        ..url = path
+        ..url = endpointUrl
         ..preferredTransport = a2a.A2ATransportProtocol.jsonRpc
         ..defaultInputModes = <String>['text/plain']
         ..defaultOutputModes = <String>['text/plain']
@@ -303,11 +330,27 @@ class A2AHostService {
         if (request.method == 'GET' &&
             path == '${hosted.path}/.well-known/agent-card.json') {
           // The card's url is the RPC endpoint the client will POST to; it
-          // must be absolute from the client's perspective.
+          // must be absolute from the client's perspective. Taking it from
+          // Host is what lets one host serve both paths: a LAN peer sees the
+          // LAN address, a peer arriving through the onion service sees the
+          // `.onion`, and neither has to be configured.
+          //
+          // Refused rather than answered with a relative url when Host is
+          // missing. `A2AClient` overwrites its own base url with whatever the
+          // card says, so a relative value replaces a working endpoint with a
+          // broken one and fails on the *next* call, reported by the HTTP
+          // layer with no mention of the card. HTTP/1.1 requires Host, so this
+          // only rejects clients that are already malformed.
           final origin = request.headers['host'];
+          if (origin == null || origin.isEmpty) {
+            return shelf.Response(
+              400,
+              body: 'A Host header is required to build the agent card.',
+            );
+          }
           final card = _cardFor(
             hosted.config,
-            origin == null ? hosted.path : 'http://$origin${hosted.path}',
+            'http://$origin${hosted.path}',
           );
           return shelf.Response.ok(
             jsonEncode(card.toJson()),

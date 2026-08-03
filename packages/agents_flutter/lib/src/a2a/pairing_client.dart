@@ -78,6 +78,33 @@ class PairingClient {
   /// How long [pair] and [listAgents] wait before giving up on the host.
   static const Duration _requestTimeout = Duration(seconds: 8);
 
+  /// Timeout for a single request to [baseUrl].
+  ///
+  /// An onion address needs far longer than a LAN hop. The first connection
+  /// has to fetch the service descriptor from the directory system and build
+  /// a rendezvous circuit, which routinely takes tens of seconds; a freshly
+  /// published service is slower still while its descriptor propagates.
+  /// Timing that out at LAN speed reports a working setup as unreachable.
+  static Duration _timeoutFor(String baseUrl) =>
+      _isOnion(baseUrl) ? const Duration(seconds: 90) : _requestTimeout;
+
+  static bool _isOnion(String baseUrl) {
+    final host = Uri.tryParse(baseUrl)?.host.toLowerCase() ?? '';
+    return host.endsWith('.onion');
+  }
+
+  /// Explains an unreachable host in terms of the route actually used.
+  ///
+  /// "Check you are on the same network" is not merely unhelpful for an onion
+  /// address, it points away from the fix: Tor exists so the devices do not
+  /// have to share a network.
+  static String _unreachable(String baseUrl, Object error) => _isOnion(baseUrl)
+      ? 'Could not reach $baseUrl over Tor. Check that Tor is on and '
+            'connected on both devices, and that the other device is still '
+            'sharing. A first connection can take up to a minute. ($error)'
+      : 'Could not reach $baseUrl. Make sure both devices are on '
+            'the same network. ($error)';
+
   final http.Client _http;
   final bool _ownsHttp;
 
@@ -112,12 +139,9 @@ class PairingClient {
               'clientId': clientId,
             }),
           )
-          .timeout(_requestTimeout);
+          .timeout(_timeoutFor(payload.baseUrl));
     } catch (e) {
-      throw PairingException(
-        'Could not reach ${payload.baseUrl}. Make sure both devices are on '
-        'the same network. ($e)',
-      );
+      throw PairingException(_unreachable(payload.baseUrl, e));
     }
     if (response.statusCode != 200) {
       throw PairingException(
@@ -152,7 +176,7 @@ class PairingClient {
             Uri.parse('$baseUrl/agents'),
             headers: {'authorization': 'Bearer $credential'},
           )
-          .timeout(const Duration(seconds: 4));
+          .timeout(_timeoutFor(baseUrl));
       return response.statusCode == 200;
     } catch (_) {
       return false;
@@ -171,9 +195,9 @@ class PairingClient {
             Uri.parse('$baseUrl/agents'),
             headers: {'authorization': 'Bearer $credential'},
           )
-          .timeout(_requestTimeout);
+          .timeout(_timeoutFor(baseUrl));
     } catch (e) {
-      throw PairingException('Could not reach $baseUrl. ($e)');
+      throw PairingException(_unreachable(baseUrl, e));
     }
     if (response.statusCode != 200) {
       throw PairingException(
