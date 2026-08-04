@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.8.1
+
+- A shared host can now be reached through a local forward — an onion
+  service, say — not just across the LAN. `A2AHostService.start` gains
+  `loopbackOnly`, and `NetworkSharingSettings` gains `host`, `loopbackOnly`,
+  and the awaitable `setLoopbackOnly` (it rebinds the socket, so a caller
+  reading `port` straight after would otherwise see the old one), so a host
+  reached through a forward is not simultaneously offered to everyone on the
+  network.
+- `createPairingOffer` takes `advertisedHost` / `advertisedPort`, so an offer
+  can point peers at the forward's address — a `.onion` and its virtual
+  port — instead of the LAN address this device happens to hold, which the
+  peer's own transport resolves.
+- The agent card is refused with a 400 when the `Host` header is missing,
+  rather than answered with a relative url. `A2AClient` overwrites its base
+  url with whatever the card says, so a relative value replaced a working
+  endpoint with a broken one and failed on the next call with no mention of
+  the card. HTTP/1.1 requires `Host`, so only already-malformed clients are
+  rejected.
+- `PairingClient` gives `.onion` hosts up to 90 seconds per request — a first
+  Tor connection routinely takes tens of seconds — and explains an
+  unreachable onion host in terms of Tor rather than telling the user to
+  check they are on the same network.
+
 ## 0.8.0
 
 - **Breaking: requires `agents: ^2.0.0`.** Inherits the workflow changes:
