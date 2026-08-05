@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.8.2
+
+- Agents can now author skills. A new skills module adds `SkillStore` and
+  `StoredSkill` (persisted over any `RecordStore`), `RecordStoreSkillsSource`
+  to make stored skills loadable, and a `create_skill` tool
+  (`createSkillAuthoringTools`). The tool is store-gated like Pushover:
+  attach a store via `FlutterHarnessAgentOptions.skillStore` and it exists,
+  omit the store and it doesn't. It requires per-call user approval by
+  default — a created skill injects instructions into future conversations —
+  and follows `disableAgentSkillsProvider`, so one toggle governs both
+  reading and creating skills. Conversation-scope wiring reads skills in
+  private conversations too (they are app-wide, and reading persists
+  nothing) but withholds the authoring tool there, since creating one writes
+  a durable record.
+- `run_shell` for configured agents is now wired on desktop only, where it
+  used to be any non-web platform. The check lives in the factory, not just
+  the editor UI: a config that arrives with the flag already set — imported
+  from a paired peer, restored from another device's backup — no longer
+  wires a shell on a phone. The executor also runs under the new
+  `defaultShellPolicy()`, a deliberately short anchored deny-list (`sudo`,
+  `rm` aimed at a root or the home directory, and kin) that screens
+  near-certain mistakes before the per-command approval prompt; it is a UX
+  guardrail, not a security boundary.
+- `AuthorizedClientsStore` moved into its own library, exported unchanged
+  through `a2a_host_service.dart` and no longer confined to the `dart:io`
+  side of the conditional export.
+
 ## 0.8.1
 
 - A shared host can now be reached through a local forward — an onion

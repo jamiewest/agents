@@ -8,3 +8,4 @@ library;
 
 export 'a2a_host_service_stub.dart'
     if (dart.library.io) 'a2a_host_service_io.dart';
+export 'authorized_clients_store.dart';

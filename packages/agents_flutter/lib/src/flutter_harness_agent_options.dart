@@ -2,6 +2,7 @@ import 'package:agents/agents.dart';
 
 import 'pushover/pushover_api.dart';
 import 'pushover/pushover_tool.dart';
+import 'skills/skill_store.dart';
 import 'web/web_block_scorer.dart';
 import 'web/web_navigation_policy.dart';
 import 'web/web_page_loader.dart';
@@ -33,6 +34,7 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
     this.timeZoneId,
     this.pushoverClient,
     this.pushoverToolOptions,
+    this.skillStore,
     this.webSearchSource,
     this.webSearchSourcesByCategory,
     this.webPageLoader,
@@ -91,6 +93,15 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
   /// the defaults (send + quota tools, no emergency priority).
   PushoverToolOptions? pushoverToolOptions;
 
+  /// When set, adds the `create_skill` authoring tool bound to this store.
+  ///
+  /// Store-gated like [pushoverClient]: the tool exists exactly when the
+  /// host attached a store. Point [agentSkillsSource] at the same store (via
+  /// `RecordStoreSkillsSource`) and a created skill is loadable on the
+  /// agent's next turn. The skills provider toggle governs authoring too:
+  /// `disableAgentSkillsProvider` removes this tool along with the provider.
+  SkillStore? skillStore;
+
   /// Search backend used by the local `web_search` function.
   ///
   /// Setting this replaces the provider-hosted search marker with local
@@ -148,6 +159,7 @@ class FlutterHarnessAgentOptions extends HarnessAgentOptions {
         timeZoneId: timeZoneId,
         pushoverClient: pushoverClient,
         pushoverToolOptions: pushoverToolOptions,
+        skillStore: skillStore,
         webSearchSource: webSearchSource,
         webSearchSourcesByCategory: webSearchSourcesByCategory,
         webPageLoader: webPageLoader,

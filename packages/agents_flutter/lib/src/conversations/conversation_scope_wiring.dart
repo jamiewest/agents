@@ -4,6 +4,8 @@ import 'package:agents/agents.dart'
         ChatHistoryMemoryProviderScope,
         ChatHistoryMemoryProviderState;
 import 'package:extensions/extensions.dart';
+import '../skills/record_store_skills_source.dart';
+import '../skills/skill_store.dart';
 
 import '../activity/terminal_activity.dart';
 import '../activity/terminal_mirroring_shell_executor.dart';
@@ -118,10 +120,25 @@ abstract final class ConversationScopeWiring {
       ];
     }
 
+    // Stored skills are app-wide, not conversation-scoped, and reading
+    // them persists nothing — so like the user profile above, they stay
+    // available in private conversations.
+    final skillStore = services.getService<SkillStore>();
+    if (skillStore != null) {
+      options.agentSkillsSource ??= RecordStoreSkillsSource(skillStore);
+    }
+
     // Private conversations keep the default in-memory capabilities;
     // durable ones read and write conversation-scoped persistence, so
     // resumed chats need no replay step.
     if (scope.isPrivate) return;
+
+    // Creating a skill writes a durable app-wide record, so the authoring
+    // tool is withheld from private conversations.
+    if (skillStore != null) {
+      options.skillStore ??= skillStore;
+    }
+
     final records = services.getRequiredService<RecordStore>();
     options.chatHistoryProvider = FlutterChatHistoryProvider(
       records,

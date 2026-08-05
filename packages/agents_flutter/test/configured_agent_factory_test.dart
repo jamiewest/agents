@@ -16,6 +16,7 @@ import 'package:agents/agents.dart'
 import 'package:agents_flutter/agents_flutter.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -524,6 +525,10 @@ void main() {
     test(
       'applies saved agent access settings to harness capabilities',
       () async {
+        // Shell access is desktop-only, and the test binding reports Android
+        // unless told otherwise; this case covers a machine that has it.
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
         final manager = buildManager();
         await manager.saveSource(_openAiSource, apiKey: 'sk-openai');
         await manager.saveModel(_openAiModel);
@@ -586,6 +591,39 @@ void main() {
         expect(toolNames, contains('get_current_network_info'));
         expect(toolNames, contains('set_wake_lock'));
         expect(toolNames, contains('run_shell'));
+      },
+    );
+
+    test(
+      'shell access is refused on mobile even when the config asks',
+      () async {
+        // A config can arrive with the flag already set — imported from a
+        // paired peer, or restored from a desktop's backup — so the platform
+        // check has to live in the factory, not only in the editor UI.
+        for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+          debugDefaultTargetPlatformOverride = platform;
+          addTearDown(() => debugDefaultTargetPlatformOverride = null);
+          final manager = buildManager();
+          await manager.saveSource(_openAiSource, apiKey: 'sk-openai');
+          await manager.saveModel(_openAiModel);
+          const agent = SavedAgentConfig(
+            id: 'a1',
+            name: 'Helper',
+            modelId: 'm-openai',
+            access: AgentAccessConfig(enableShell: true),
+          );
+          await manager.saveAgent(agent);
+
+          final built = await ConfiguredAgentFactory(
+            manager,
+          ).createAgent(agent);
+          final chatOptions = built.getServiceOf<ChatOptions>()!;
+          final toolNames = chatOptions.tools!
+              .map((tool) => tool.name)
+              .toList();
+
+          expect(toolNames, isNot(contains('run_shell')), reason: '$platform');
+        }
       },
     );
 

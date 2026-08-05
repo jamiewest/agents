@@ -13,6 +13,7 @@ export 'configured_agent_factory.dart';
 export 'configured_agents_manager.dart';
 export 'configured_agents_service_collection_extensions.dart';
 export 'configured_chat_client_factory.dart';
+export 'default_shell_policy.dart';
 export 'local_model_warmup.dart';
 export 'logging_configured_chat_client_factory.dart';
 export 'model_profile/model_profile.dart';

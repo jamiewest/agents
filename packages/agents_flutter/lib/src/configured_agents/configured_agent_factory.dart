@@ -21,6 +21,7 @@ import 'agent_scope.dart';
 import 'configured_agent_exception.dart';
 import 'configured_agents_manager.dart';
 import 'configured_chat_client_factory.dart';
+import 'default_shell_policy.dart';
 import 'model_profile/model_profile_settings.dart';
 import 'models/model_config.dart';
 import 'models/model_source_config.dart';
@@ -499,12 +500,26 @@ class ConfiguredAgentFactory {
       ..enableLocation = access.enableLocation
       ..enableNetworkInfo = access.enableNetworkInfo
       ..enableWakeLock = access.enableWakeLock;
-    // The `run_shell` tool spawns host processes via `dart:io`, so it is only
-    // available off the web. The base harness wraps it in an
+    // The `run_shell` tool spawns host processes via `dart:io`, so it is
+    // desktop-only — matching the editor UI, which offers the switch nowhere
+    // else. The platform check must live here too, not just in the UI: a
+    // config that arrives with the flag already set (imported from a paired
+    // peer, restored from another device's backup) must not wire a shell on
+    // a phone. The base harness wraps the tool in an
     // `ApprovalRequiredAIFunction`, so every command still requires per-call
-    // user approval.
-    if (access.enableShell && !kIsWeb) {
-      options.shellExecutor = LocalShellExecutor();
+    // user approval; the policy screens out the obviously destructive ones
+    // before that prompt is even shown.
+    if (access.enableShell && !kIsWeb && _isDesktop) {
+      options.shellExecutor = LocalShellExecutor(
+        LocalShellExecutorOptions(policy: defaultShellPolicy()),
+      );
     }
   }
+
+  static bool get _isDesktop => switch (defaultTargetPlatform) {
+    TargetPlatform.macOS ||
+    TargetPlatform.windows ||
+    TargetPlatform.linux => true,
+    _ => false,
+  };
 }

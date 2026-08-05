@@ -19,6 +19,7 @@ import 'package_info/app_info.dart';
 import 'package_info/app_info_loader.dart';
 import 'package_info/package_info_tool.dart';
 import 'pushover/pushover_tool.dart';
+import 'skills/skill_tool.dart';
 import 'temporal/temporal_context_provider.dart';
 import 'temporal/temporal_tool.dart';
 import 'wake_lock/wake_lock_tool.dart';
@@ -111,6 +112,13 @@ FlutterHarnessCapabilities buildFlutterHarnessCapabilities(
         options: options.pushoverToolOptions,
       ),
     );
+  }
+
+  // Skill authoring is store-gated like Pushover, and follows the skills
+  // provider toggle so one setting governs reading and creating skills.
+  final skillStore = options.skillStore;
+  if (skillStore != null && !options.disableAgentSkillsProvider) {
+    tools.addAll(createSkillAuthoringTools(store: skillStore, clock: clock));
   }
 
   if (usesLocalWebTools(options)) {

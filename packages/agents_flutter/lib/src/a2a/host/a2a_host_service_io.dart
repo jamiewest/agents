@@ -14,6 +14,7 @@ import '../../configured_agents/models/saved_agent_config.dart';
 import '../../configured_agents/storage/key_value_store.dart';
 import '../pairing_crypto.dart';
 import '../pairing_payload.dart';
+import 'authorized_clients_store.dart';
 import 'package:extensions_flutter/extensions_flutter.dart';
 import 'package:pool/pool.dart';
 import 'package:shelf/shelf.dart' as shelf;
@@ -45,44 +46,6 @@ class PairingTokenStore {
   bool consume(String token) {
     final expiresAt = _tokens.remove(token);
     return expiresAt != null && DateTime.now().toUtc().isBefore(expiresAt);
-  }
-}
-
-/// Paired clients, persisted as SHA-256 hashes of their bearers.
-class AuthorizedClientsStore {
-  /// Creates an [AuthorizedClientsStore] over [keyValueStore].
-  AuthorizedClientsStore(this._keyValueStore);
-
-  static const String _prefix = 'agents_app.a2a.client.';
-
-  final KeyValueStore _keyValueStore;
-
-  /// Records a paired client. Only the bearer's hash is stored.
-  Future<void> add({
-    required String clientId,
-    required String clientName,
-    required String bearerHash,
-  }) => _keyValueStore.write(
-    '$_prefix$bearerHash',
-    jsonEncode({
-      'clientId': clientId,
-      'clientName': clientName,
-      'pairedAt': DateTime.now().toUtc().toIso8601String(),
-    }),
-  );
-
-  /// Whether [bearer] belongs to a paired client.
-  Future<bool> verify(String bearer) async {
-    final hash = PairingCrypto.sha256Hex(bearer);
-    for (final key in await _keyValueStore.keys(prefix: _prefix)) {
-      if (PairingCrypto.constantTimeEquals(
-        key.substring(_prefix.length),
-        hash,
-      )) {
-        return true;
-      }
-    }
-    return false;
   }
 }
 
@@ -348,10 +311,7 @@ class A2AHostService {
               body: 'A Host header is required to build the agent card.',
             );
           }
-          final card = _cardFor(
-            hosted.config,
-            'http://$origin${hosted.path}',
-          );
+          final card = _cardFor(hosted.config, 'http://$origin${hosted.path}');
           return shelf.Response.ok(
             jsonEncode(card.toJson()),
             headers: const {'content-type': 'application/json'},
