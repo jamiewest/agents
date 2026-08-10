@@ -420,7 +420,7 @@ final class AnthropicChatClient implements ChatClient {
             name: tool.name,
             description: tool.description,
             inputSchema: anthropic.InputSchema.fromJson(
-              tool.parametersSchema ?? const <String, dynamic>{},
+              _jsonObject(tool.parametersSchema ?? const <String, dynamic>{}),
             ),
           ),
         ),
@@ -578,6 +578,22 @@ final class AnthropicChatClient implements ChatClient {
     }
     return properties;
   }
+
+  /// Deeply re-keys a JSON-schema map as `Map<String, dynamic>`.
+  ///
+  /// Tool schemas are commonly written as untyped `const` literals whose
+  /// nested maps infer as `Map<dynamic, dynamic>`; the SDK's
+  /// `InputSchema.fromJson` casts nested values (such as `properties`) to
+  /// `Map<String, dynamic>` and throws on those literals.
+  static Map<String, dynamic> _jsonObject(Map<dynamic, dynamic> map) => {
+    for (final entry in map.entries) '${entry.key}': _jsonValue(entry.value),
+  };
+
+  static Object? _jsonValue(Object? value) => switch (value) {
+    final Map<dynamic, dynamic> map => _jsonObject(map),
+    final List<Object?> list => [for (final item in list) _jsonValue(item)],
+    _ => value,
+  };
 
   Map<String, dynamic> _dynamicMap(Map<String, Object?>? value) {
     if (value == null) return <String, dynamic>{};
