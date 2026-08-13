@@ -498,6 +498,46 @@ AIFunction _createExpandPageTool(
 );
 
 /// Parses a model-provided URL, defaulting a missing scheme to HTTPS.
+/// Whether [host] names a device on the local network rather than something
+/// routable on the internet.
+///
+/// Pure Dart on purpose: this has to give the same answer in the browser as
+/// it does natively, so it parses literals itself instead of reaching for
+/// `InternetAddress` (`dart:io`, and stubbed out on web).
+///
+/// Covers loopback, RFC 1918, link-local, and the mDNS/`localhost` names.
+/// A name that merely fails to parse as an address is *not* local — an
+/// unresolvable hostname must not earn the trust a LAN address gets.
+bool isLocalNetworkHost(String host) {
+  final name = host.toLowerCase();
+  if (name == 'localhost' ||
+      name.endsWith('.localhost') ||
+      name.endsWith('.local')) {
+    return true;
+  }
+  // Uri.host strips the brackets from an IPv6 literal.
+  if (name.contains(':')) {
+    return name == '::1' ||
+        // Unique-local fc00::/7 and link-local fe80::/10.
+        RegExp(r'^f[cd][0-9a-f]{0,2}:').hasMatch(name) ||
+        RegExp(r'^fe[89ab][0-9a-f]?:').hasMatch(name);
+  }
+  final octets = name.split('.');
+  if (octets.length != 4) return false;
+  final values = <int>[];
+  for (final octet in octets) {
+    final value = int.tryParse(octet);
+    if (value == null || value < 0 || value > 255) return false;
+    values.add(value);
+  }
+  final [a, b, _, _] = values;
+  return a == 10 ||
+      a == 127 ||
+      (a == 192 && b == 168) ||
+      (a == 172 && b >= 16 && b <= 31) ||
+      (a == 169 && b == 254);
+}
+
 Uri? normalizeWebUrl(String value) {
   final trimmed = value.trim();
   if (trimmed.isEmpty) return null;

@@ -15,13 +15,14 @@ import '../../abstractions/ai_context_provider.dart' as acp;
 import '../../abstractions/chat_history_provider.dart';
 import '../../abstractions/in_memory_chat_history_provider.dart';
 import '../../abstractions/invoked_context.dart';
+import 'approval_not_required_function_bypassing_chat_client.dart';
+import 'approval_response_binding_chat_client.dart';
 import 'chat_client_agent_continuation_token.dart';
 import 'chat_client_agent_log_messages.dart';
 import 'chat_client_agent_options.dart';
 import 'chat_client_agent_run_options.dart';
 import 'chat_client_agent_session.dart';
 import 'message_injecting_chat_client.dart';
-import 'non_approval_required_function_bypassing_chat_client.dart';
 import 'per_service_call_chat_history_persisting_chat_client.dart';
 
 /// Provides an [AIAgent] that delegates to a [ChatClient] implementation.
@@ -978,10 +979,33 @@ final class ChatClientAgent extends AIAgent {
     final chatBuilder = ChatClientBuilder(chatClient);
 
     // Registration order matters: the first `use` is the outermost decorator.
-    if (options?.enableNonApprovalRequiredFunctionBypassing == true) {
+    //
+    // ApprovalResponseBindingChatClient is registered first so that it sits
+    // above ApprovalNotRequiredFunctionBypassingChatClient and
+    // FunctionInvokingChatClient. Being outermost lets it inspect the
+    // caller's raw approval responses before any framework-generated
+    // (auto-approved) responses are injected below it, binding each response
+    // to the model-originated approval request the framework surfaced.
+    if (options?.disableApprovalResponseBinding != true) {
       chatBuilder.use(
-        (innerClient) =>
-            NonApprovalRequiredFunctionBypassingChatClient(innerClient),
+        (innerClient) => ApprovalResponseBindingChatClient(
+          innerClient,
+          loggerFactory: loggerFactory,
+        ),
+      );
+    }
+
+    // ApprovalNotRequiredFunctionBypassingChatClient is registered before
+    // FunctionInvokingChatClient so that it sits above it, letting it
+    // intercept FICC's responses and remove approval requests for tools that
+    // do not actually require approval, storing them for automatic
+    // re-injection on the next request.
+    if (options?.disableApprovalNotRequiredFunctionBypassing != true) {
+      chatBuilder.use(
+        (innerClient) => ApprovalNotRequiredFunctionBypassingChatClient(
+          innerClient,
+          loggerFactory: loggerFactory,
+        ),
       );
     }
 

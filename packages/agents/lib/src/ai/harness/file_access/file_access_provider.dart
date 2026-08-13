@@ -13,6 +13,7 @@ import '../file_store/file_search_result.dart';
 import '../file_store/file_store_entry.dart';
 import '../file_store/store_paths.dart';
 import 'file_access_provider_options.dart';
+import '../tool_approval/tool_auto_approval_rule_context.dart';
 import 'package:agents/src/abstractions/invoking_context.dart';
 
 /// An [AIContextProvider] that provides file access tools to an agent for
@@ -101,21 +102,21 @@ class FileAccessProvider extends AIContextProvider implements Disposable {
   /// An auto-approval rule that approves the read-only file access tools
   /// ([readFileToolName], [lsToolName], and [grepToolName]) while still
   /// prompting for tools that modify the store.
-  static Future<bool> Function(FunctionCallContent functionCall)
-  get readOnlyToolsAutoApprovalRule => _readOnlyToolsAutoApprovalRule;
+  static ToolAutoApprovalRule get readOnlyToolsAutoApprovalRule =>
+      _readOnlyToolsAutoApprovalRule;
 
   /// An auto-approval rule that approves all file access tools, including
   /// the tools that modify the file store.
-  static Future<bool> Function(FunctionCallContent functionCall)
-  get allToolsAutoApprovalRule => _allToolsAutoApprovalRule;
+  static ToolAutoApprovalRule get allToolsAutoApprovalRule =>
+      _allToolsAutoApprovalRule;
 
   static Future<bool> _readOnlyToolsAutoApprovalRule(
-    FunctionCallContent functionCall,
-  ) async => _readOnlyToolNames.contains(functionCall.name);
+    ToolAutoApprovalRuleContext context,
+  ) async => _readOnlyToolNames.contains(context.functionCallContent.name);
 
   static Future<bool> _allToolsAutoApprovalRule(
-    FunctionCallContent functionCall,
-  ) async => _allToolNames.contains(functionCall.name);
+    ToolAutoApprovalRuleContext context,
+  ) async => _allToolNames.contains(context.functionCallContent.name);
 
   /// The default instructions provided to the agent.
   static const String defaultInstructions = '''

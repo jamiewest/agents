@@ -19,6 +19,7 @@ append it here (with a date) — do not record it only in session memory.
 | `ai/open_ai/` | `Microsoft.Agents.AI.OpenAI` |
 | `workflows/` | `Microsoft.Agents.AI.Workflows` |
 | `hosting/` | `Microsoft.Agents.AI.Hosting` |
+| `hosting/local/` | `Microsoft.Agents.AI.Hosting` (`Local/`) |
 | `hosting/a2a/` | `Microsoft.Agents.AI.Hosting.A2A` |
 | `hosting/open_ai/` | `Microsoft.Agents.AI.Hosting.OpenAI` |
 | `a2a/` | `Microsoft.Agents.AI.A2A` |
@@ -30,8 +31,6 @@ append it here (with a date) — do not record it only in session memory.
 **Dart-original (no upstream counterpart — never flag as drift):**
 
 - `gemini/` — Gemini chat client; upstream has no Gemini project.
-- `hosting/local/` — in-memory session store; upstream ships store
-  implementations as separate providers (CosmosNoSql, Valkey) instead.
 - Top-level helpers: `json_stubs.dart`, `activity_stubs.dart`,
   `func_typedefs.dart`, `map_extensions.dart` — explicit stand-ins for C#
   reflection/JSON machinery and delegate types.
@@ -170,6 +169,61 @@ Hosting.A2A.AspNetCore, Hosting.AGUI.AspNetCore, Aspire.*.
   the registry is process-global rather than per-run or per-instance:
   registration is a host bootstrap step, and two payload types whose
   `runtimeType.toString()` collides would collide here too.
+
+- **`InvocableFunctionBypassingChatClient` not ported** (2026-08-13). Upstream
+  works around .NET's `FunctionInvokingChatClient` terminating its loop when a
+  declaration-only (frontend) call appears alongside invocable (backend) calls,
+  returning the backend calls unexecuted. Its entire strip/store gate keys off
+  `FunctionCallContent.InformationalOnly`, which `extensions` 0.6.0 does not
+  have — and the Dart FICC has no such concept and does not reproduce the
+  behavior: a declaration-only call falls into `_invokeFunction`'s not-found
+  path and the loop continues. There is nothing to detect and nothing to work
+  around, so the class, the `EnableInvocableFunctionBypassing` option, and the
+  `UseInvocableFunctionBypassing` builder extension are all skipped. Revisit
+  only if `extensions` gains an informational-call marker.
+- **`ApprovalResponseBindingChatClient` records requests without a snapshot**
+  (2026-08-13). Upstream stores a defensive clone of each surfaced
+  `ToolApprovalRequestContent` so a later mutation of the caller-visible
+  instance cannot change the recorded tool call used for binding. `extensions`
+  has no concrete tool call type carrying a function name and arguments —
+  `FunctionCallContent` does not subtype `ToolCallContent`, and the
+  `ToolCallContent` subclasses are code-interpreter / MCP / image-generation /
+  web-search only — so the recorded call cannot be rebuilt. Requests are
+  recorded as-is. Rebinding itself is unaffected: it reuses the recorded
+  instance rather than constructing one.
+- **Approval decorators no-op without a session** (2026-08-13). Both
+  `ApprovalNotRequiredFunctionBypassingChatClient` (formerly
+  `NonApprovalRequiredFunctionBypassingChatClient`, renamed to follow upstream)
+  and `ApprovalResponseBindingChatClient` are installed by default by
+  `withDefaultAgentMiddleware`, matching upstream's opt-out
+  `Disable*` flags. The port's bypassing client previously threw a `StateError`
+  when there was no ambient `AIAgent.currentRunContext` session; default-on
+  makes that a breaking trap for any direct chat-client use outside an agent
+  run, so it now warns once and passes through, as upstream does. The warning
+  goes to the supplied `LoggerFactory` when there is one and to
+  `dart:developer` `log()` otherwise (upstream always has an `ILoggerFactory`).
+- **Two `withDefaultAgentMiddleware` implementations** (2026-08-13, known
+  duplication rather than a design). Upstream has one internal
+  `ChatClientExtensions.WithDefaultAgentMiddleware`; the port has a public
+  `ChatClient.withDefaultAgentMiddleware` extension AND a private
+  `ChatClientAgent._withDefaultAgentMiddleware`, and they have drifted — only
+  the agent's copy installs `MessageInjectingChatClient`. This predates the
+  approval-decorator work; both copies were updated together there. Reconcile
+  onto the extension when either is next touched, and keep them in sync until
+  then. Tests that assert pipeline nesting must drive `ChatClientAgent`, since
+  that is the path that runs in production.
+- **Isolation key provider follows upstream's rename** (2026-08-13).
+  `SessionIsolationKeyProvider.getSessionIsolationKey` became
+  `AgentIsolationKeyProvider.getIsolationKey`, matching upstream's broadening
+  of the contract from sessions to all agent-owned resources (sessions, A2A
+  tasks, and anything else needing the same boundary).
+  `IsolationKeyScopedTaskStore` is ported alongside it; because the Dart
+  `A2ATaskStore` contract is only `save`/`load` and keys by `A2ATask.id` — no
+  list query, no separate store key — scoping the task id is what scopes the
+  store key, where upstream scopes an explicit `taskId` parameter and leaves
+  `AgentTask.Id` bare. `contextId` is scoped as upstream does, and the task is
+  cloned rather than mutated because the A2A server reuses the instance for
+  live event notification.
 
 ## Verified faithful (do NOT re-flag as bugs)
 

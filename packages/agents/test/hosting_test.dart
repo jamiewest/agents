@@ -9,7 +9,7 @@ import 'package:agents/src/hosting/isolation_key_scoped_agent_session_store.dart
 import 'package:agents/src/hosting/isolation_key_scoped_agent_session_store_options.dart';
 import 'package:agents/src/hosting/local/in_memory_agent_session_store.dart';
 import 'package:agents/src/hosting/noop_agent_session_store.dart';
-import 'package:agents/src/hosting/session_isolation_key_provider.dart';
+import 'package:agents/src/hosting/agent_isolation_key_provider.dart';
 import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 import 'package:test/test.dart';
@@ -389,13 +389,13 @@ class _RecordingSessionStore extends InMemoryAgentSessionStore {
   }
 }
 
-class _FixedKeyProvider extends SessionIsolationKeyProvider {
+class _FixedKeyProvider extends AgentIsolationKeyProvider {
   _FixedKeyProvider(this.key);
 
   final String? key;
 
   @override
-  Future<String?> getSessionIsolationKey({
+  Future<String?> getIsolationKey({
     CancellationToken? cancellationToken,
   }) async => key;
 }

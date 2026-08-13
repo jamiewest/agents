@@ -1,6 +1,8 @@
 import 'package:extensions/ai.dart';
 import 'package:extensions/logging.dart';
 
+import 'approval_not_required_function_bypassing_chat_client.dart';
+import 'approval_response_binding_chat_client.dart';
 import 'chat_client_agent.dart';
 import 'chat_client_agent_options.dart';
 import 'per_service_call_chat_history_persisting_chat_client.dart';
@@ -42,6 +44,28 @@ extension ChatClientExtensions on ChatClient {
     LoggerFactory? loggerFactory,
   }) {
     final chatBuilder = ChatClientBuilder(this);
+
+    // Registration order matters: the first `use` is the outermost decorator.
+    // Approval-response binding sits above approval-not-required bypassing so
+    // it sees the caller's raw approval responses before any
+    // framework-generated ones are injected below it.
+    if (options?.disableApprovalResponseBinding != true) {
+      chatBuilder.use(
+        (innerClient) => ApprovalResponseBindingChatClient(
+          innerClient,
+          loggerFactory: loggerFactory,
+        ),
+      );
+    }
+
+    if (options?.disableApprovalNotRequiredFunctionBypassing != true) {
+      chatBuilder.use(
+        (innerClient) => ApprovalNotRequiredFunctionBypassingChatClient(
+          innerClient,
+          loggerFactory: loggerFactory,
+        ),
+      );
+    }
 
     if (getService<FunctionInvokingChatClient>() == null) {
       chatBuilder.use(

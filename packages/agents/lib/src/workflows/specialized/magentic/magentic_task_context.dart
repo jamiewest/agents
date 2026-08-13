@@ -2,6 +2,7 @@ import 'package:extensions/ai.dart';
 
 import '../../../abstractions/ai_agent.dart';
 import '../../magentic_progress_ledger.dart';
+import '../../magentic_prompt_overrides.dart';
 import 'chat_message_extensions.dart';
 
 /// Limits that bound a Magentic task run.
@@ -104,6 +105,8 @@ class MagenticTaskContext {
     this.taskLimits,
     this.emitUpdateEvents, {
     Iterable<ProgressLedgerSlot> additionalProgressQuestions = const [],
+    this.responseLanguage,
+    this.promptOverrides,
   }) : task = _taskDefinition.getText(),
        teamDescription = getTeamDescription(team),
        progressLedger = MagenticProgressLedger(
@@ -117,6 +120,8 @@ class MagenticTaskContext {
     List<AIAgent> team,
     TaskLimits limits, {
     Iterable<ProgressLedgerSlot> additionalProgressQuestions = const [],
+    String? responseLanguage,
+    MagenticPromptOverrides? promptOverrides,
   }) {
     final context = MagenticTaskContext(
       state.taskDefinition,
@@ -124,6 +129,8 @@ class MagenticTaskContext {
       limits,
       state.emitUpdateEvents,
       additionalProgressQuestions: additionalProgressQuestions,
+      responseLanguage: responseLanguage,
+      promptOverrides: promptOverrides,
     );
     context.taskLedger = state.taskLedger;
     context.taskCounters = state.counters;
@@ -151,6 +158,14 @@ class MagenticTaskContext {
 
   /// Whether agent update events should be emitted.
   final bool? emitUpdateEvents;
+
+  /// The language the manager should write its responses in, when one is
+  /// configured. A directive naming this language is appended to each
+  /// generating prompt.
+  final String? responseLanguage;
+
+  /// Replacement prompt bodies for the manager, when any are configured.
+  final MagenticPromptOverrides? promptOverrides;
 
   /// The progress ledger for this task.
   final MagenticProgressLedger progressLedger;

@@ -2,6 +2,7 @@ import '../abstractions/ai_agent.dart';
 import 'executor_instance_binding.dart';
 import 'magentic_plan_review_request.dart';
 import 'magentic_plan_review_response.dart';
+import 'magentic_prompt_overrides.dart';
 import 'request_port.dart';
 import 'specialized/magentic/magentic_orchestrator.dart';
 import 'specialized/magentic/magentic_task_context.dart';
@@ -35,6 +36,8 @@ class MagenticWorkflowBuilder {
   bool _requirePlanSignoff = true;
   String? _name;
   String? _description;
+  String? _responseLanguage;
+  MagenticPromptOverrides? _promptOverrides;
 
   /// Adds the given [agents] as participants.
   MagenticWorkflowBuilder addParticipants(Iterable<AIAgent> agents) {
@@ -65,6 +68,32 @@ class MagenticWorkflowBuilder {
   /// Sets whether human approval of plans is required before proceeding.
   MagenticWorkflowBuilder requirePlanSignoff([bool requirePlanSignoff = true]) {
     _requirePlanSignoff = requirePlanSignoff;
+    return this;
+  }
+
+  /// Sets the language the manager writes its responses in.
+  ///
+  /// When set, a directive naming [responseLanguage] is appended to each
+  /// manager prompt, after any body supplied via [withPromptOverrides]. Pass
+  /// `null` (the default) to leave the manager's language unconstrained.
+  ///
+  /// A concrete language name is followed far more reliably than a relative
+  /// "match the request" instruction, especially for the free-text fields of
+  /// the progress ledger's JSON.
+  MagenticWorkflowBuilder withResponseLanguage([String? responseLanguage]) {
+    _responseLanguage = responseLanguage;
+    return this;
+  }
+
+  /// Replaces one or more of the manager's built-in prompt bodies.
+  ///
+  /// Omitted fields keep their `MagenticDefaultPrompts` template. Overrides
+  /// use the same named single-brace placeholders (for example `{task}`),
+  /// which the framework substitutes at render time.
+  MagenticWorkflowBuilder withPromptOverrides([
+    MagenticPromptOverrides? promptOverrides,
+  ]) {
+    _promptOverrides = promptOverrides;
     return this;
   }
 
@@ -106,6 +135,8 @@ class MagenticWorkflowBuilder {
       ),
       requirePlanSignoff: _requirePlanSignoff,
       planReviewPort: port,
+      responseLanguage: _responseLanguage,
+      promptOverrides: _promptOverrides,
     );
 
     return WorkflowBuilder(ExecutorInstanceBinding(orchestrator))

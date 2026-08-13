@@ -14,6 +14,7 @@ import 'always_approve_tool_approval_response_content.dart';
 import 'tool_approval_agent_options.dart';
 import 'tool_approval_rule.dart';
 import 'tool_approval_state.dart';
+import 'tool_auto_approval_rule_context.dart';
 
 /// Middleware that handles standing tool-approval rules and queues approval
 /// requests so callers see at most one unresolved request at a time.
@@ -22,6 +23,9 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     : _jsonSerializerOptions =
           options?.jsonSerializerOptions ?? AgentJsonUtilities.defaultOptions,
       _autoApprovalRules = options?.autoApprovalRules?.toList(),
+      _maxAutoApprovalIterations = _checkIterations(
+        options?.maxAutoApprovalIterations ?? defaultMaxAutoApprovalIterations,
+      ),
       _sessionState = ProviderSessionState<ToolApprovalState>(
         (_) => ToolApprovalState(),
         'toolApprovalState',
@@ -31,28 +35,48 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       ),
       super(innerAgent ?? (throw ArgumentError.notNull('innerAgent')));
 
+  /// The default value used for
+  /// [ToolApprovalAgentOptions.maxAutoApprovalIterations] when none is
+  /// specified.
+  static const int defaultMaxAutoApprovalIterations = 40;
+
   final ProviderSessionState<ToolApprovalState> _sessionState;
   final JsonSerializerOptions _jsonSerializerOptions;
-  final List<Future<bool> Function(FunctionCallContent functionCall)>?
-  _autoApprovalRules;
+  final List<ToolAutoApprovalRule>? _autoApprovalRules;
+  final int _maxAutoApprovalIterations;
+
+  static int _checkIterations(int value) => value < 1
+      ? throw ArgumentError.value(
+          value,
+          'maxAutoApprovalIterations',
+          'must be at least 1',
+        )
+      : value;
 
   /// An auto-approval rule that approves every function call.
   ///
   /// Add this rule to [ToolApprovalAgentOptions.autoApprovalRules] to
   /// automatically approve all tool calls without prompting the user.
-  static Future<bool> Function(FunctionCallContent functionCall)
-  get allToolsAutoApprovalRule => _allToolsAutoApprovalRule;
+  static ToolAutoApprovalRule get allToolsAutoApprovalRule =>
+      _allToolsAutoApprovalRule;
 
   static Future<bool> _allToolsAutoApprovalRule(
-    FunctionCallContent functionCall,
+    ToolAutoApprovalRuleContext context,
   ) async => true;
 
   /// Returns `true` when [request] is approved by one of the configured
   /// auto-approval rules. Rules are evaluated in order; the first rule
   /// returning `true` wins.
+  ///
+  /// [requestMessages] are the messages sent to the inner agent for the turn
+  /// that produced [request]; they are handed to each rule along with
+  /// [session] and [options].
   Future<bool> matchesAutoApprovalRule(
-    ToolApprovalRequestContent request,
-  ) async {
+    ToolApprovalRequestContent request, {
+    AgentSession? session,
+    AgentRunOptions? options,
+    Iterable<ChatMessage> requestMessages = const [],
+  }) async {
     final rules = _autoApprovalRules;
     if (rules == null || rules.isEmpty) {
       return false;
@@ -61,8 +85,15 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     if (toolCall == null) {
       return false;
     }
+    final context = ToolAutoApprovalRuleContext(
+      functionCallContent: toolCall,
+      agent: this,
+      session: session,
+      requestMessages: requestMessages,
+      runOptions: options,
+    );
     for (final rule in rules) {
-      if (await rule(toolCall)) {
+      if (await rule(context)) {
         return true;
       }
     }
@@ -76,8 +107,12 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
   }) async {
-    final inbound = await prepareInboundMessages(messages, session);
-    var state = inbound.state;
+    final inbound = await prepareInboundMessages(
+      messages,
+      session,
+      options: options,
+    );
+    final state = inbound.state;
     var callerMessages = inbound.callerMessages;
 
     if (inbound.nextQueuedItem != null) {
@@ -89,22 +124,33 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       );
     }
 
-    while (true) {
+    for (var iteration = 0; ; iteration++) {
       final processedMessages = injectCollectedResponses(
         callerMessages,
         state,
         session,
       );
+
       final response = await innerAgent.run(
         session,
         options,
         cancellationToken: cancellationToken,
         messages: processedMessages,
       );
+
+      if (iteration >= _maxAutoApprovalIterations) {
+        // Cap reached: this turn is returned as-is, so any approval request it
+        // surfaces goes to the caller to decide rather than continuing the
+        // auto-approval chain.
+        return response;
+      }
+
       final allAutoApproved = await processAndQueueOutboundApprovalRequests(
         response.messages,
         state,
         session,
+        options: options,
+        requestMessages: processedMessages,
       );
       if (!allAutoApproved) {
         return response;
@@ -121,8 +167,12 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     AgentRunOptions? options,
     CancellationToken? cancellationToken,
   }) async* {
-    final inbound = await prepareInboundMessages(messages, session);
-    var state = inbound.state;
+    final inbound = await prepareInboundMessages(
+      messages,
+      session,
+      options: options,
+    );
+    final state = inbound.state;
     var callerMessages = inbound.callerMessages;
 
     if (inbound.nextQueuedItem != null) {
@@ -133,7 +183,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       return;
     }
 
-    while (true) {
+    for (var iteration = 0; ; iteration++) {
       final processedMessages = injectCollectedResponses(
         callerMessages,
         state,
@@ -141,15 +191,20 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       );
       final streamedApprovalRequests = <ToolApprovalRequestContent>[];
 
+      // Cap reached: this turn streams through untouched, so any approval
+      // request it surfaces goes to the caller to decide rather than
+      // continuing the auto-approval chain.
+      final capped = iteration >= _maxAutoApprovalIterations;
+
       await for (final update in innerAgent.runStreaming(
         session,
         options,
         cancellationToken: cancellationToken,
         messages: processedMessages,
       )) {
-        final approvalRequests = update.contents
-            .whereType<ToolApprovalRequestContent>()
-            .toList();
+        final approvalRequests = capped
+            ? const <ToolApprovalRequestContent>[]
+            : update.contents.whereType<ToolApprovalRequestContent>().toList();
         if (approvalRequests.isEmpty) {
           yield update;
           continue;
@@ -177,7 +232,12 @@ class ToolApprovalAgent extends DelegatingAIAgent {
               reason: 'Auto-approved by standing rule',
             ),
           );
-        } else if (await matchesAutoApprovalRule(request)) {
+        } else if (await matchesAutoApprovalRule(
+          request,
+          session: session,
+          options: options,
+          requestMessages: processedMessages,
+        )) {
           state.collectedApprovalResponses.add(
             request.createResponse(
               true,
@@ -216,8 +276,9 @@ class ToolApprovalAgent extends DelegatingAIAgent {
   >
   prepareInboundMessages(
     Iterable<ChatMessage> messages,
-    AgentSession? session,
-  ) async {
+    AgentSession? session, {
+    AgentRunOptions? options,
+  }) async {
     final state = _sessionState.getOrInitializeState(session);
     final callerMessages = unwrapAlwaysApproveResponses(
       messages,
@@ -228,7 +289,12 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     collectApprovalResponsesFromMessages(callerMessages, state);
 
     if (state.queuedApprovalRequests.isNotEmpty) {
-      await drainAutoApprovableFromQueue(state);
+      await drainAutoApprovableFromQueue(
+        state,
+        session: session,
+        options: options,
+        requestMessages: callerMessages,
+      );
       if (state.queuedApprovalRequests.isNotEmpty) {
         final next = state.queuedApprovalRequests.removeAt(0);
         _sessionState.saveState(session, state);
@@ -270,7 +336,12 @@ class ToolApprovalAgent extends DelegatingAIAgent {
     }
   }
 
-  Future<void> drainAutoApprovableFromQueue(ToolApprovalState state) async {
+  Future<void> drainAutoApprovableFromQueue(
+    ToolApprovalState state, {
+    AgentSession? session,
+    AgentRunOptions? options,
+    Iterable<ChatMessage> requestMessages = const [],
+  }) async {
     for (var i = state.queuedApprovalRequests.length - 1; i >= 0; i--) {
       final request = state.queuedApprovalRequests[i];
       if (matchesRule(request, state.rules, _jsonSerializerOptions)) {
@@ -281,7 +352,12 @@ class ToolApprovalAgent extends DelegatingAIAgent {
           ),
         );
         state.queuedApprovalRequests.removeAt(i);
-      } else if (await matchesAutoApprovalRule(request)) {
+      } else if (await matchesAutoApprovalRule(
+        request,
+        session: session,
+        options: options,
+        requestMessages: requestMessages,
+      )) {
         state.collectedApprovalResponses.add(
           request.createResponse(
             true,
@@ -317,8 +393,10 @@ class ToolApprovalAgent extends DelegatingAIAgent {
   Future<bool> processAndQueueOutboundApprovalRequests(
     List<ChatMessage> responseMessages,
     ToolApprovalState state,
-    AgentSession? session,
-  ) async {
+    AgentSession? session, {
+    AgentRunOptions? options,
+    Iterable<ChatMessage> requestMessages = const [],
+  }) async {
     final autoApproved = <ToolApprovalRequestContent>[];
     final unapproved = <ToolApprovalRequestContent>[];
 
@@ -327,7 +405,12 @@ class ToolApprovalAgent extends DelegatingAIAgent {
         if (content is ToolApprovalRequestContent) {
           if (matchesRule(content, state.rules, _jsonSerializerOptions)) {
             autoApproved.add(content);
-          } else if (await matchesAutoApprovalRule(content)) {
+          } else if (await matchesAutoApprovalRule(
+            content,
+            session: session,
+            options: options,
+            requestMessages: requestMessages,
+          )) {
             autoApproved.add(content);
           } else {
             unapproved.add(content);

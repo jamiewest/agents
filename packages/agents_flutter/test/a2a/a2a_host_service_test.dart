@@ -302,6 +302,123 @@ void main() {
       expect(paths, contains('/agents/helper-a-helper2'));
     });
   });
+
+  group('A2A task isolation', () {
+    late ServiceProvider services;
+    late A2AHostService host;
+    late _GatedChatClient gated;
+
+    setUp(() async {
+      gated = _GatedChatClient();
+      services = _buildServices(
+        InMemoryKeyValueStore(),
+        chatClient: () => gated,
+      );
+      final manager = services.getRequiredService<ConfiguredAgentsManager>();
+      await manager.saveSource(_localSource);
+      await manager.saveModel(_localModel);
+      await manager.saveAgent(_helper);
+      host = A2AHostService(services, deviceName: 'Test Host');
+      await host.start([_helper], port: 0);
+    });
+
+    tearDown(() => host.stop());
+
+    Future<String> pairAs(String clientId) async {
+      final offer = await host.createPairingOffer();
+      final result = await PairingClient().pair(
+        PairingPayload(
+          hostId: offer.hostId,
+          host: '127.0.0.1',
+          port: host.port!,
+          token: offer.token,
+          expiresAt: offer.expiresAt,
+        ),
+        clientName: clientId,
+        clientId: clientId,
+      );
+      return result.credential;
+    }
+
+    test('a paired client cannot read another client\'s task', () async {
+      final first = await pairAs('client-a');
+      final second = await pairAs('client-b');
+
+      // A failed run is what makes the host persist a task at all: the A2A
+      // server turns the failure into a task, stores it, and returns it.
+      gated.failNextStream = true;
+      final created = await _rpc(host.port!, first, 'send-1', {
+        'method': 'message/send',
+        'params': {
+          'message': {
+            'kind': 'message',
+            'messageId': 'msg-send-1',
+            'role': 'user',
+            'parts': [
+              {'kind': 'text', 'text': 'hi'},
+            ],
+          },
+        },
+      });
+      expect(created.status, 200);
+      final task = ((jsonDecode(created.body) as Map)['result'] as Map)
+          .cast<String, Object?>();
+      final taskId = task['id']! as String;
+
+      // The isolation key is stripped on the way out, so the caller only ever
+      // sees bare identifiers — and asks for them back by the same name.
+      expect(taskId, isNot(contains('::')));
+      expect(task['contextId'], isNot(contains('::')));
+
+      // The owner reads its own task back. Without this the cross-client
+      // expectation below would also pass if no task were ever stored.
+      final own = await _rpc(host.port!, first, 'get-own', {
+        'method': 'tasks/get',
+        'params': {'id': taskId},
+      });
+      expect(own.status, 200);
+      expect(((jsonDecode(own.body) as Map)['result'] as Map)['id'], taskId);
+
+      // The other client asks for the same id and comes up empty. The a2a
+      // server raises task-not-found out of the transport rather than
+      // answering with a JSON-RPC error, so the host answers 500; what
+      // matters is that the task never comes back.
+      final other = await _rpc(host.port!, second, 'get-other', {
+        'method': 'tasks/get',
+        'params': {'id': taskId},
+      });
+      expect(other.status, isNot(200));
+      expect(other.body, isNot(contains(taskId)));
+    });
+  });
+}
+
+/// Posts a non-streaming JSON-RPC [body] to the hosted helper agent as the
+/// client holding [credential].
+///
+/// The status and raw body are returned rather than decoded JSON: an A2A
+/// request that fails server-side comes back as a plain error response.
+Future<({int status, String body})> _rpc(
+  int port,
+  String credential,
+  String id,
+  Map<String, Object?> body,
+) async {
+  final client = HttpClient();
+  try {
+    final request = await client.post('127.0.0.1', port, '/agents/helper');
+    request.headers
+      ..set('authorization', 'Bearer $credential')
+      ..contentType = ContentType.json;
+    request.write(jsonEncode({'jsonrpc': '2.0', 'id': id, ...body}));
+    final response = await request.close();
+    return (
+      status: response.statusCode,
+      body: await utf8.decodeStream(response),
+    );
+  } finally {
+    client.close();
+  }
 }
 
 /// Posts a `message/stream` JSON-RPC request to the hosted helper agent and

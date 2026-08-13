@@ -7,7 +7,7 @@ class IsolationKeyScopedAgentSessionStoreOptions {
   /// determined.
   ///
   /// If `true` (default), the store throws a [StateError] when
-  /// `SessionIsolationKeyProvider.getSessionIsolationKey` returns `null`.
+  /// `AgentIsolationKeyProvider.getIsolationKey` returns `null`.
   ///
   /// If `false`, the conversation ID is passed through unmodified when the
   /// isolation key is absent, allowing unscoped access to the underlying

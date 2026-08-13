@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:extensions/ai.dart';
+import 'package:extensions/logging.dart';
 import 'package:extensions/system.dart';
 
 import '../../abstractions/agent_session.dart';
@@ -27,17 +29,33 @@ import '../../abstractions/ai_agent.dart';
 /// [ToolApprovalResponseContent] so that [FunctionInvokingChatClient] can
 /// process them alongside the caller's human-approved responses.
 ///
-/// This decorator requires an active [AIAgent.currentRunContext] with a
-/// non-null session; a [StateError] is thrown otherwise.
-class NonApprovalRequiredFunctionBypassingChatClient
+/// This decorator operates within the context of a running [AIAgent] with an
+/// active session. When invoked without an ambient run context or session
+/// (for example when the chat client is used directly outside of an agent
+/// run), the decorator becomes a no-op: it passes the request through
+/// unchanged and logs a warning, because there is no session in which to
+/// stash the bypassed requests.
+class ApprovalNotRequiredFunctionBypassingChatClient
     extends DelegatingChatClient {
   /// Creates the decorator wrapping [innerClient] (typically a
   /// [FunctionInvokingChatClient]).
-  NonApprovalRequiredFunctionBypassingChatClient(super.innerClient);
+  ///
+  /// [loggerFactory] is used to create the logger that reports a missing run
+  /// context; when omitted the warning is written with `dart:developer`.
+  ApprovalNotRequiredFunctionBypassingChatClient(
+    super.innerClient, {
+    LoggerFactory? loggerFactory,
+  }) : _logger = loggerFactory?.createLogger(
+         'ApprovalNotRequiredFunctionBypassingChatClient',
+       );
 
   /// The key used in the session state bag to store pending auto-approved
   /// function calls between agent runs.
   static const String stateBagKey = '_autoApprovedFunctionCalls';
+
+  final Logger? _logger;
+
+  bool _warnedNoSession = false;
 
   @override
   Future<ChatResponse> getResponse({
@@ -45,7 +63,15 @@ class NonApprovalRequiredFunctionBypassingChatClient
     ChatOptions? options,
     CancellationToken? cancellationToken,
   }) async {
-    final session = _getRequiredSession();
+    final session = _tryGetSession();
+    if (session == null) {
+      return super.getResponse(
+        messages: messages,
+        options: options,
+        cancellationToken: cancellationToken,
+      );
+    }
+
     final autoApprovableNames = _getAutoApprovableToolNames(options);
 
     final withApprovals = _injectPendingAutoApprovals(messages, session);
@@ -71,7 +97,16 @@ class NonApprovalRequiredFunctionBypassingChatClient
     ChatOptions? options,
     CancellationToken? cancellationToken,
   }) async* {
-    final session = _getRequiredSession();
+    final session = _tryGetSession();
+    if (session == null) {
+      yield* super.getStreamingResponse(
+        messages: messages,
+        options: options,
+        cancellationToken: cancellationToken,
+      );
+      return;
+    }
+
     final autoApprovableNames = _getAutoApprovableToolNames(options);
 
     final withApprovals = _injectPendingAutoApprovals(messages, session);
@@ -97,26 +132,37 @@ class NonApprovalRequiredFunctionBypassingChatClient
     }
   }
 
-  /// Gets the current [AgentSession] from the ambient run context.
-  static AgentSession _getRequiredSession() {
-    final runContext = AIAgent.currentRunContext;
-    if (runContext == null) {
-      throw StateError(
-        'NonApprovalRequiredFunctionBypassingChatClient can only be used '
-        'within the context of a running AIAgent. Ensure that the chat '
-        'client is being invoked as part of an AIAgent.run or '
-        'AIAgent.runStreaming call.',
-      );
+  /// Gets the current [AgentSession] from the ambient run context, or `null`
+  /// when there is no run context or no session.
+  ///
+  /// A missing session is reported once per instance so that a misconfigured
+  /// pipeline is visible without flooding the log on every call.
+  AgentSession? _tryGetSession() {
+    final session = AIAgent.currentRunContext?.session;
+    if (session != null) {
+      return session;
     }
-    final session = runContext.session;
-    if (session == null) {
-      throw StateError(
-        'NonApprovalRequiredFunctionBypassingChatClient requires a session. '
-        'Ensure the agent has a resolved session before invoking the chat '
-        'client.',
-      );
+
+    if (!_warnedNoSession) {
+      _warnedNoSession = true;
+      const message =
+          'ApprovalNotRequiredFunctionBypassingChatClient was invoked '
+          'without an active agent run context or session. Bypassing is '
+          'skipped and every approval request is surfaced to the caller. '
+          'Invoke the chat client through AIAgent.run or '
+          'AIAgent.runStreaming to enable bypassing.';
+      if (_logger != null) {
+        _logger.logWarning(message);
+      } else {
+        developer.log(
+          message,
+          name: 'ApprovalNotRequiredFunctionBypassingChatClient',
+          level: 900,
+        );
+      }
     }
-    return session;
+
+    return null;
   }
 
   /// Checks the session for stored auto-approvals from a previous turn and

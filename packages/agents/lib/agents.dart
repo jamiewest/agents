@@ -14,7 +14,7 @@ export 'src/hosting/hosted_agent_builder_extensions.dart';
 export 'src/hosting/isolation_key_scoped_agent_session_store.dart';
 export 'src/hosting/isolation_key_scoped_agent_session_store_options.dart';
 export 'src/hosting/local/in_memory_agent_session_store.dart';
-export 'src/hosting/session_isolation_key_provider.dart';
+export 'src/hosting/agent_isolation_key_provider.dart';
 export 'src/ai/ai_context_provider_decorators/ai_context_provider_chat_client_builder_extensions.dart';
 
 // Shared utilities
@@ -87,7 +87,8 @@ export 'src/ai/chat_client/chat_client_agent_run_options.dart';
 export 'src/ai/chat_client/chat_client_agent_session.dart';
 export 'src/ai/chat_client/chat_client_builder_extensions.dart';
 export 'src/ai/chat_client/message_injecting_chat_client.dart';
-export 'src/ai/chat_client/non_approval_required_function_bypassing_chat_client.dart';
+export 'src/ai/chat_client/approval_not_required_function_bypassing_chat_client.dart';
+export 'src/ai/chat_client/approval_response_binding_chat_client.dart';
 export 'src/ai/chat_client/per_service_call_chat_history_persisting_chat_client.dart';
 
 // AI — compaction
@@ -192,6 +193,7 @@ export 'src/ai/harness/tool_approval/tool_approval_agent_options.dart';
 export 'src/ai/harness/tool_approval/tool_approval_request_content_extensions.dart';
 export 'src/ai/harness/tool_approval/tool_approval_rule.dart';
 export 'src/ai/harness/tool_approval/tool_approval_state.dart';
+export 'src/ai/harness/tool_approval/tool_auto_approval_rule_context.dart';
 
 // AI — memory
 export 'src/ai/memory/chat_history_memory_provider.dart' hide State;
@@ -322,7 +324,9 @@ export 'src/workflows/identified.dart';
 export 'src/workflows/in_process_execution.dart';
 export 'src/workflows/magentic_plan_review_request.dart';
 export 'src/workflows/magentic_plan_review_response.dart';
+export 'src/workflows/magentic_default_prompts.dart';
 export 'src/workflows/magentic_progress_ledger.dart';
+export 'src/workflows/magentic_prompt_overrides.dart';
 export 'src/workflows/magentic_workflow_builder.dart';
 export 'src/workflows/message_merger.dart';
 export 'src/workflows/message_router.dart';
@@ -523,3 +527,4 @@ export 'src/hosting/a2a/a2a_server_registration_options.dart';
 export 'src/hosting/a2a/a2a_server_service_collection_extensions.dart';
 export 'src/hosting/a2a/agent_run_mode.dart';
 export 'src/hosting/a2a/converters/message_converter.dart';
+export 'src/hosting/a2a/isolation_key_scoped_task_store.dart';

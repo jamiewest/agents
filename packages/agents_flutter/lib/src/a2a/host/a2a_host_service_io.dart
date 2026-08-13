@@ -145,19 +145,31 @@ class A2AHostService {
         path = '$path-${_slugify(config.id)}';
       }
       final agent = await factory.createAgent(config);
-      // Sessions are scoped per paired client so two peers talking to the
-      // same hosted agent never share conversation state.
+      // Sessions and tasks are scoped per paired client so two peers talking
+      // to the same hosted agent neither share conversation state nor can
+      // read each other's tasks. One provider feeds both stores, so both draw
+      // the boundary in the same place.
+      final callerKeys = _CallerIsolationKeyProvider();
       final host = AIHostAgent(
         agent,
         IsolationKeyScopedAgentSessionStore(
           InMemoryAgentSessionStore(),
-          _CallerIsolationKeyProvider(),
+          callerKeys,
         ),
       );
       final handler = A2AAgentHandler(host, AgentRunMode.disallowBackground);
       final requestHandler = a2a.A2ADefaultRequestHandler(
         _cardFor(config, path),
-        a2a.A2AInMemoryTaskStore(),
+        // Strict, as the session store is by default: every path that reaches
+        // this store runs inside `_handleRpc`, which is only entered with a
+        // verified bearer, so the key is always there. Its absence would mean
+        // the wiring broke, and failing closed beats silently handing peers
+        // one shared task namespace.
+        IsolationKeyScopedTaskStore(
+          a2a.A2AInMemoryTaskStore(),
+          callerKeys,
+          strict: true,
+        ),
         handler,
         a2a.A2ADefaultExecutionEventBusManager(),
         null,
@@ -257,7 +269,7 @@ class A2AHostService {
       final path = '/${request.url.path}'.replaceAll(RegExp(r'/$'), '');
 
       if (request.method == 'POST' && path == '/pair') {
-        return _handlePair(request);
+        return await _handlePair(request);
       }
 
       // Everything else requires a paired bearer.
@@ -318,7 +330,16 @@ class A2AHostService {
           );
         }
         if (request.method == 'POST' && path == hosted.path) {
-          return _handleRpc(hosted, await request.readAsString(), callerKey);
+          // Awaited, not just returned: a bare `return` would hand the future
+          // back before the try block ends, so a failure inside — the a2a
+          // transport rethrows task-not-found rather than answering with a
+          // JSON-RPC error — would skip the catch below and reach the client
+          // as an unlogged shelf 500.
+          return await _handleRpc(
+            hosted,
+            await request.readAsString(),
+            callerKey,
+          );
         }
       }
 
@@ -426,15 +447,15 @@ class A2AHostService {
   }
 }
 
-/// Resolves the session isolation key from the zone value stamped by
-/// [A2AHostService._handleRpc], so each paired client gets its own session
-/// namespace in the hosted agent's session store.
-class _CallerIsolationKeyProvider extends SessionIsolationKeyProvider {
+/// Resolves the agent isolation key from the zone value stamped by
+/// [A2AHostService._handleRpc], so each paired client gets its own namespace
+/// in the hosted agent's session store and in the A2A task store.
+class _CallerIsolationKeyProvider extends AgentIsolationKeyProvider {
   /// The zone key carrying the caller's bearer hash during RPC handling.
   static const Symbol zoneKey = #a2aCallerIsolationKey;
 
   @override
-  Future<String?> getSessionIsolationKey({
+  Future<String?> getIsolationKey({
     CancellationToken? cancellationToken,
   }) async => Zone.current[zoneKey] as String?;
 }

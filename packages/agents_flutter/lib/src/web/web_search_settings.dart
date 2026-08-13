@@ -320,7 +320,16 @@ class WebSearchSettings extends ChangeNotifier {
   Future<SearchClientConfig> saveClient(SearchClientConfig client) async {
     final normalized = normalizeWebUrl(client.searchUrl);
     if (normalized == null) {
-      throw ArgumentError('A valid http(s) search URL is required.');
+      throw ArgumentError('A valid search URL is required.');
+    }
+    // Cleartext to a routable host is rejected: the query is the user's own
+    // text, and over http it crosses the internet in the clear. A search
+    // engine on the local network is the exception — a self-hosted SearXNG
+    // rarely has a certificate, and its traffic never leaves the network.
+    // A bare host normalizes to https above, so only an explicit http://
+    // reaches this check.
+    if (normalized.scheme != 'https' && !isLocalNetworkHost(normalized.host)) {
+      throw ArgumentError('A search URL must use https.');
     }
     final url = _withoutQueryParameterQ(normalized);
     final name = client.name.trim();

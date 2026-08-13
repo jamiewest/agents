@@ -57,6 +57,55 @@ void main() {
     expect(settings.isConfigured, isTrue);
   });
 
+  test('saveClient rejects cleartext to a routable host', () async {
+    final settings = WebSearchSettings(InMemorySecretStore());
+
+    expect(
+      () => settings.saveClient(
+        const SearchClientConfig(
+          id: '',
+          name: '',
+          searchUrl: 'http://searx.example.com/search',
+        ),
+      ),
+      throwsArgumentError,
+    );
+    expect(settings.clients, isEmpty);
+  });
+
+  test('saveClient allows cleartext on the local network', () async {
+    // A self-hosted SearXNG on a LAN rarely has a certificate, and its
+    // traffic never leaves the network.
+    const local = [
+      'http://192.168.1.50:8080/search',
+      'http://10.0.0.5/search',
+      'http://172.16.4.2/search',
+      'http://127.0.0.1:8888/search',
+      'http://searx.local/search',
+      'http://localhost:8080/search',
+    ];
+    for (final url in local) {
+      final settings = WebSearchSettings(InMemorySecretStore());
+      final stored = await settings.saveClient(
+        SearchClientConfig(id: '', name: '', searchUrl: url),
+      );
+      expect(stored.searchUrl, url, reason: url);
+    }
+  });
+
+  test('saveClient upgrades a bare host to https', () async {
+    final settings = WebSearchSettings(InMemorySecretStore());
+    final stored = await settings.saveClient(
+      const SearchClientConfig(
+        id: '',
+        name: '',
+        searchUrl: 'searx.example.com/search',
+      ),
+    );
+
+    expect(stored.searchUrl, startsWith('https://'));
+  });
+
   test('saveClient updates in place and keeps the selection', () async {
     final settings = WebSearchSettings(InMemorySecretStore());
     final first = await settings.saveClient(_newClient);

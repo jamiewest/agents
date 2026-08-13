@@ -18,7 +18,7 @@ import '../abstractions/agent_session.dart';
 /// another caller's `conversationId` can resume that other caller's persisted
 /// thread. The framework provides `IsolationKeyScopedAgentSessionStore` as a
 /// decorator that rewrites `conversationId` to include an isolation key
-/// resolved from a `SessionIsolationKeyProvider`.
+/// resolved from an `AgentIsolationKeyProvider`.
 ///
 /// **Implementer guidance.** Treat `conversationId` as opaque: do not parse
 /// it, do not impose length or character-set constraints on it, and do not

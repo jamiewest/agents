@@ -9,6 +9,7 @@ import 'package:agents/src/ai/harness/tool_approval/always_approve_tool_approval
 import 'package:agents/src/ai/harness/tool_approval/tool_approval_agent.dart';
 import 'package:agents/src/ai/harness/tool_approval/tool_approval_agent_builder_extensions.dart';
 import 'package:agents/src/ai/harness/tool_approval/tool_approval_agent_options.dart';
+import 'package:agents/src/ai/harness/tool_approval/tool_auto_approval_rule_context.dart';
 import 'package:agents/src/ai/harness/tool_approval/tool_approval_request_content_extensions.dart';
 import 'package:agents/src/ai/harness/tool_approval/tool_approval_rule.dart';
 import 'package:agents/src/ai/harness/tool_approval/tool_approval_state.dart';
@@ -93,6 +94,91 @@ void main() {
       );
     });
 
+    test('auto-approval rule receives the surrounding run context', () async {
+      final request = _approvalRequest('r1', 'Search');
+      final innerAgent = _ScriptedAgent()
+        ..responses.add(_responseContents([request]))
+        ..responses.add(_responseText('done'));
+      ToolAutoApprovalRuleContext? seen;
+      final agent = ToolApprovalAgent(
+        innerAgent,
+        options: ToolApprovalAgentOptions()
+          ..autoApprovalRules = [
+            (context) async {
+              seen = context;
+              return true;
+            },
+          ],
+      );
+
+      await agent.runCore([_userText('go')]);
+
+      expect(seen, isNotNull);
+      expect(seen!.functionCallContent.name, 'Search');
+      expect(seen!.agent, same(agent));
+      expect(seen!.requestMessages.map((m) => m.text), contains('go'));
+    });
+
+    test('caps the auto-approval chain and surfaces the final turn', () async {
+      final innerAgent = _ScriptedAgent();
+      for (var i = 0; i < 10; i++) {
+        innerAgent.responses.add(
+          _responseContents([_approvalRequest('r$i', 'Loop')]),
+        );
+      }
+      final agent = ToolApprovalAgent(
+        innerAgent,
+        options: ToolApprovalAgentOptions()
+          ..maxAutoApprovalIterations = 3
+          ..autoApprovalRules = [ToolApprovalAgent.allToolsAutoApprovalRule],
+      );
+
+      final response = await agent.runCore([_userText('go')]);
+
+      // Three auto-approved turns, then one final turn whose approval request
+      // is handed to the caller instead of being auto-approved again.
+      expect(innerAgent.runCount, 4);
+      expect(_contentsOf<ToolApprovalRequestContent>(response), hasLength(1));
+    });
+
+    test('caps the auto-approval chain when streaming', () async {
+      final innerAgent = _ScriptedAgent();
+      for (var i = 0; i < 10; i++) {
+        innerAgent.streamResponses.add([
+          AgentResponseUpdate(
+            role: ChatRole.assistant,
+            contents: [_approvalRequest('r$i', 'Loop')],
+          ),
+        ]);
+      }
+      final agent = ToolApprovalAgent(
+        innerAgent,
+        options: ToolApprovalAgentOptions()
+          ..maxAutoApprovalIterations = 2
+          ..autoApprovalRules = [ToolApprovalAgent.allToolsAutoApprovalRule],
+      );
+
+      final updates = await agent.runCoreStreaming([_userText('go')]).toList();
+
+      expect(innerAgent.streamCount, 3);
+      expect(
+        updates
+            .expand((u) => u.contents)
+            .whereType<ToolApprovalRequestContent>(),
+        hasLength(1),
+      );
+    });
+
+    test('rejects a non-positive iteration cap', () {
+      expect(
+        () => ToolApprovalAgent(
+          _ScriptedAgent(),
+          options: ToolApprovalAgentOptions()..maxAutoApprovalIterations = 0,
+        ),
+        throwsArgumentError,
+      );
+    });
+
     test('non-matching auto-approval rule still prompts', () async {
       final request = _approvalRequest('r1', 'Search');
       final innerAgent = _ScriptedAgent()
@@ -100,7 +186,9 @@ void main() {
       final agent = ToolApprovalAgent(
         innerAgent,
         options: ToolApprovalAgentOptions()
-          ..autoApprovalRules = [(call) async => call.name == 'Other'],
+          ..autoApprovalRules = [
+            (context) async => context.functionCallContent.name == 'Other',
+          ],
       );
 
       final response = await agent.runCore([_userText('go')]);

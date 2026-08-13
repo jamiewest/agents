@@ -16,6 +16,7 @@ import '../../resettable_executor.dart';
 import '../../workflow_context.dart';
 import '../../workflow_event.dart';
 import '../../workflow_warning_event.dart';
+import '../../magentic_prompt_overrides.dart';
 import 'magentic_manager.dart';
 import 'magentic_task_context.dart';
 import 'prompt_templates.dart';
@@ -77,6 +78,8 @@ class MagenticOrchestrator extends Executor<Object?, List<ChatMessage>?>
     required this.limits,
     required this.requirePlanSignoff,
     required this.planReviewPort,
+    this.responseLanguage,
+    this.promptOverrides,
     String? id,
   }) : _manager = MagenticManager(managerAgent),
        team = List<AIAgent>.unmodifiable(team),
@@ -95,6 +98,12 @@ class MagenticOrchestrator extends Executor<Object?, List<ChatMessage>?>
 
   /// Whether human plan sign-off is required before execution.
   final bool requirePlanSignoff;
+
+  /// The language the manager writes its responses in, when configured.
+  final String? responseLanguage;
+
+  /// Replacement prompt bodies for the manager, when configured.
+  final MagenticPromptOverrides? promptOverrides;
 
   /// The port used to request human plan review.
   ///
@@ -149,6 +158,8 @@ class MagenticOrchestrator extends Executor<Object?, List<ChatMessage>?>
         team,
         limits,
         null,
+        responseLanguage: responseLanguage,
+        promptOverrides: promptOverrides,
       );
       await _updatePlanAndDelegate(taskContext, context, cancellationToken);
     } else {

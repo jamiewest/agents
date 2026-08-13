@@ -59,18 +59,34 @@ class ChatClientAgentOptions {
   /// add the decorator manually via `useMessageInjection` in that case.
   bool enableMessageInjection = false;
 
-  /// When `true`, a `NonApprovalRequiredFunctionBypassingChatClient`
-  /// decorator is injected above `FunctionInvokingChatClient` in the
-  /// pipeline. The decorator identifies approval requests for
-  /// non-approval-required tools, removes them from the response, and stores
-  /// them in the session. On the next request, the stored items are
-  /// automatically re-injected as approved, so the caller only needs to
-  /// handle approval requests for tools that truly require human approval.
+  /// When `false` (the default), an
+  /// `ApprovalNotRequiredFunctionBypassingChatClient` decorator is injected
+  /// above `FunctionInvokingChatClient` in the pipeline. The decorator
+  /// identifies approval requests for tools that do not require approval,
+  /// removes them from the response, and stores them in the session. On the
+  /// next request the stored items are re-injected as approved, so the caller
+  /// only needs to handle approval requests for tools that truly require
+  /// human approval.
+  ///
+  /// Set to `true` to leave the decorator out of the pipeline.
   ///
   /// This option has no effect when [useProvidedChatClientAsIs] is `true`;
   /// add the decorator manually via
-  /// `useNonApprovalRequiredFunctionBypassing` in that case.
-  bool enableNonApprovalRequiredFunctionBypassing = false;
+  /// `useApprovalNotRequiredFunctionBypassing` in that case.
+  bool disableApprovalNotRequiredFunctionBypassing = false;
+
+  /// When `false` (the default), an `ApprovalResponseBindingChatClient` is
+  /// injected as the outermost agent decorator. It binds each inbound
+  /// approval response to the model-originated approval request the framework
+  /// surfaced, so an approved tool call always matches what was surfaced for
+  /// approval, and drops responses that have no matching request.
+  ///
+  /// Set to `true` to leave the decorator out of the pipeline.
+  ///
+  /// This option has no effect when [useProvidedChatClientAsIs] is `true`;
+  /// add the decorator manually via `useApprovalResponseBinding` in that
+  /// case.
+  bool disableApprovalResponseBinding = false;
 
   /// Creates a shallow copy of these options.
   ChatClientAgentOptions clone() => ChatClientAgentOptions()
@@ -89,6 +105,7 @@ class ChatClientAgentOptions {
     ..requirePerServiceCallChatHistoryPersistence =
         requirePerServiceCallChatHistoryPersistence
     ..enableMessageInjection = enableMessageInjection
-    ..enableNonApprovalRequiredFunctionBypassing =
-        enableNonApprovalRequiredFunctionBypassing;
+    ..disableApprovalNotRequiredFunctionBypassing =
+        disableApprovalNotRequiredFunctionBypassing
+    ..disableApprovalResponseBinding = disableApprovalResponseBinding;
 }

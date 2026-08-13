@@ -4,10 +4,10 @@ import '../abstractions/agent_session.dart';
 import '../abstractions/ai_agent.dart';
 import 'delegating_agent_session_store.dart';
 import 'isolation_key_scoped_agent_session_store_options.dart';
-import 'session_isolation_key_provider.dart';
+import 'agent_isolation_key_provider.dart';
 
 /// A delegating agent session store that scopes session keys by an isolation
-/// key provided by a [SessionIsolationKeyProvider], ensuring that sessions
+/// key provided by an [AgentIsolationKeyProvider], ensuring that sessions
 /// are isolated per logical partition (e.g., user, tenant, or composite key).
 class IsolationKeyScopedAgentSessionStore extends DelegatingAgentSessionStore {
   /// Creates an [IsolationKeyScopedAgentSessionStore] wrapping [innerStore].
@@ -16,13 +16,13 @@ class IsolationKeyScopedAgentSessionStore extends DelegatingAgentSessionStore {
   /// [options] configures the store; when `null`, defaults are used.
   IsolationKeyScopedAgentSessionStore(
     super.innerStore,
-    SessionIsolationKeyProvider? keyProvider, {
+    AgentIsolationKeyProvider? keyProvider, {
     IsolationKeyScopedAgentSessionStoreOptions? options,
   }) : _keyProvider = keyProvider,
        _strict =
            (options ?? IsolationKeyScopedAgentSessionStoreOptions()).strict;
 
-  final SessionIsolationKeyProvider? _keyProvider;
+  final AgentIsolationKeyProvider? _keyProvider;
   final bool _strict;
 
   @override
@@ -66,14 +66,14 @@ class IsolationKeyScopedAgentSessionStore extends DelegatingAgentSessionStore {
   Future<String?> _getIsolationKey(CancellationToken? cancellationToken) async {
     final key = _keyProvider == null
         ? null
-        : await _keyProvider.getSessionIsolationKey(
+        : await _keyProvider.getIsolationKey(
             cancellationToken: cancellationToken,
           );
 
     if (_strict && key == null) {
       throw StateError(
-        'Session isolation key is required but was not provided by the '
-        'configured SessionIsolationKeyProvider.',
+        'Agent isolation key is required but was not provided by the '
+        'configured AgentIsolationKeyProvider.',
       );
     }
 
