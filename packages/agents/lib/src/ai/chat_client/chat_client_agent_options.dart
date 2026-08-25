@@ -29,6 +29,17 @@ class ChatClientAgentOptions {
   /// default decorators such as automatic function invocation.
   bool useProvidedChatClientAsIs = false;
 
+  /// Whether functions may be invoked concurrently when a model response
+  /// contains multiple function calls.
+  ///
+  /// This setting is independent of [ChatOptions.allowMultipleToolCalls],
+  /// which controls whether a model may return multiple tool calls in a
+  /// single response. The default is `false`. This option has no effect when
+  /// [useProvidedChatClientAsIs] is `true`; when using a custom chat client
+  /// stack, configure [FunctionInvokingChatClient.allowConcurrentInvocation]
+  /// directly on its [FunctionInvokingChatClient] instance.
+  bool allowConcurrentInvocation = false;
+
   /// When `true`, clears the [ChatHistoryProvider] if the AI service returns a
   /// conversation id (indicating service-managed history).
   bool clearOnChatHistoryProviderConflict = true;
@@ -99,6 +110,7 @@ class ChatClientAgentOptions {
         ? null
         : List.of(aiContextProviders!)
     ..useProvidedChatClientAsIs = useProvidedChatClientAsIs
+    ..allowConcurrentInvocation = allowConcurrentInvocation
     ..clearOnChatHistoryProviderConflict = clearOnChatHistoryProviderConflict
     ..warnOnChatHistoryProviderConflict = warnOnChatHistoryProviderConflict
     ..throwOnChatHistoryProviderConflict = throwOnChatHistoryProviderConflict

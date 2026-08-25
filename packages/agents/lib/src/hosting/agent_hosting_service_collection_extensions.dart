@@ -33,6 +33,7 @@ extension AgentHostingServiceCollectionExtensions on ServiceCollection {
         instructions: instructions,
         description: description,
         tools: tools.isEmpty ? null : tools,
+        services: sp,
       );
     }, lifetime);
     return _DefaultHostedAgentBuilder(this, name, lifetime);

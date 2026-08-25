@@ -60,6 +60,49 @@ void main() {
       expect(inner.runCount, 1);
     });
 
+    test('reports usage aggregated across every iteration', () async {
+      final inner = _ScriptedAgent(
+        responses: [
+          _text('r1')
+            ..usage = UsageDetails(inputTokenCount: 1, outputTokenCount: 10),
+          _text('r2')
+            ..usage = UsageDetails(inputTokenCount: 2, outputTokenCount: 20),
+        ],
+      );
+      final agent = LoopAgent(
+        inner,
+        _QueueEvaluator([LoopEvaluation.proceed('do more')]),
+      );
+
+      final response = await agent.runCore([_userText('go')]);
+
+      expect(response.usage?.inputTokenCount, 3);
+      expect(response.usage?.outputTokenCount, 30);
+    });
+
+    test(
+      'reports aggregated usage when only the last response is returned',
+      () async {
+        final inner = _ScriptedAgent(
+          responses: [
+            _text('r1')..usage = UsageDetails(inputTokenCount: 1),
+            _text('r2')..usage = UsageDetails(inputTokenCount: 2),
+          ],
+        );
+        final agent = LoopAgent(
+          inner,
+          _QueueEvaluator([LoopEvaluation.proceed('do more')]),
+          options: LoopAgentOptions()
+            ..nonStreamingReturnsLastResponseOnly = true,
+        );
+
+        final response = await agent.runCore([_userText('go')]);
+
+        expect(response.text, 'r2');
+        expect(response.usage?.inputTokenCount, 3);
+      },
+    );
+
     test('reuses the session and injects feedback as next input', () async {
       final inner = _ScriptedAgent(responses: [_text('r1'), _text('r2')]);
       final agent = LoopAgent(

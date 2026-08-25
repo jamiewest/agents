@@ -4,6 +4,7 @@ import 'package:extensions/ai.dart';
 import '../abstractions/agent_response.dart';
 import '../abstractions/agent_response_extensions.dart';
 import '../abstractions/agent_response_update.dart';
+import '../shared/usage_aggregator.dart';
 
 /// Merges streams of [AgentResponseUpdate]s grouped by response and message
 /// identifiers into coherent [AgentResponse] objects.
@@ -67,7 +68,7 @@ class MessageMerger {
       if (response.finishReason != null) {
         finishReasons.add(response.finishReason!);
       }
-      usage = _mergeUsage(usage, response.usage);
+      usage = UsageAggregator.combine(usage, response.usage);
       additionalProperties = _mergeProperties(
         additionalProperties,
         response.additionalProperties,
@@ -128,7 +129,7 @@ class MessageMerger {
       ..finishReason = incoming.finishReason ?? current.finishReason
       ..responseId = current.responseId
       ..rawRepresentation = rawList
-      ..usage = _mergeUsage(current.usage, incoming.usage);
+      ..usage = UsageAggregator.combine(current.usage, incoming.usage);
   }
 
   static Iterable<ChatMessage> _messagesWithCreatedAt(AgentResponse response) {
@@ -154,46 +155,6 @@ class MessageMerger {
     if (current == null) return incoming;
     if (incoming == null) return current;
     return {...current, ...incoming};
-  }
-
-  static UsageDetails? _mergeUsage(
-    UsageDetails? current,
-    UsageDetails? incoming,
-  ) {
-    if (current == null) return incoming;
-    if (incoming == null) return current;
-
-    Map<String, int>? additionalCounts = current.additionalCounts != null
-        ? Map<String, int>.of(current.additionalCounts!)
-        : null;
-    if (incoming.additionalCounts != null) {
-      additionalCounts ??= {};
-      for (final entry in incoming.additionalCounts!.entries) {
-        additionalCounts[entry.key] =
-            (additionalCounts[entry.key] ?? 0) + entry.value;
-      }
-    }
-
-    return UsageDetails(
-      inputTokenCount: _addNullable(
-        current.inputTokenCount,
-        incoming.inputTokenCount,
-      ),
-      outputTokenCount: _addNullable(
-        current.outputTokenCount,
-        incoming.outputTokenCount,
-      ),
-      totalTokenCount: _addNullable(
-        current.totalTokenCount,
-        incoming.totalTokenCount,
-      ),
-      additionalCounts: additionalCounts,
-    );
-  }
-
-  static int? _addNullable(int? a, int? b) {
-    if (a == null && b == null) return null;
-    return (a ?? 0) + (b ?? 0);
   }
 }
 

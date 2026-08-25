@@ -527,6 +527,155 @@ void main() {
       completion.complete(agentResponseText('done'));
     });
   });
+
+  group('BackgroundAgentsProvider releaseSession', () {
+    test('finalizes completed tasks and clears runtime references', () async {
+      final agent = TestAgent('Research', 'Research agent');
+      final provider = BackgroundAgentsProvider([agent]);
+      final session = TestSession();
+      final context = createInvokingContext(session: session);
+      final result = await provider.invoking(context);
+      final startTask = getTool(result.tools!, 'BackgroundAgents_StartTask');
+
+      await startTask.invoke(
+        AIFunctionArguments({
+          'agentName': 'Research',
+          'input': 'Research AI',
+          'description': 'AI research',
+        }),
+      );
+
+      // Let the (immediately completing) background run finish.
+      await Future<void>.delayed(Duration.zero);
+
+      await provider.releaseSession(session);
+
+      final runtimeState = session.stateBag
+          .getValue<BackgroundAgentRuntimeState>(provider.stateKeys[1])!;
+      expect(runtimeState.isReleased, isTrue);
+      expect(runtimeState.inFlightTasks, isEmpty);
+      expect(runtimeState.backgroundTaskSessions, isEmpty);
+      expect(runtimeState.taskCancellations, isEmpty);
+      expect(provider.getIncompleteTasks(session), isEmpty);
+    });
+
+    test(
+      'marks still-running tasks as failed and abandons them on timeout',
+      () async {
+        final completion = Completer<AgentResponse>();
+        final agent = TestAgent.withRunResult('Research', completion.future);
+        final provider = BackgroundAgentsProvider([agent]);
+        final session = TestSession();
+        final context = createInvokingContext(session: session);
+        final result = await provider.invoking(context);
+        final startTask = getTool(result.tools!, 'BackgroundAgents_StartTask');
+
+        await startTask.invoke(
+          AIFunctionArguments({
+            'agentName': 'Research',
+            'input': 'Research AI',
+            'description': 'AI research',
+          }),
+        );
+
+        await provider.releaseSession(
+          session,
+          timeout: const Duration(milliseconds: 20),
+        );
+
+        final state = provider.getIncompleteTasks(session);
+        expect(state, isEmpty);
+
+        final runtimeState = session.stateBag
+            .getValue<BackgroundAgentRuntimeState>(provider.stateKeys[1])!;
+        expect(runtimeState.isReleased, isTrue);
+        expect(runtimeState.inFlightTasks, isEmpty);
+
+        completion.complete(agentResponseText('done'));
+      },
+    );
+
+    test('throws when cancelRunning is false and tasks are running', () async {
+      final completion = Completer<AgentResponse>();
+      final agent = TestAgent.withRunResult('Research', completion.future);
+      final provider = BackgroundAgentsProvider([agent]);
+      final session = TestSession();
+      final context = createInvokingContext(session: session);
+      final result = await provider.invoking(context);
+      final startTask = getTool(result.tools!, 'BackgroundAgents_StartTask');
+
+      await startTask.invoke(
+        AIFunctionArguments({
+          'agentName': 'Research',
+          'input': 'Research AI',
+          'description': 'AI research',
+        }),
+      );
+
+      await expectLater(
+        provider.releaseSession(session, cancelRunning: false),
+        throwsA(isA<StateError>()),
+      );
+
+      completion.complete(agentResponseText('done'));
+    });
+
+    test('start and continue tools refuse a released runtime', () async {
+      final agent = TestAgent('Research', 'Research agent');
+      final provider = BackgroundAgentsProvider([agent]);
+      final session = TestSession();
+      final context = createInvokingContext(session: session);
+      final result = await provider.invoking(context);
+      final startTask = getTool(result.tools!, 'BackgroundAgents_StartTask');
+      final continueTask = getTool(
+        result.tools!,
+        'BackgroundAgents_ContinueTask',
+      );
+
+      await provider.releaseSession(session);
+
+      final startResult = await startTask.invoke(
+        AIFunctionArguments({
+          'agentName': 'Research',
+          'input': 'Research AI',
+          'description': 'AI research',
+        }),
+      );
+      expect(startResult, contains('released'));
+
+      final continueResult = await continueTask.invoke(
+        AIFunctionArguments({'taskId': 1, 'text': 'more'}),
+      );
+      expect(continueResult, contains('released'));
+    });
+
+    test('is idempotent', () async {
+      final agent = TestAgent('Research', 'Research agent');
+      final provider = BackgroundAgentsProvider([agent]);
+      final session = TestSession();
+
+      await provider.releaseSession(session);
+      await provider.releaseSession(session);
+
+      final runtimeState = session.stateBag
+          .getValue<BackgroundAgentRuntimeState>(provider.stateKeys[1])!;
+      expect(runtimeState.isReleased, isTrue);
+    });
+
+    test('rejects a negative timeout that is not the infinite sentinel', () {
+      final agent = TestAgent('Research', 'Research agent');
+      final provider = BackgroundAgentsProvider([agent]);
+      final session = TestSession();
+
+      expect(
+        () => provider.releaseSession(
+          session,
+          timeout: const Duration(seconds: -5),
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+  });
 }
 
 Future<Iterable<AITool>> createTools(TestAgent agent) async {

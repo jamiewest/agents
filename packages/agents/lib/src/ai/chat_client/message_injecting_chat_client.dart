@@ -5,6 +5,8 @@ import 'package:extensions/system.dart';
 
 import '../../abstractions/agent_session.dart';
 import '../../abstractions/ai_agent.dart';
+import '../../shared/usage_aggregation_extensions.dart';
+import '../../shared/usage_aggregator.dart';
 
 /// A delegating chat client that supports injecting messages into the
 /// function execution loop.
@@ -53,6 +55,11 @@ class MessageInjectingChatClient extends DelegatingChatClient {
     // the queue, call the service again so the model can process them. The
     // loop exits when the response contains function calls (handed off to
     // the parent FunctionInvokingChatClient) or the queue is empty.
+    // Usage is accumulated across every iteration so the returned response
+    // reports the token cost of all service calls made, not just the last
+    // one.
+    UsageDetails? aggregatedUsage;
+
     while (true) {
       final response = await super.getResponse(
         messages: newMessages,
@@ -60,12 +67,17 @@ class MessageInjectingChatClient extends DelegatingChatClient {
         cancellationToken: cancellationToken,
       );
 
+      aggregatedUsage = UsageAggregator.combine(
+        aggregatedUsage,
+        response.usage,
+      );
+
       if (_hasFunctionCalls(response.messages)) {
-        return response;
+        return response.applyAggregatedUsage(aggregatedUsage);
       }
 
       if (queue.isEmpty) {
-        return response;
+        return response.applyAggregatedUsage(aggregatedUsage);
       }
 
       currentOptions = _optionsForNextIteration(
