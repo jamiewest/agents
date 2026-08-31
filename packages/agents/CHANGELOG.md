@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.1.0
+
+- `BackgroundAgentsProvider`'s wait tool no longer blocks indefinitely. The
+  new `BackgroundAgentsProviderOptions.waitTimeout` (default five minutes,
+  validated against `maximumWaitTimeout`) bounds how long
+  `BackgroundAgents_WaitForFirstCompletion` waits; when it elapses the tool
+  returns a message saying the tasks are still running and can be waited on
+  again, leaving the background work untouched. The timeout is provider-
+  controlled — the tool's schema still exposes only `taskIds`. Ports upstream
+  #7911.
+- Raised the `extensions` constraint to `^0.7.1`.
+
 ## 2.0.0
 
 - **Breaking: `streamAsync` and `resumeStreamAsync` now return a live run.**
