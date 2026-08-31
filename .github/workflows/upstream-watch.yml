@@ -1,0 +1,162 @@
+# Watches microsoft/agent-framework for new dotnet/src commits beyond the
+# `upstream-sync:` pin in packages/agents/PORTING.md.
+#
+# - Always: opens/updates a tracking issue when there is new drift, closes it
+#   when the repo is back in sync. Costs nothing, needs no secrets.
+# - Optionally: if an ANTHROPIC_API_KEY repo secret exists, runs `/drift sync`
+#   via claude-code-action and opens a PR with the ported changes.
+#   Note: PRs opened with the default GITHUB_TOKEN do not trigger the CI
+#   workflow; add a classic PAT as DRIFT_PAT if you want checks on drift PRs.
+
+name: Upstream drift watch
+
+on:
+  schedule:
+    - cron: '13 13 * * 1'  # Mondays 13:13 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      count: ${{ steps.drift.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read sync pin from PORTING.md
+        id: pin
+        run: |
+          PIN=$(grep -oE 'upstream-sync: [0-9a-f]{40}' packages/agents/PORTING.md | awk '{print $2}')
+          if [ -z "$PIN" ]; then
+            echo "::error::no 'upstream-sync: <sha>' pin found in packages/agents/PORTING.md"
+            exit 1
+          fi
+          echo "pin=$PIN" >> "$GITHUB_OUTPUT"
+
+      - name: List new upstream dotnet/src commits
+        id: drift
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PIN: ${{ steps.pin.outputs.pin }}
+        run: |
+          : > commits.jsonl
+          for page in 1 2 3; do
+            gh api "repos/microsoft/agent-framework/commits?path=dotnet/src&per_page=100&page=$page" \
+              --jq '.[]' >> commits.jsonl
+            if grep -q "\"$PIN\"" commits.jsonl; then break; fi
+          done
+
+          python3 - <<'EOF'
+          import json, os
+
+          pin = os.environ["PIN"]
+          commits = [json.loads(l) for l in open("commits.jsonl") if l.strip()]
+
+          new, found = [], False
+          for c in commits:
+              if c["sha"] == pin:
+                  found = True
+                  break
+              new.append(c)
+
+          lines = []
+          for c in new:
+              sha = c["sha"][:10]
+              date = c["commit"]["committer"]["date"][:10]
+              title = c["commit"]["message"].splitlines()[0]
+              lines.append(f"- [`{sha}`](https://github.com/microsoft/agent-framework/commit/{c['sha']}) {date} — {title}")
+          if new and not found:
+              lines.append("")
+              lines.append(f"(pin `{pin[:10]}` not in the fetched window — the real backlog is larger)")
+
+          with open("body.md", "w") as f:
+              f.write(f"Upstream `dotnet/src` commits since the last sync "
+                      f"(pin `{pin[:10]}` in `packages/agents/PORTING.md`):\n\n")
+              f.write("\n".join(lines) + "\n\n")
+              f.write("To resolve: run `/drift sync` in a Claude Code session on this repo, "
+                      "review the PR it opens, and merge. The sync must advance the "
+                      "`upstream-sync:` pin, which closes this issue on the next run.\n")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"count={len(new)}\n")
+          EOF
+
+      - name: Open or update tracking issue
+        if: steps.drift.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COUNT: ${{ steps.drift.outputs.count }}
+        run: |
+          TITLE="Upstream drift: $COUNT new dotnet/src commit(s) since last sync"
+          EXISTING=$(gh issue list --state open --search "Upstream drift in:title" \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh issue edit "$EXISTING" --title "$TITLE" --body-file body.md
+          else
+            gh issue create --title "$TITLE" --body-file body.md
+          fi
+
+      - name: Close tracking issue if in sync
+        if: steps.drift.outputs.count == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          EXISTING=$(gh issue list --state open --search "Upstream drift in:title" \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh issue close "$EXISTING" \
+              --comment "Back in sync — the upstream-sync pin now covers all dotnet/src commits."
+          fi
+
+  # Optional autonomous sync: skipped cleanly unless the ANTHROPIC_API_KEY
+  # secret is configured. Runs /drift sync (see .claude/commands/drift.md),
+  # which ports applicable changes, advances the pin, and opens a PR.
+  sync:
+    needs: detect
+    if: needs.detect.outputs.count != '0'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Check for API key
+        id: key
+        env:
+          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then echo "have=true" >> "$GITHUB_OUTPUT"; else echo "have=false" >> "$GITHUB_OUTPUT"; fi
+
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.have == 'true'
+        with:
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@v2
+        if: steps.key.outputs.have == 'true'
+        with:
+          channel: stable
+          cache: true
+
+      - name: Run drift sync
+        if: steps.key.outputs.have == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: |
+            Run the /drift sync procedure from .claude/commands/drift.md.
+            Work on a branch named drift/sync-<today's date>, verify with
+            dart analyze + dart test in packages/agents and flutter analyze +
+            flutter test in packages/agents_flutter, then push the branch and
+            open a PR against main with gh. Do NOT merge the PR. If a
+            drift/sync PR is already open, update that branch instead of
+            opening a second PR. If every new upstream commit is out of scope,
+            still open a PR that only advances the upstream-sync pin and
+            records the skip decisions in PORTING.md.
+          claude_args: |
+            --allowedTools "Bash,Read,Write,Edit,Glob,Grep,WebFetch"

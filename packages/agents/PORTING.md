@@ -10,6 +10,18 @@ under "Intentional divergences" or "Verified faithful" must NOT be re-flagged
 by reviews or `/drift` runs. When a new deliberate deviation is decided,
 append it here (with a date) — do not record it only in session memory.
 
+## Upstream sync state
+
+The newest upstream commit touching `dotnet/src` that a drift sync has
+reviewed (ported or deliberately skipped):
+
+`upstream-sync: 92aec78c94c3e2cb5bab980c6e7a00e7bf2d6f0e 2026-08-25`
+
+This line is machine-read by `/drift` and by
+`.github/workflows/upstream-watch.yml` — keep the `upstream-sync: <sha> <date>`
+format intact. Every drift sync must advance it to the newest `dotnet/src`
+commit it reviewed, in the same commit as the ported changes.
+
 ## Folder → upstream namespace map
 
 | Dart folder (`lib/src/`) | Upstream C# project (`dotnet/src/`) |

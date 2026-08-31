@@ -21,11 +21,14 @@ packages/atlas_app/build/
 
 *.dylib
 *.metallib
-.claude
+
+# Local Claude Code state stays out; commands ship with the repo so cloud
+# sessions and CI can run /drift.
+.claude/*
+!.claude/commands/
 
 .genkit
 AGENTS.md
-CLAUDE.md
 GEMINI.md
 rules.md
 documentation.md
