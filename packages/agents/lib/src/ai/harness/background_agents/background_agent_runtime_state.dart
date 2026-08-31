@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:extensions/system.dart';
+
 import '../../../abstractions/agent_response.dart';
 import '../../../abstractions/agent_session.dart';
 import 'background_agents_provider.dart';
@@ -17,6 +21,35 @@ class BackgroundAgentRuntimeState {
   /// Gets the mapping of task IDs to their background agent [AgentSession]
   /// instances, needed for `ContinueTask`.
   final Map<int, AgentSession> backgroundTaskSessions = {};
+
+  /// Gets the mapping of task IDs to the [CancellationTokenSource]
+  /// controlling their run.
+  ///
+  /// A source is created when a task is started or continued, and is disposed
+  /// and removed when the task is finalized, cleared, or when the session is
+  /// released via [BackgroundAgentsProvider.releaseSession].
+  final Map<int, CancellationTokenSource> taskCancellations = {};
+
+  /// Whether this runtime has been released via
+  /// [BackgroundAgentsProvider.releaseSession].
+  ///
+  /// Once released, all in-flight tasks have been cancelled and awaited, and
+  /// the runtime references have been dropped. Tools that would start new
+  /// background work refuse to run against a released runtime.
+  bool isReleased = false;
+
+  /// The completion signalled once the release of this runtime has finished
+  /// all of its cleanup.
+  ///
+  /// Set by the caller that first releases the runtime, and completed once
+  /// that caller has finished waiting for the in-flight tasks and has dropped
+  /// the runtime references. Callers that arrive while a release is already
+  /// in progress await this instead of returning early, so that a completed
+  /// [BackgroundAgentsProvider.releaseSession] always means the cleanup is
+  /// done. It is completed successfully even when the releasing caller fails,
+  /// because a waiter should observe that cleanup finished rather than
+  /// inherit another caller's failure.
+  Completer<void>? releaseCompletion;
 }
 
 /// Tracks the completion state of a Dart [Future] while preserving the C#

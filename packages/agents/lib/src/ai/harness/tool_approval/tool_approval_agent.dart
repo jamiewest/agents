@@ -9,6 +9,8 @@ import '../../../abstractions/ai_agent.dart';
 import '../../../abstractions/delegating_ai_agent.dart';
 import '../../../abstractions/provider_session_state.dart';
 import '../../../json_stubs.dart';
+import '../../../shared/usage_aggregation_extensions.dart';
+import '../../../shared/usage_aggregator.dart';
 import '../../agent_json_utilities.dart';
 import 'always_approve_tool_approval_response_content.dart';
 import 'tool_approval_agent_options.dart';
@@ -124,6 +126,10 @@ class ToolApprovalAgent extends DelegatingAIAgent {
       );
     }
 
+    // Usage is accumulated across every re-invocation so the caller sees the
+    // token cost of the whole run, not just its final inner call.
+    UsageDetails? aggregatedUsage;
+
     for (var iteration = 0; ; iteration++) {
       final processedMessages = injectCollectedResponses(
         callerMessages,
@@ -138,11 +144,17 @@ class ToolApprovalAgent extends DelegatingAIAgent {
         messages: processedMessages,
       );
 
+      aggregatedUsage = UsageAggregator.combine(
+        aggregatedUsage,
+        response.usage,
+      );
+
       if (iteration >= _maxAutoApprovalIterations) {
         // Cap reached: this turn is returned as-is, so any approval request it
         // surfaces goes to the caller to decide rather than continuing the
-        // auto-approval chain.
-        return response;
+        // auto-approval chain. The usage reported still covers every prior
+        // turn of the run rather than only this final one.
+        return response.applyAggregatedUsage(aggregatedUsage);
       }
 
       final allAutoApproved = await processAndQueueOutboundApprovalRequests(
@@ -153,7 +165,7 @@ class ToolApprovalAgent extends DelegatingAIAgent {
         requestMessages: processedMessages,
       );
       if (!allAutoApproved) {
-        return response;
+        return response.applyAggregatedUsage(aggregatedUsage);
       }
 
       callerMessages = const [];

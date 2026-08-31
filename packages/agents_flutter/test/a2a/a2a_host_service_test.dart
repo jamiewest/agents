@@ -448,7 +448,8 @@ Future<String> _streamRpc(int port, String credential, String id) async {
       }),
     );
     final response = await request.close();
-    return utf8.decodeStream(response);
+    // Awaited so the finally's client.close() runs after the body is drained.
+    return await utf8.decodeStream(response);
   } finally {
     client.close();
   }

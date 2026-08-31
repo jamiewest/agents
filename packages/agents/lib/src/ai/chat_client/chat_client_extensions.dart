@@ -67,13 +67,21 @@ extension ChatClientExtensions on ChatClient {
       );
     }
 
-    if (getService<FunctionInvokingChatClient>() == null) {
+    final functionInvokingChatClient = getService<FunctionInvokingChatClient>();
+    if (functionInvokingChatClient == null) {
       chatBuilder.use(
-        (innerClient) => FunctionInvokingChatClient(
-          innerClient,
-          logger: loggerFactory?.createLogger('FunctionInvokingChatClient'),
-        ),
+        (innerClient) =>
+            FunctionInvokingChatClient(
+                innerClient,
+                logger: loggerFactory?.createLogger(
+                  'FunctionInvokingChatClient',
+                ),
+              )
+              ..allowConcurrentInvocation =
+                  options?.allowConcurrentInvocation == true,
       );
+    } else if (options?.allowConcurrentInvocation == true) {
+      functionInvokingChatClient.allowConcurrentInvocation = true;
     }
 
     if (options?.requirePerServiceCallChatHistoryPersistence == true) {

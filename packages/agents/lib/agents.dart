@@ -90,6 +90,8 @@ export 'src/ai/chat_client/message_injecting_chat_client.dart';
 export 'src/ai/chat_client/approval_not_required_function_bypassing_chat_client.dart';
 export 'src/ai/chat_client/approval_response_binding_chat_client.dart';
 export 'src/ai/chat_client/per_service_call_chat_history_persisting_chat_client.dart';
+export 'src/ai/chat_client/route_persisting_routing_chat_client.dart';
+export 'src/ai/chat_client/route_persisting_routing_chat_client_options.dart';
 
 // AI — compaction
 export 'src/ai/compaction/chat_message_content_equality.dart';

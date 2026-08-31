@@ -36,11 +36,14 @@ append it here (with a date) — do not record it only in session memory.
   reflection/JSON machinery and delegate types.
 
 **Upstream projects not ported (out of scope by default — confirm with Jamie
-before porting):** AGUI, AzureAI.Persistent, CopilotStudio, CosmosNoSql,
-Declarative, DevUI, DurableTask, Foundry(+Hosting), GitHub.Copilot,
-Hyperlight, LocalCodeAct, Mem0, Purview, Valkey, Workflows.Declarative(.*),
-Workflows.Generators, Hosting.AspNetCore, Hosting.AzureFunctions,
-Hosting.A2A.AspNetCore, Hosting.AGUI.AspNetCore, Aspire.*.
+before porting):** AGUI, AgentHooks (new 2026-08-19, agent-hooks
+interception contract — not yet triaged with Jamie), AzureAI.Persistent,
+CopilotStudio, CosmosNoSql, Declarative, DevUI, DurableTask,
+Foundry(+Hosting), GitHub.Copilot, Hosting.AzureStorage (new 2026-08-20,
+Azure Blob session persistence), Hyperlight, LocalCodeAct, Mem0, Purview,
+Valkey, Workflows.Declarative(.*), Workflows.Generators,
+Hosting.AspNetCore, Hosting.AzureFunctions, Hosting.A2A.AspNetCore,
+Hosting.AGUI.AspNetCore, Aspire.*.
 
 ## Intentional divergences (do NOT re-flag)
 
@@ -225,6 +228,67 @@ Hosting.A2A.AspNetCore, Hosting.AGUI.AspNetCore, Aspire.*.
   cloned rather than mutated because the A2A server reuses the instance for
   live event notification.
 
+- **Feature-usage bitmask / `AgentFrameworkUserAgentPolicy` not ported**
+  (2026-08-25, upstream #7709). Upstream stamps an `agent-framework-dotnet`
+  User-Agent segment plus a feature-usage bitmask onto .NET
+  `System.ClientModel` pipeline requests, driven by assembly-attribute
+  reflection and a `FeatureDeclaration` analyzer across every project. None
+  of that surface exists in Dart (no shared client pipeline, no assembly
+  reflection); N/A by design, do not flag the missing `Shared/FeatureUsage`
+  types.
+- **MCP Tasks-extension migration deferred** (2026-08-25, upstream #7774
+  rewrote `McpClientTaskExtensions`/`McpTaskOptions`/
+  `TaskAwareMcpClientAIFunction` against the 2026-07-28 Tasks extension via
+  SDK primitives — `CallToolAsTaskAsync`, typed `tasks/get`, per-call task
+  handles). `package:mcp_dart` (2.4.x) instead drives that extension
+  transparently inside `McpClient.callTool` and keeps those primitives
+  private, so upstream's manual poller (stuck-poll caps, input-request caps,
+  remote-cancellation timeout) has nothing public to build on. The port
+  keeps `listAgentToolsWithTaskSupport` on the legacy SEP-2663 augmentation
+  path for `taskSupport == 'required'` tools. Revisit when mcp_dart exposes
+  task call handles (and then also adopt upstream's
+  `listAgentToolsWithTasks` rename).
+- **A2A streaming artifact updates not applicable** (2026-08-25, upstream
+  #7722 added `ArtifactStreamWriter` and routed streaming runs through the
+  task lifecycle or one aggregated message). The Dart `package:a2a` executor
+  seam is non-streaming (`execute` + event bus; no `ExecuteStreamingAsync`),
+  so the port's `A2AAgentHandler` never had the one-message-per-update bug:
+  it runs non-streaming and already publishes a single aggregated message or
+  task events keyed off `continuationToken`. Upstream's writer becomes
+  relevant only if the handler is restructured onto `runStreaming` — a
+  redesign, ask Jamie first.
+- **Hosting.OpenAI `Response` does not echo request sampling fields** —
+  follows from the JSON-backed-value-objects divergence above: upstream's
+  logprobs-preservation fix (2026-08-24, #5860) adds `Logprobs` echo fields
+  the port's slim `Response`/`CreateResponse` models never carried
+  (alongside `temperature`, `top_p`, `max_tool_calls`, …; unmodeled request
+  fields remain readable via `CreateResponse.raw`). Not a missing port.
+- **`BackgroundAgentsProvider.releaseSession`** (2026-08-25, ports upstream
+  #7602 `ReleaseSessionAsync`). Deviations: no `SyncRoot` locking (single
+  isolate — atomicity between awaits is inherent); `infiniteReleaseTimeout`
+  (−1 ms) mirrors `Timeout.InfiniteTimeSpan`; upstream's unobserved-fault
+  observer continuations are unnecessary because
+  `BackgroundAgentRuntimeTask.completion` already captures errors.
+- **`RoutePersistingRoutingChatClient` is self-contained** (2026-08-25,
+  ports upstream #7641). Upstream extends `Microsoft.Extensions.AI`'s
+  `RoutingChatClient` (`RoutingContext`/`SelectClientAsync` seam);
+  `package:extensions` has no routing base, so the Dart client implements
+  `ChatClient` directly with the same per-session persisted-route
+  semantics. `AgentSessionRoutingState` stays unexported, like upstream's
+  internal type. The companion upstream change making
+  `AIAgent.RunAsync` async (restoring the previous run context via
+  `AsyncLocal` flow) has no Dart counterpart — `currentRunContext` is a
+  plain static (see above) with no restore semantics.
+- **Skill-discovery symlink hardening uses `typeSync`, not attributes**
+  (2026-08-25, ports upstream #7540). Upstream's
+  `IsLinkOrReparsePointOrInaccessible`/`SafeEnumerateDirectories` map onto
+  `_isLinkOrInaccessible` (`FileSystem.typeSync(followLinks: false)`,
+  fail-closed on `FileSystemException`) and `_safeListDirectory`. Resource
+  and script escape protection remains the pre-existing
+  canonicalize-plus-prefix boundary check rather than upstream's
+  per-segment reparse-point walk — equivalent outcome (canonicalize
+  resolves links), different mechanism.
+
 ## Verified faithful (do NOT re-flag as bugs)
 
 - `ScopeId` `==`/`hashCode` ignores `executorId` for named scopes — upstream
@@ -235,6 +299,12 @@ Hosting.A2A.AspNetCore, Hosting.AGUI.AspNetCore, Aspire.*.
   `GetOrAdd`+`SetDeserialized`.
 - Custom `_generateUuid` in `a2a_agent_handler` is a correct UUID v4
   (`package:uuid` is not allowlisted).
+- Upstream's 2026-08 removal of AGUI special cases in `ChatClientAgent`
+  (#7741) needs no port — the AGUI provider-name checks were never ported
+  (AGUI is out of scope). Likewise the camelCase tool-argument description
+  fix (#7731) was already in the port's harness providers, and the
+  broadened telemetry-serialization catch (#7612) has no counterpart
+  because `WorkflowTelemetryContext` is a no-op stub here.
 
 ## Naming conventions (do not flag as API gaps)
 

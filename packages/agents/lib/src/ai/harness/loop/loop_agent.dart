@@ -12,6 +12,8 @@ import '../../../abstractions/agent_run_options.dart';
 import '../../../abstractions/agent_session.dart';
 import '../../../abstractions/ai_agent.dart';
 import '../../../abstractions/delegating_ai_agent.dart';
+import '../../../shared/usage_aggregation_extensions.dart';
+import '../../../shared/usage_aggregator.dart';
 import 'loop_agent_options.dart';
 import 'loop_context.dart';
 import 'loop_evaluation.dart';
@@ -119,6 +121,13 @@ class LoopAgent extends DelegatingAIAgent {
     Iterable<ChatMessage> currentMessages = initialMessages;
     var iteration = 0;
     final transcript = <ChatMessage>[];
+
+    // Accumulates usage across every inner invocation so the returned
+    // response reports the token cost of the whole run rather than only its
+    // final iteration. Aggregated even when only the last response is
+    // returned.
+    UsageDetails? aggregatedUsage;
+
     List<ChatMessage> currentSurfaced = const [];
 
     while (true) {
@@ -130,6 +139,12 @@ class LoopAgent extends DelegatingAIAgent {
         cancellationToken: cancellationToken,
       );
       iteration++;
+
+      aggregatedUsage = UsageAggregator.combine(
+        aggregatedUsage,
+        response.usage,
+      );
+
       transcript
         ..addAll(currentSurfaced)
         ..addAll(response.messages);
@@ -146,11 +161,11 @@ class LoopAgent extends DelegatingAIAgent {
         ..lastResponse = response;
 
       if (_hasPendingApprovalRequests(response)) {
-        return _buildResult(response, transcript);
+        return _buildResult(response, transcript, aggregatedUsage);
       }
       if (iteration >= _maxIterations) {
         _logMaxIterationsReached();
-        return _buildResult(response, transcript);
+        return _buildResult(response, transcript, aggregatedUsage);
       }
 
       final step = await _evaluateAndBuildNext(
@@ -160,7 +175,7 @@ class LoopAgent extends DelegatingAIAgent {
         cancellationToken,
       );
       if (!step.shouldContinue) {
-        return _buildResult(response, transcript);
+        return _buildResult(response, transcript, aggregatedUsage);
       }
       currentMessages = step.messages;
       currentSurfaced = step.surfacedMessages;
@@ -396,22 +411,20 @@ class LoopAgent extends DelegatingAIAgent {
         : null;
   }
 
+  /// Produces the non-streaming run result from the final iteration's
+  /// response, which carries either its own messages (when configured) or the
+  /// full transcript of the run. In both cases the usage reported is
+  /// [aggregatedUsage], covering every iteration of the run.
   AgentResponse _buildResult(
     AgentResponse lastResponse,
     List<ChatMessage> transcript,
-  ) {
-    if (_nonStreamingReturnsLastResponseOnly) {
-      return lastResponse;
-    }
-    return AgentResponse(messages: List<ChatMessage>.of(transcript))
-      ..agentId = lastResponse.agentId
-      ..responseId = lastResponse.responseId
-      ..createdAt = lastResponse.createdAt
-      ..finishReason = lastResponse.finishReason
-      ..usage = lastResponse.usage
-      ..additionalProperties = lastResponse.additionalProperties
-      ..continuationToken = lastResponse.continuationToken;
-  }
+    UsageDetails? aggregatedUsage,
+  ) => _nonStreamingReturnsLastResponseOnly
+      ? lastResponse.applyAggregatedUsage(aggregatedUsage)
+      : lastResponse.applyAggregatedUsage(
+          aggregatedUsage,
+          messages: List<ChatMessage>.of(transcript),
+        );
 
   static bool _hasPendingApprovalRequests(AgentResponse response) {
     for (final message in response.messages) {

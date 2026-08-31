@@ -109,52 +109,54 @@ void main() {
       });
     });
 
-    test('accepts tool schemas built from untyped const map literals',
-        () async {
-      final httpClient = _FakeHttpClient([
-        _jsonResponse(_messageJson(text: 'ok')),
-      ]);
-      final client = AnthropicChatClient(
-        _anthropicClient(httpClient),
-        modelId: 'claude-default',
-      );
+    test(
+      'accepts tool schemas built from untyped const map literals',
+      () async {
+        final httpClient = _FakeHttpClient([
+          _jsonResponse(_messageJson(text: 'ok')),
+        ]);
+        final client = AnthropicChatClient(
+          _anthropicClient(httpClient),
+          modelId: 'claude-default',
+        );
 
-      // Nested literals in a `const` schema infer as `Map<dynamic, dynamic>`;
-      // building the request must not depend on their static types.
-      const schema = <String, Object?>{
-        'type': 'object',
-        'properties': {
-          'pin': {'type': 'integer'},
-          'options': {
-            'type': 'array',
-            'items': {'type': 'string'},
+        // Nested literals in a `const` schema infer as `Map<dynamic, dynamic>`;
+        // building the request must not depend on their static types.
+        const schema = <String, Object?>{
+          'type': 'object',
+          'properties': {
+            'pin': {'type': 'integer'},
+            'options': {
+              'type': 'array',
+              'items': {'type': 'string'},
+            },
           },
-        },
-        'required': ['pin'],
-      };
+          'required': ['pin'],
+        };
 
-      await client.getResponse(
-        messages: [ChatMessage.fromText(ChatRole.user, 'Use a tool')],
-        options: ChatOptions(
-          tools: [
-            _TestFunction(
-              name: 'set_pin',
-              description: 'Sets a pin.',
-              parametersSchema: schema,
-            ),
-          ],
-        ),
-      );
+        await client.getResponse(
+          messages: [ChatMessage.fromText(ChatRole.user, 'Use a tool')],
+          options: ChatOptions(
+            tools: [
+              _TestFunction(
+                name: 'set_pin',
+                description: 'Sets a pin.',
+                parametersSchema: schema,
+              ),
+            ],
+          ),
+        );
 
-      final body = httpClient.requests.single.jsonBody;
-      expect(body['tools'], [
-        {
-          'name': 'set_pin',
-          'description': 'Sets a pin.',
-          'input_schema': schema,
-        },
-      ]);
-    });
+        final body = httpClient.requests.single.jsonBody;
+        expect(body['tools'], [
+          {
+            'name': 'set_pin',
+            'description': 'Sets a pin.',
+            'input_schema': schema,
+          },
+        ]);
+      },
+    );
 
     test('maps hosted web search to Anthropic built-in web search', () async {
       final httpClient = _FakeHttpClient([

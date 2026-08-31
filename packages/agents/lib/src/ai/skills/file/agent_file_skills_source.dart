@@ -21,6 +21,9 @@ import 'agent_file_skills_source_options.dart';
 
 /// A skill source that discovers skills from filesystem directories
 /// containing SKILL.md files.
+///
+/// Symbolic links below configured roots are not followed during skill
+/// discovery, and paths that cannot be inspected are skipped as unsafe.
 class AgentFileSkillsSource extends AgentSkillsSource {
   AgentFileSkillsSource(
     Iterable<String> skillPaths, {
@@ -108,7 +111,7 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     AgentSkillsSourceContext context, {
     CancellationToken? cancellationToken,
   }) async {
-    final discoveredPaths = discoverSkillDirectories(_skillPaths, _fs);
+    final discoveredPaths = discoverSkillDirectories(_skillPaths);
     logSkillsDiscovered(_logger, discoveredPaths.length);
     final skills = <AgentSkill>[];
     for (final skillPath in discoveredPaths) {
@@ -122,48 +125,78 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     return skills;
   }
 
-  static List<String> discoverSkillDirectories(
-    Iterable<String> skillPaths,
-    FileSystem fs,
-  ) {
+  List<String> discoverSkillDirectories(Iterable<String> skillPaths) {
     final discoveredPaths = <String>[];
     for (final rootDirectory in skillPaths) {
       if (rootDirectory.trim().isEmpty ||
-          !fs.directory(rootDirectory).existsSync()) {
+          !_fs.directory(rootDirectory).existsSync()) {
         continue;
       }
       searchDirectoriesForSkills(
         p.canonicalize(rootDirectory),
         discoveredPaths,
         currentDepth: 0,
-        fs: fs,
       );
     }
     return discoveredPaths;
   }
 
-  static void searchDirectoriesForSkills(
+  void searchDirectoriesForSkills(
     String directory,
     List<String> results, {
     required int currentDepth,
-    required FileSystem fs,
   }) {
     final skillFilePath = p.join(directory, skillFileName);
-    if (fs.file(skillFilePath).existsSync()) {
+    if (_fs.file(skillFilePath).existsSync()) {
+      if (_isLinkOrInaccessible(skillFilePath)) {
+        logUnsafeSkillDiscoveryPath(_logger, sanitizePathForLog(skillFilePath));
+        return;
+      }
+
+      // Once a SKILL.md is found, this directory is the skill root.
+      // Subdirectories are part of this skill and should not be treated as
+      // independent skill roots.
       results.add(p.canonicalize(directory));
+      return;
     }
     if (currentDepth >= maxSearchDepth) {
       return;
     }
-    for (final entry in fs.directory(directory).listSync(followLinks: false)) {
-      if (entry is Directory) {
-        searchDirectoriesForSkills(
-          entry.path,
-          results,
-          currentDepth: currentDepth + 1,
-          fs: fs,
-        );
+    for (final entry in _safeListDirectory(directory)) {
+      if (entry is! Directory) {
+        continue;
       }
+      if (_isLinkOrInaccessible(entry.path)) {
+        logUnsafeSkillDiscoveryPath(_logger, sanitizePathForLog(entry.path));
+        continue;
+      }
+      searchDirectoriesForSkills(
+        entry.path,
+        results,
+        currentDepth: currentDepth + 1,
+      );
+    }
+  }
+
+  /// Checks whether the entity at [path] is a symbolic link, or cannot be
+  /// inspected at all — both are treated as unsafe during skill discovery.
+  bool _isLinkOrInaccessible(String path) {
+    try {
+      return _fs.typeSync(path, followLinks: false) ==
+          FileSystemEntityType.link;
+    } on FileSystemException {
+      return true;
+    }
+  }
+
+  /// Best-effort directory listing that returns an empty list when the
+  /// directory cannot be inspected, so a single inaccessible child does not
+  /// abort the entire skill scan.
+  List<FileSystemEntity> _safeListDirectory(String directory) {
+    try {
+      return _fs.directory(directory).listSync(followLinks: false);
+    } on FileSystemException {
+      return const [];
     }
   }
 
@@ -508,6 +541,15 @@ class AgentFileSkillsSource extends AgentSkillsSource {
   static void logSkillsLoadedTotal(Logger logger, int count) {
     if (logger.isEnabled(LogLevel.debug)) {
       logger.logDebug('Loaded $count skills.');
+    }
+  }
+
+  static void logUnsafeSkillDiscoveryPath(Logger logger, String path) {
+    if (logger.isEnabled(LogLevel.warning)) {
+      logger.logWarning(
+        "Skipping skill discovery path '$path': symbolic link detected, or "
+        'path could not be inspected.',
+      );
     }
   }
 
