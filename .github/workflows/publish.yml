@@ -1,0 +1,61 @@
+# Publishes a package to pub.dev when its release tag is pushed:
+#   agents-v2.0.1          -> packages/agents
+#   agents_flutter-v0.8.2  -> packages/agents_flutter
+#
+# Uses pub.dev automated publishing (GitHub OIDC — no secrets). One-time
+# setup per package on pub.dev (Admin tab -> Automated publishing):
+#   repository: jamiewest/agents
+#   tag pattern: agents-v{{version}}         (agents)
+#   tag pattern: agents_flutter-v{{version}} (agents_flutter)
+#
+# Release flow: bump version + CHANGELOG on main, then
+#   git tag agents-v<version> && git push origin agents-v<version>
+# When both packages bump, tag agents first (agents_flutter depends on it).
+
+name: Publish to pub.dev
+
+on:
+  push:
+    tags:
+      - 'agents-v[0-9]+.[0-9]+.[0-9]+*'
+      - 'agents_flutter-v[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # required for pub.dev OIDC token exchange
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve package and version from tag
+        id: pkg
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          PKG="${TAG%-v*}"
+          VERSION="${TAG##*-v}"
+          case "$PKG" in
+            agents|agents_flutter) ;;
+            *) echo "::error::unknown package prefix in tag $TAG"; exit 1 ;;
+          esac
+          echo "dir=packages/$PKG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches pubspec version
+        run: |
+          PUBSPEC_VERSION=$(grep '^version:' "${{ steps.pkg.outputs.dir }}/pubspec.yaml" | awk '{print $2}')
+          if [ "$PUBSPEC_VERSION" != "${{ steps.pkg.outputs.version }}" ]; then
+            echo "::error::tag says ${{ steps.pkg.outputs.version }} but pubspec.yaml says $PUBSPEC_VERSION"
+            exit 1
+          fi
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Publish
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: |
+          flutter pub get
+          dart pub publish --force
