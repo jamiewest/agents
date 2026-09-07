@@ -18,11 +18,15 @@ import 'converters/message_converter.dart';
 /// agent for incoming requests and publishes the results to the supplied
 /// [A2AExecutionEventBus] as A2A protocol events.
 ///
-/// Lightweight responses (no continuation token) are published as a single
-/// `agent` message. Long-running responses surface task lifecycle events
-/// (submitted/working/completed) so callers can track progress.
+/// The [AgentRunMode] the handler is registered with decides which A2A
+/// artifact a new message is answered with: [AgentRunMode.returnMessage]
+/// publishes one aggregated `agent` message, while [AgentRunMode.returnTask]
+/// surfaces task lifecycle events (submitted/working/completed) so callers
+/// can track progress. Continuations of an existing task are always task
+/// responses and do not consult the run mode.
 class A2AAgentHandler implements A2AAgentExecutor {
-  /// Creates a handler that runs [hostAgent] using the given [runMode].
+  /// Creates a handler that returns responses as the artifact selected by
+  /// [runMode].
   A2AAgentHandler(this._hostAgent, this._runMode);
 
   final AIHostAgent _hostAgent;
@@ -70,10 +74,12 @@ class A2AAgentHandler implements A2AAgentExecutor {
     }
 
     final chatMessages = [requestContext.userMessage.toChatMessage()];
-    final allowBackground = await _runMode.shouldRunInBackground(
+
+    // Decide which A2A artifact to return based on the configured run mode.
+    final returnTask = await _runMode.shouldReturnTask(
       A2ARunDecisionContext(requestContext),
     );
-    final options = _buildOptions(requestContext, allowBackground);
+    final options = _buildOptions(requestContext);
 
     final response = await _hostAgent.run(
       session,
@@ -81,14 +87,25 @@ class A2AAgentHandler implements A2AAgentExecutor {
       messages: chatMessages,
     );
 
-    if (response.continuationToken == null) {
-      // Lightweight message response (no task lifecycle needed).
-      eventBus.publish(_createMessageFromResponse(contextId, response));
-    } else {
-      // Long-running operation: emit task lifecycle events.
+    if (returnTask) {
       final events = _TaskEvents(eventBus, requestContext.taskId, contextId);
       events.submit();
-      events.startWork(_progressMessage(contextId, response));
+      if (response.continuationToken == null) {
+        // The run finished within this call, so complete the task with the
+        // aggregated result rather than leaving the caller polling.
+        events.addArtifact(
+          response.toParts(),
+          metadata: response.additionalProperties?.toA2AMetadata(),
+        );
+        events.complete();
+      } else {
+        // Long-running operation: the caller obtains the rest by polling.
+        events.startWork(_progressMessage(contextId, response));
+      }
+    } else {
+      // The run mode selects a message, which is not a long-running entity,
+      // so the whole run is aggregated into one message.
+      eventBus.publish(_createMessageFromResponse(contextId, response));
     }
     // Deliberately no eventBus.finished(): the a2a package's execution
     // event queue drops still-buffered events once finished arrives, and
@@ -102,11 +119,10 @@ class A2AAgentHandler implements A2AAgentExecutor {
     String contextId,
     AgentSession session,
   ) async {
+    // Continuations of an existing task stay task responses; the run mode is
+    // only consulted for new messages.
     final chatMessages = _extractChatMessages(requestContext.task);
-    final allowBackground = await _runMode.shouldRunInBackground(
-      A2ARunDecisionContext(requestContext),
-    );
-    final options = _buildOptions(requestContext, allowBackground);
+    final options = _buildOptions(requestContext);
 
     AgentResponse response;
     try {
@@ -119,7 +135,10 @@ class A2AAgentHandler implements A2AAgentExecutor {
     final events = _TaskEvents(eventBus, requestContext.taskId, contextId);
     if (response.continuationToken == null) {
       // Complete the task with an artifact containing the response.
-      events.addArtifact(response.toParts());
+      events.addArtifact(
+        response.toParts(),
+        metadata: response.additionalProperties?.toA2AMetadata(),
+      );
       events.complete();
     } else {
       // Still working: emit progress status.
@@ -128,12 +147,13 @@ class A2AAgentHandler implements A2AAgentExecutor {
     // No eventBus.finished(): see _handleNewMessage.
   }
 
-  AgentRunOptions _buildOptions(
-    A2ARequestContext requestContext,
-    bool allowBackground,
-  ) {
-    final options = AgentRunOptions()
-      ..allowBackgroundResponses = allowBackground;
+  /// Builds the run options forwarded to the hosted agent.
+  ///
+  /// The run mode is deliberately not forwarded as
+  /// `AgentRunOptions.allowBackgroundResponses`: it selects the A2A artifact
+  /// this server returns, not how the agent runs.
+  AgentRunOptions _buildOptions(A2ARequestContext requestContext) {
+    final options = AgentRunOptions();
     final metadata = requestContext.userMessage.metadata;
     if (metadata != null && metadata.isNotEmpty) {
       options.additionalProperties = metadata.toAdditionalProperties();
@@ -193,15 +213,19 @@ class _TaskEvents {
 
   void fail() => _publishStatus(A2ATaskState.failed, end: true);
 
-  void addArtifact(List<A2APart> parts) {
+  void addArtifact(List<A2APart> parts, {Map<String, dynamic>? metadata}) {
+    final artifact = A2AArtifact()
+      ..artifactId = _generateUuid()
+      ..parts = parts;
+    if (metadata != null) {
+      artifact.metadata = metadata;
+    }
     _eventBus.publish(
       A2ATaskArtifactUpdateEvent()
         ..taskId = _taskId
         ..contextId = _contextId
         ..lastChunk = true
-        ..artifact = (A2AArtifact()
-          ..artifactId = _generateUuid()
-          ..parts = parts),
+        ..artifact = artifact,
     );
   }
 

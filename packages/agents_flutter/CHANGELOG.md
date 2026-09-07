@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0
+
+- Follows the `agents` 3.0.0 A2A run-mode rename: the A2A host service now
+  constructs its handler with `AgentRunMode.returnMessage` (formerly
+  `AgentRunMode.disallowBackground`).
+- Raised the `agents` constraint to `^3.0.0` and the `extensions` constraint
+  to `^0.7.0`.
+
 ## 0.8.2
 
 - Agents can now author skills. A new skills module adds `SkillStore` and

@@ -26,8 +26,9 @@ import 'package:agents/src/abstractions/invoking_context.dart';
 ///
 /// * `BackgroundAgents_StartTask` — Start a background task on a named agent
 ///   with text input. Returns the task ID.
-/// * `BackgroundAgents_WaitForFirstCompletion` — Block until the first of the
-///   specified tasks completes. Returns the completed task's ID.
+/// * `BackgroundAgents_WaitForFirstCompletion` — Wait until the first
+///   specified task completes or the configured timeout expires. A timeout
+///   leaves the tasks running so the tool can be called again.
 /// * `BackgroundAgents_GetTaskResults` — Retrieve the text output of a
 ///   completed background task.
 /// * `BackgroundAgents_GetAllTasks` — List all background tasks with their
@@ -45,10 +46,34 @@ import 'package:agents/src/abstractions/invoking_context.dart';
 class BackgroundAgentsProvider extends AIContextProvider {
   /// Creates a [BackgroundAgentsProvider] with the given [agents] and optional
   /// [options].
+  ///
+  /// Throws a [RangeError] when
+  /// [BackgroundAgentsProviderOptions.waitTimeout] is not positive or exceeds
+  /// [BackgroundAgentsProviderOptions.maximumWaitTimeout].
   BackgroundAgentsProvider(
     Iterable<AIAgent> agents, {
     BackgroundAgentsProviderOptions? options,
   }) : _agents = validateAndBuildAgentDictionary(agents) {
+    _waitTimeout =
+        options?.waitTimeout ??
+        BackgroundAgentsProviderOptions.defaultWaitTimeout;
+    if (_waitTimeout <= Duration.zero) {
+      throw RangeError.value(
+        _waitTimeout.inMilliseconds,
+        'options.waitTimeout',
+        'waitTimeout must be positive',
+      );
+    }
+    if (_waitTimeout > BackgroundAgentsProviderOptions.maximumWaitTimeout) {
+      throw RangeError.value(
+        _waitTimeout.inMilliseconds,
+        'options.waitTimeout',
+        'waitTimeout must not exceed '
+            '${BackgroundAgentsProviderOptions.maximumWaitTimeout.inMilliseconds} '
+            'milliseconds',
+      );
+    }
+
     final baseInstructions = options?.instructions ?? defaultInstructions;
     final agentListBuilder = options?.agentListBuilder;
     final agentListText = agentListBuilder != null
@@ -98,6 +123,8 @@ You have access to background agents that can perform work on your behalf.
   static const Duration infiniteReleaseTimeout = Duration(milliseconds: -1);
 
   static const Duration _defaultReleaseTimeout = Duration(seconds: 30);
+
+  late final Duration _waitTimeout;
 
   final Map<String, AIAgent> _agents;
 
@@ -619,7 +646,7 @@ You have access to background agents that can perform work on your behalf.
       AIFunctionFactory.create(
         name: 'BackgroundAgents_WaitForFirstCompletion',
         description:
-            'Block until the first of the specified background tasks completes. Provide one or more task IDs. Returns a status message containing the ID of the task that completed first.',
+            'Wait until the first of the specified background tasks completes or the configured timeout expires. Provide one or more task IDs. Returns a status message containing the ID of the task that completed first. On timeout, the tasks remain running and this tool can be called again to continue waiting.',
         parametersSchema: _objectSchema({
           'taskIds': 'The task IDs to wait on.',
         }),
@@ -659,10 +686,15 @@ You have access to background agents that can perform work on your behalf.
             return 'Error: None of the specified task IDs correspond to running tasks.';
           }
 
-          // Wait for the first one to complete.
-          final completedId = await Future.any(
-            waitableTasks.map((t) => t.task.completion.then((_) => t.id)),
-          );
+          // Wait for the first task to complete, but return control without
+          // stopping the tasks if the timeout elapses.
+          final completedId = await _waitForFirstCompletion(waitableTasks);
+          if (completedId == null) {
+            return 'No background task completed within '
+                '${_formatSeconds(_waitTimeout)} seconds. The tasks are still '
+                'running; call this tool again if you wish to continue '
+                'waiting.';
+          }
 
           // Find which ID completed.
           final completedEntry = waitableTasks.firstWhere(
@@ -897,6 +929,43 @@ You have access to background agents that can perform work on your behalf.
       }).toList();
     }
     throw ArgumentError.value(value, name, 'Expected a list of integers.');
+  }
+
+  /// Returns the id of the first of [waitableTasks] to complete, or `null`
+  /// when [_waitTimeout] elapses first.
+  ///
+  /// The timer is cancelled as soon as a task wins the race, so a completed
+  /// wait does not keep a pending timer alive for the rest of the timeout.
+  Future<int?> _waitForFirstCompletion(
+    List<({int id, BackgroundAgentRuntimeTask task})> waitableTasks,
+  ) {
+    final winner = Completer<int?>();
+    final timer = Timer(_waitTimeout, () {
+      if (!winner.isCompleted) {
+        winner.complete(null);
+      }
+    });
+
+    for (final entry in waitableTasks) {
+      unawaited(
+        entry.task.completion.then((_) {
+          if (!winner.isCompleted) {
+            winner.complete(entry.id);
+          }
+        }),
+      );
+    }
+
+    return winner.future.whenComplete(timer.cancel);
+  }
+
+  /// Formats [duration] as seconds for the wait tool's timeout message,
+  /// dropping the fractional part when it is whole (mirrors C# `:g`).
+  static String _formatSeconds(Duration duration) {
+    final seconds = duration.inMilliseconds / 1000;
+    return seconds == seconds.roundToDouble()
+        ? seconds.toStringAsFixed(0)
+        : seconds.toString();
   }
 
   static T? _firstOrNull<T>(
