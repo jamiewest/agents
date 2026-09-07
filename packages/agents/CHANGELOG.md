@@ -1,5 +1,54 @@
 # Changelog
 
+## 3.0.0
+
+Upstream drift sync against microsoft/agent-framework `dotnet/src` through
+2026-09-04 (`2c49f50`).
+
+- **Breaking: A2A `AgentRunMode` selects the returned artifact** (upstream
+  #8032). `disallowBackground`, `allowBackgroundIfSupported` and
+  `allowBackgroundWhen` are renamed `returnMessage`, `returnTask` and
+  `returnTaskWhen`; `shouldRunInBackground` is now `shouldReturnTask` and
+  `RunInBackgroundCallback` is `ReturnTaskCallback`. The mode is no longer
+  forwarded as `AgentRunOptions.allowBackgroundResponses` and is no longer
+  consulted when continuing an existing task — it decides only whether a new
+  message is answered with an `AgentTask` or an `AgentMessage`. A new message
+  under `returnMessage` is therefore always aggregated into one message, even
+  when the response carries a continuation token.
+- **Breaking: file search reports lines verbatim** (upstream #7671).
+  `FileSearchMatch.line` now keeps the line's own terminator, and line
+  numbers count lines terminated by `\n`, `\r\n`, or a lone `\r`, so
+  numbers change on content containing a lone `\r` or a trailing newline.
+  Affects `file_access_grep` and `file_memory_grep`.
+- **Breaking: `AgentFileStore.searchFilesAsync` is no longer abstract.** It
+  now narrows candidates through the new `findMatchingFilesAsync` hook, then
+  reads and numbers them, so a store implementing only the mandatory members
+  gets aligned line numbers for free. A store overriding it owns the
+  numbering: `FileSearchMatch.lineNumber` must be a 1-based coordinate into
+  `AgentFileStore.splitLines` of the content `readFileAsync` returns.
+- Added `AgentFileStore.splitLines` and `AgentFileStore.scanContent`, the
+  published split and numbering primitives; both shipped stores now scan
+  through `scanContent` instead of carrying their own copy of the loop.
+- Added `file_access_read_lines` (`FileAccessProvider.readLinesToolName` /
+  `readLinesAsync`), which reads a 1-based inclusive line range and prefixes
+  each line with its number and a tab, everything after the tab verbatim, so
+  a row feeds straight back into `file_access_replace_lines`. It joins the
+  read-only tool group for approval and `disableWriteTools`.
+- Added `FileLineEdit.expectedLine` (wire key `expected_line`): when
+  supplied, a line edit is refused unless the target line still says what the
+  caller saw, which catches a stale line number or a file that changed
+  between read and write.
+- Added `FileEditor.sliceLines`, `trimLineTerminator` and
+  `lineContentLength`, and promoted `splitLinesKeepEnds` out of private.
+- Added `BackgroundAgentsProviderOptions.waitTimeout` (upstream #7911),
+  five minutes by default, bounding `BackgroundAgents_WaitForFirstCompletion`.
+  On expiry the tool returns control and leaves the tasks running so it can
+  be called again. A non-positive timeout, or one above
+  `maximumWaitTimeout`, throws a `RangeError`.
+- A2A task artifacts now carry the response's additional properties as
+  artifact metadata (the streaming-independent part of upstream #7998).
+- Raised the `extensions` constraint to `^0.7.0`.
+
 ## 2.0.0
 
 - **Breaking: `streamAsync` and `resumeStreamAsync` now return a live run.**

@@ -32,12 +32,13 @@ void main() {
     test('returns tools', () async {
       final tools = await createTools();
 
-      expect(tools, hasLength(7));
+      expect(tools, hasLength(8));
       expect(
         tools.whereType<AIFunction>().map((t) => t.name),
         unorderedEquals([
           'file_access_write',
           'file_access_read',
+          'file_access_read_lines',
           'file_access_delete',
           'file_access_replace',
           'file_access_replace_lines',
@@ -512,6 +513,7 @@ void main() {
 
       final readOnly = [
         'file_access_read',
+        'file_access_read_lines',
         'file_access_ls',
         'file_access_grep',
       ];
@@ -534,6 +536,7 @@ void main() {
         tools.whereType<AIFunction>().map((t) => t.name),
         unorderedEquals([
           'file_access_read',
+          'file_access_read_lines',
           'file_access_ls',
           'file_access_grep',
         ]),
@@ -583,6 +586,83 @@ void main() {
               as List<FileStoreEntry>;
 
       expect(entries.map((e) => e.name), ['summary.md']);
+    });
+  });
+
+  group('FileAccessProvider read_lines', () {
+    test('prefixes each line with its number and a tab', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\ntwo\nthree\n');
+      final provider = FileAccessProvider(store);
+
+      final result = await provider.readLinesAsync('notes.md', 2, endLine: 3);
+
+      expect(result, '2\ttwo\n3\tthree\n');
+    });
+
+    test('keeps the line verbatim after the tab', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\r\ntwo\r\n');
+      final provider = FileAccessProvider(store);
+
+      final result = await provider.readLinesAsync('notes.md', 1, endLine: 1);
+
+      expect(result, '1\tone\r\n');
+    });
+
+    test('reads to the end of the file when endLine is omitted', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\ntwo\nthree');
+      final provider = FileAccessProvider(store);
+
+      final result = await provider.readLinesAsync('notes.md', 2);
+
+      expect(result, '2\ttwo\n3\tthree');
+    });
+
+    test('clamps an endLine past the last line', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\ntwo\n');
+      final provider = FileAccessProvider(store);
+
+      final result = await provider.readLinesAsync('notes.md', 1, endLine: 99);
+
+      expect(result, '1\tone\n2\ttwo\n');
+    });
+
+    test('reports a missing file rather than throwing', () async {
+      final provider = FileAccessProvider(InMemoryAgentFileStore());
+
+      final result = await provider.readLinesAsync('absent.md', 1);
+
+      expect(result, contains('not found'));
+    });
+
+    test('rejects a startLine past the last line', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\n');
+      final provider = FileAccessProvider(store);
+
+      await expectLater(
+        provider.readLinesAsync('notes.md', 5),
+        throwsArgumentError,
+      );
+    });
+
+    test('agrees with the line numbers grep reports', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\r\nmatch\r\nthree\r\n');
+      final provider = FileAccessProvider(store);
+
+      final results = await provider.grepAsync('match');
+      final lineNumber = results.single.matchingLines.single.lineNumber;
+      final read = await provider.readLinesAsync(
+        'notes.md',
+        lineNumber,
+        endLine: lineNumber,
+      );
+
+      expect(read, '$lineNumber\t${results.single.matchingLines.single.line}');
     });
   });
 }

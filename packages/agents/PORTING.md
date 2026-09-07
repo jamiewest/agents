@@ -15,7 +15,7 @@ append it here (with a date) — do not record it only in session memory.
 The newest upstream commit touching `dotnet/src` that a drift sync has
 reviewed (ported or deliberately skipped):
 
-`upstream-sync: 92aec78c94c3e2cb5bab980c6e7a00e7bf2d6f0e 2026-08-25`
+`upstream-sync: 2c49f50cf08ebb6c1687146336f039051f159333 2026-09-04`
 
 This line is machine-read by `/drift` and by
 `.github/workflows/upstream-watch.yml` — keep the `upstream-sync: <sha> <date>`
@@ -284,9 +284,11 @@ Hosting.AGUI.AspNetCore, Aspire.*.
 - **`RoutePersistingRoutingChatClient` is self-contained** (2026-08-25,
   ports upstream #7641). Upstream extends `Microsoft.Extensions.AI`'s
   `RoutingChatClient` (`RoutingContext`/`SelectClientAsync` seam);
-  `package:extensions` has no routing base, so the Dart client implements
+  `package:extensions` had no routing base, so the Dart client implements
   `ChatClient` directly with the same per-session persisted-route
-  semantics. `AgentSessionRoutingState` stays unexported, like upstream's
+  semantics. (Rationale now partly stale: `extensions` 0.7.0 added
+  `RoutingChatClient` and `RoutingContext`. Rebasing onto it is a
+  deliberate follow-up, not drift — decide with Jamie before changing it.) `AgentSessionRoutingState` stays unexported, like upstream's
   internal type. The companion upstream change making
   `AIAgent.RunAsync` async (restoring the previous run context via
   `AsyncLocal` flow) has no Dart counterpart — `currentRunContext` is a
@@ -300,6 +302,71 @@ Hosting.AGUI.AspNetCore, Aspire.*.
   canonicalize-plus-prefix boundary check rather than upstream's
   per-segment reparse-point walk — equivalent outcome (canonicalize
   resolves links), different mechanism.
+
+- **A2A run mode selects the artifact, mapped onto a non-streaming seam**
+  (2026-09-07, ports upstream #8032). Upstream renamed
+  `DisallowBackground`/`AllowBackgroundIfSupported`/`AllowBackgroundWhen` to
+  `ReturnMessage`/`ReturnTask`/`ReturnTaskWhen` (and
+  `ShouldRunInBackgroundAsync` → `ShouldReturnTaskAsync`), decoupled the mode
+  from `AgentRunOptions.AllowBackgroundResponses` — which the handler no
+  longer sets — and stopped consulting it for task continuations. All of that
+  is ported. The deviation is in the task branch: upstream picks between
+  streaming updates into the task and aggregating one completed task from the
+  client's `ReturnImmediately` flag, which the port's non-streaming
+  `package:a2a` executor seam does not have (see the #7722 entry below). The
+  port instead keys that branch on `AgentResponse.continuationToken` — no
+  token means the run finished inside this call, so the task is completed
+  with an aggregated artifact; a token means the caller polls, so the task
+  goes submitted → working, as before. Message mode always aggregates to one
+  message, matching upstream. Result: a new message with a continuation token
+  now returns a message under `returnMessage` where the port previously
+  emitted task events, which is upstream's post-#8032 behavior.
+- **A2A task-state tracking not applicable** (2026-09-07, upstream #7998
+  routed new messages through the streaming agent API so task responses keep
+  receiving status and artifact updates, adding `AggregateTaskUpdatesAsync`
+  and an `AgentEventQueueExtensions.AddArtifactAsync` shim for artifact
+  metadata). The change is built entirely on `HandleNewMessageStreamingAsync`,
+  `ArtifactStreamWriter` and `StreamTaskUpdatesAsync` — the streaming path the
+  #7722 entry below records as not applicable to the port's non-streaming
+  executor seam. The one part that does not depend on streaming, preserving
+  the response's additional properties as artifact metadata on a completed
+  task, is ported: `_TaskEvents.addArtifact` now takes `metadata` and both the
+  new-message and task-continuation paths pass
+  `response.additionalProperties?.toA2AMetadata()`. The rest is skipped and
+  becomes relevant only if the handler is restructured onto `runStreaming` —
+  a redesign, ask Jamie first.
+- **File-store line numbering moved onto `AgentFileStore`** (2026-09-07,
+  ports upstream #7671). `splitLines`, `scanContent`, `findMatchingFilesAsync`
+  and a default (no longer abstract) `searchFilesAsync` are ported, both
+  shipped stores now number through `scanContent`, `FileEditor` gained
+  `sliceLines`/`trimLineTerminator`/`lineContentLength` with
+  `splitLinesKeepEnds` promoted out of private, `FileLineEdit` gained
+  `expectedLine`, and `FileAccessProvider` gained `file_access_read_lines` in
+  the read-only tool group. Deviations:
+  - Upstream's `LineContentLength` exists to bound `Regex.Match(line, 0, n)`
+    without copying the line. Dart's `RegExp` has no length-bounded match, so
+    `scanContent` matches against `FileEditor.trimLineTerminator(line)` — the
+    copy upstream avoids. `lineContentLength` is kept as the primitive
+    `trimLineTerminator` is built on. Match offsets are unaffected, because
+    the trimmed line starts at the same offset as the full line.
+  - `FileEditor` is public in this port (it is exported from `agents.dart`),
+    where upstream's is `internal`; the new members follow that existing
+    shape rather than reintroducing a private/public split.
+  - `searchFilesAsync`/`findMatchingFilesAsync` keep the port's existing
+    positional-optional parameter shape rather than upstream's named
+    defaults.
+  - BREAKING, as upstream: `FileSearchMatch.line` now carries the line's own
+    terminator, and line numbers change on content containing a lone `\r` or
+    a trailing newline.
+- **Background-agents wait timeout** (2026-09-07, ports upstream #7911).
+  `BackgroundAgentsProviderOptions.waitTimeout` (five minutes by default)
+  bounds the wait tool; on expiry it returns control and leaves the tasks
+  running. Deviations: `ArgumentOutOfRangeException` maps to `RangeError`;
+  `maximumWaitTimeout` keeps upstream's 4,294,967,294 ms bound even though
+  Dart timers have no such limit, so the option validates the same way in
+  both runtimes; upstream's `Task.WhenAny` + `CancellationTokenSource` race
+  becomes a `Completer` raced against a `Timer` that is cancelled once a task
+  wins, so a completed wait leaves no pending timer behind.
 
 ## Verified faithful (do NOT re-flag as bugs)
 

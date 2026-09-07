@@ -132,18 +132,60 @@ void main() {
       expect(results, hasLength(1));
       expect(results[0].matchingLines, hasLength(2));
       expect(results[0].matchingLines[0].lineNumber, 2);
-      expect(results[0].matchingLines[0].line, 'Line two with match');
+      // The line is reported verbatim, terminator included, so it can be fed
+      // straight back to replace_lines.
+      expect(results[0].matchingLines[0].line, 'Line two with match\n');
       expect(results[0].matchingLines[1].lineNumber, 4);
       expect(results[0].matchingLines[1].line, 'Line four with match');
     });
 
-    test('search files strips trailing carriage return from line', () async {
+    test(
+      'search files keeps the line terminator on the reported line',
+      () async {
+        final store = InMemoryAgentFileStore();
+        await store.writeFileAsync(
+          'folder/notes.md',
+          'first\r\nmatch here\r\n',
+        );
+
+        final results = await store.searchFilesAsync('folder', 'match');
+
+        expect(results[0].matchingLines[0].line, 'match here\r\n');
+      },
+    );
+
+    test('search files numbers lone-CR terminated lines', () async {
       final store = InMemoryAgentFileStore();
-      await store.writeFileAsync('folder/notes.md', 'first\r\nmatch here\r\n');
+      await store.writeFileAsync('folder/notes.md', 'first\rmatch here\rlast');
 
       final results = await store.searchFilesAsync('folder', 'match');
 
-      expect(results[0].matchingLines[0].line, 'match here');
+      expect(results[0].matchingLines, hasLength(1));
+      expect(results[0].matchingLines[0].lineNumber, 2);
+      expect(results[0].matchingLines[0].line, 'match here\r');
+    });
+
+    test(
+      'search files matches an end-anchored pattern on a CRLF line',
+      () async {
+        final store = InMemoryAgentFileStore();
+        await store.writeFileAsync('folder/notes.md', 'first\r\nmatch\r\n');
+
+        final results = await store.searchFilesAsync('folder', r'match$');
+
+        expect(results, hasLength(1));
+        expect(results[0].matchingLines[0].lineNumber, 2);
+      },
+    );
+
+    test('search files does not report a trailing empty line', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('folder/notes.md', 'match one\nmatch two\n');
+
+      final results = await store.searchFilesAsync('folder', 'match');
+
+      expect(results[0].matchingLines, hasLength(2));
+      expect(results[0].matchingLines[1].lineNumber, 2);
     });
 
     test('search files is case-insensitive', () async {

@@ -1,9 +1,6 @@
-import 'dart:math';
-
 import 'package:extensions/system.dart';
 
 import 'agent_file_store.dart';
-import 'file_search_match.dart';
 import 'file_search_result.dart';
 import 'file_store_entry.dart';
 import 'store_paths.dart';
@@ -140,7 +137,13 @@ class InMemoryAgentFileStore extends AgentFileStore {
         continue;
       }
 
-      final result = _searchFile(relativeName, file.content, regex);
+      // Number the lines through the base class's published primitive, so
+      // this store and the line editor cannot drift apart.
+      final result = AgentFileStore.scanContent(
+        relativeName,
+        file.content,
+        regex,
+      );
       if (result != null) {
         results.add(result);
       }
@@ -158,50 +161,6 @@ class InMemoryAgentFileStore extends AgentFileStore {
   }
 
   static String _key(String path) => path.toLowerCase();
-
-  static FileSearchResult? _searchFile(
-    String fileName,
-    String fileContent,
-    RegExp regex,
-  ) {
-    final lines = fileContent.split('\n');
-    final matchingLines = <FileSearchMatch>[];
-    String? firstSnippet;
-    var lineStartOffset = 0;
-
-    for (var i = 0; i < lines.length; i++) {
-      final match = regex.firstMatch(lines[i]);
-      if (match != null) {
-        matchingLines.add(
-          FileSearchMatch()
-            ..lineNumber = i + 1
-            ..line = lines[i].replaceFirst(RegExp(r'\r$'), ''),
-        );
-
-        if (firstSnippet == null) {
-          final matchedValue = match.group(0) ?? '';
-          final charIndex = lineStartOffset + match.start;
-          final snippetStart = max(0, charIndex - 50);
-          final snippetEnd = min(
-            fileContent.length,
-            charIndex + matchedValue.length + 50,
-          );
-          firstSnippet = fileContent.substring(snippetStart, snippetEnd);
-        }
-      }
-
-      lineStartOffset += lines[i].length + 1;
-    }
-
-    if (matchingLines.isEmpty) {
-      return null;
-    }
-
-    return FileSearchResult()
-      ..fileName = fileName
-      ..snippet = firstSnippet!
-      ..matchingLines = matchingLines;
-  }
 }
 
 class _MemoryFile {

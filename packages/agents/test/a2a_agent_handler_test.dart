@@ -30,7 +30,7 @@ A2AAgentHandler _handler(
   AgentSessionStore? store,
 }) => A2AAgentHandler(
   AIHostAgent(agent, store ?? InMemoryAgentSessionStore()),
-  runMode ?? AgentRunMode.disallowBackground,
+  runMode ?? AgentRunMode.returnMessage,
 );
 
 void main() {
@@ -76,7 +76,7 @@ void main() {
 
         await _handler(
           agent,
-          runMode: AgentRunMode.allowBackgroundIfSupported,
+          runMode: AgentRunMode.returnTask,
         ).execute(_request(_userMessage('do work')), bus);
 
         final statuses = bus.published
@@ -89,6 +89,89 @@ void main() {
         expect(statuses.last.status!.message, isNotNull);
       },
     );
+
+    test(
+      'completes the task with an artifact when the run mode returns a task',
+      () async {
+        final agent = _FakeAgent(
+          responseBuilder: () => AgentResponse(
+            message: ChatMessage.fromText(ChatRole.assistant, 'the answer'),
+          ),
+        );
+        final bus = _CapturingEventBus();
+
+        await _handler(
+          agent,
+          runMode: AgentRunMode.returnTask,
+        ).execute(_request(_userMessage('question')), bus);
+
+        final artifacts = bus.published
+            .whereType<A2ATaskArtifactUpdateEvent>()
+            .toList();
+        expect(artifacts, hasLength(1));
+        expect(
+          (artifacts.single.artifact!.parts.single as A2ATextPart).text,
+          'the answer',
+        );
+        final statuses = bus.published
+            .whereType<A2ATaskStatusUpdateEvent>()
+            .toList();
+        expect(statuses.map((s) => s.status!.state), [
+          A2ATaskState.submitted,
+          A2ATaskState.completed,
+        ]);
+        expect(bus.published.whereType<A2AMessage>(), isEmpty);
+      },
+    );
+
+    test(
+      'aggregates to a message in returnMessage mode even with a continuation',
+      () async {
+        final agent = _FakeAgent(
+          responseBuilder: () => AgentResponse(
+            message: ChatMessage.fromText(ChatRole.assistant, 'working on it'),
+          )..continuationToken = A2AContinuationToken('t-1'),
+        );
+        final bus = _CapturingEventBus();
+
+        await _handler(
+          agent,
+          runMode: AgentRunMode.returnMessage,
+        ).execute(_request(_userMessage('do work')), bus);
+
+        expect(bus.published.whereType<A2AMessage>(), hasLength(1));
+        expect(bus.published.whereType<A2ATaskStatusUpdateEvent>(), isEmpty);
+      },
+    );
+
+    test('the run mode does not set allowBackgroundResponses', () async {
+      final agent = _FakeAgent();
+      final bus = _CapturingEventBus();
+
+      await _handler(
+        agent,
+        runMode: AgentRunMode.returnTask,
+      ).execute(_request(_userMessage('hello')), bus);
+
+      expect(agent.receivedOptions?.allowBackgroundResponses, isNull);
+    });
+
+    test('returnTaskWhen decides per request', () async {
+      final agent = _FakeAgent();
+      final bus = _CapturingEventBus();
+      var invoked = 0;
+
+      await _handler(
+        agent,
+        runMode: AgentRunMode.returnTaskWhen((_, _) async {
+          invoked++;
+          return true;
+        }),
+      ).execute(_request(_userMessage('hello')), bus);
+
+      expect(invoked, 1);
+      expect(bus.published.whereType<A2ATaskStatusUpdateEvent>(), isNotEmpty);
+    });
 
     test('throws when the message references prior tasks', () async {
       final agent = _FakeAgent();
@@ -241,6 +324,7 @@ class _FakeAgent extends AIAgent {
   final AgentResponse Function()? responseBuilder;
   final bool throwOnRun;
   List<ChatMessage> receivedMessages = const [];
+  AgentRunOptions? receivedOptions;
 
   @override
   Future<AgentSession> createSessionCore({
@@ -269,6 +353,7 @@ class _FakeAgent extends AIAgent {
     CancellationToken? cancellationToken,
   }) async {
     receivedMessages = messages.toList();
+    receivedOptions = options;
     if (throwOnRun) {
       throw StateError('boom');
     }
