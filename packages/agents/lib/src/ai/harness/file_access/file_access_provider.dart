@@ -28,15 +28,16 @@ import 'package:agents/src/abstractions/invoking_context.dart';
 /// that have a lifetime beyond any single agent session.
 ///
 /// This provider exposes `file_access_write`, `file_access_read`,
-/// `file_access_delete`, `file_access_ls`, `file_access_grep`,
-/// `file_access_replace`, and `file_access_replace_lines`. When
+/// `file_access_read_lines`, `file_access_delete`, `file_access_ls`,
+/// `file_access_grep`, `file_access_replace`, and
+/// `file_access_replace_lines`. When
 /// [FileAccessProviderOptions.disableWriteTools] is set, only the read-only
-/// tools (read, ls, and grep) are exposed.
+/// tools (read, read_lines, ls, and grep) are exposed.
 ///
 /// By default, all of these tools require approval: each is exposed as an
 /// [ApprovalRequiredAIFunction]. Approval can be disabled per group via
-/// [FileAccessProviderOptions.disableReadOnlyToolApproval] (read, ls, and
-/// grep) and [FileAccessProviderOptions.disableWriteToolApproval] (write,
+/// [FileAccessProviderOptions.disableReadOnlyToolApproval] (read,
+/// read_lines, ls, and grep) and [FileAccessProviderOptions.disableWriteToolApproval] (write,
 /// delete, replace, and replace_lines). To auto-approve without prompting,
 /// add [readOnlyToolsAutoApprovalRule] or [allToolsAutoApprovalRule] to
 /// `ToolApprovalAgentOptions.autoApprovalRules`.
@@ -64,6 +65,9 @@ class FileAccessProvider extends AIContextProvider implements Disposable {
   /// The name of the tool that reads a file.
   static const String readFileToolName = 'file_access_read';
 
+  /// The name of the tool that reads a range of lines from a file.
+  static const String readLinesToolName = 'file_access_read_lines';
+
   /// The name of the tool that deletes a file.
   static const String deleteFileToolName = 'file_access_delete';
 
@@ -84,6 +88,7 @@ class FileAccessProvider extends AIContextProvider implements Disposable {
   /// The names of the tools that only read from (never modify) the store.
   static const Set<String> _readOnlyToolNames = {
     readFileToolName,
+    readLinesToolName,
     lsToolName,
     grepToolName,
   };
@@ -92,6 +97,7 @@ class FileAccessProvider extends AIContextProvider implements Disposable {
   static const Set<String> _allToolNames = {
     writeToolName,
     readFileToolName,
+    readLinesToolName,
     deleteFileToolName,
     lsToolName,
     grepToolName,
@@ -100,7 +106,8 @@ class FileAccessProvider extends AIContextProvider implements Disposable {
   };
 
   /// An auto-approval rule that approves the read-only file access tools
-  /// ([readFileToolName], [lsToolName], and [grepToolName]) while still
+  /// ([readFileToolName], [readLinesToolName], [lsToolName], and
+  /// [grepToolName]) while still
   /// prompting for tools that modify the store.
   static ToolAutoApprovalRule get readOnlyToolsAutoApprovalRule =>
       _readOnlyToolsAutoApprovalRule;
@@ -130,6 +137,9 @@ Use these tools to read input data provided by the user, write output artifacts,
   or `file_access_grep` to search file contents recursively across the whole store.
 - To make small edits to an existing file, prefer `file_access_replace` (substring replacement) or
   `file_access_replace_lines` (whole-line replacement) over rewriting the whole file.
+- To change part of a file, find the line numbers with `file_access_grep`, read the range around them
+  with `file_access_read_lines`, then edit with `file_access_replace_lines`. Reading the whole file
+  first is rarely necessary.
 ''';
 
   late final AgentFileStore _fileStore;
@@ -191,6 +201,50 @@ Use these tools to read input data provided by the user, write output artifacts,
     final path = StorePaths.normalizeRelativePath(fileName);
     final content = await _fileStore.readFileAsync(path, cancellationToken);
     return content ?? "File '$fileName' not found.";
+  }
+
+  /// Read a range of lines from a file, each prefixed with its 1-based line
+  /// number and a tab.
+  ///
+  /// [startLine] is the 1-based line number to read from and [endLine] the
+  /// 1-based line number to read through, inclusive; when [endLine] is `null`
+  /// the file is read to the end, and an [endLine] past the last line is
+  /// clamped.
+  ///
+  /// The line numbers agree with the ones `file_access_grep` reports, because
+  /// [AgentFileStore.searchFilesAsync] must number by
+  /// [AgentFileStore.splitLines] — the split this method and
+  /// `file_access_replace_lines` use. A store overriding it owns that
+  /// numbering; getting it wrong makes an edit land on a line the caller
+  /// never saw.
+  ///
+  /// Throws an [ArgumentError] when either bound is not positive, when
+  /// [endLine] precedes [startLine], or when [startLine] is past the last
+  /// line.
+  Future<String> readLinesAsync(
+    String fileName,
+    int startLine, {
+    int? endLine,
+    CancellationToken? cancellationToken,
+  }) async {
+    final path = StorePaths.normalizeRelativePath(fileName);
+    final content = await _fileStore.readFileAsync(path, cancellationToken);
+    if (content == null) {
+      return "File '$fileName' not found.";
+    }
+
+    final lines = FileEditor.sliceLines(content, startLine, endLine);
+
+    // Each line keeps its terminator, so it doubles as the row separator.
+    final buffer = StringBuffer();
+    for (var i = 0; i < lines.length; i++) {
+      buffer
+        ..write(startLine + i)
+        ..write('\t')
+        ..write(lines[i]);
+    }
+
+    return buffer.toString();
   }
 
   /// Delete a file by name.
@@ -337,13 +391,38 @@ Use these tools to read input data provided by the user, write output artifacts,
         AIFunctionFactory.create(
           name: readFileToolName,
           description:
-              'Read the content of a file by name. Returns the file content or a message indicating the file was not found.',
+              'Read the content of a file by name. Returns the file content or a message indicating the file was not found. To edit by 1-based line number afterwards, count lines terminated by \\n, \\r\\n, or a lone \\r; each line keeps its own terminator, and content ending in a terminator has no extra empty line after it.',
           parametersSchema: _objectSchema({
             'fileName': 'The name of the file to read.',
           }),
           callback: (arguments, {cancellationToken}) {
             return readFileAsync(
               _getRequiredString(arguments, 'fileName'),
+              cancellationToken: cancellationToken,
+            );
+          },
+        ),
+        readOnlyRequiresApproval,
+      ),
+      _wrapWithApprovalIfRequired(
+        AIFunctionFactory.create(
+          name: readLinesToolName,
+          description:
+              "Read part of a file by 1-based inclusive line number; omit endLine to read to the end of the file, and an endLine past the last line is clamped. Each line is prefixed with its number and a tab; everything after that tab is verbatim, including the line's own terminator, so it can be reused as a file_access_replace_lines new_line. Line numbers are 1-based and count lines terminated by \\n, \\r\\n, or a lone \\r, and content ending in a terminator has no extra empty line after it.",
+          parametersSchema: _objectSchema(
+            {
+              'fileName': 'The name of the file to read.',
+              'startLine': 'The 1-based line number to read from.',
+              'endLine':
+                  'The 1-based line number to read through, inclusive. Omit to read to the end of the file.',
+            },
+            required: ['fileName', 'startLine'],
+          ),
+          callback: (arguments, {cancellationToken}) {
+            return readLinesAsync(
+              _getRequiredString(arguments, 'fileName'),
+              _getRequiredInt(arguments, 'startLine'),
+              endLine: _getOptionalInt(arguments, 'endLine'),
               cancellationToken: cancellationToken,
             );
           },
@@ -375,7 +454,7 @@ Use these tools to read input data provided by the user, write output artifacts,
         AIFunctionFactory.create(
           name: grepToolName,
           description:
-              'Search the contents of files in the store (recursively, across all subdirectories) using a regular expression pattern (case-insensitive). Optionally restrict the search to a base directory (relative path), and filter which files to search using a glob pattern matched against each file\'s path relative to that directory: "*" matches within a single path segment; "**" matches across subdirectories, so use "**/*.md" to match markdown files at any depth, or "reports/**" to restrict the search to the "reports" subtree. Returns matching results whose file names are paths relative to the store root (usable with file_access_read), along with snippets and matching lines with line numbers.',
+              'Search the contents of files in the store (recursively, across all subdirectories) using a regular expression pattern (case-insensitive). Optionally restrict the search to a base directory (relative path), and filter which files to search using a glob pattern matched against each file\'s path relative to that directory: "*" matches within a single path segment; "**" matches across subdirectories, so use "**/*.md" to match markdown files at any depth, or "reports/**" to restrict the search to the "reports" subtree. Returns matching results whose file names are paths relative to the store root (usable with file_access_read), along with snippets and matching lines with line numbers. Line numbers are 1-based and count lines terminated by \\n, \\r\\n, or a lone \\r, and content ending in a terminator has no extra empty line after it.',
           parametersSchema: _objectSchema(
             {
               'regexPattern':
@@ -474,7 +553,7 @@ Use these tools to read input data provided by the user, write output artifacts,
           AIFunctionFactory.create(
             name: replaceLinesToolName,
             description:
-                'Replace lines in a file. Provide a list of edits, each with a 1-based line_number and a literal new_line (include your own trailing newline); an empty new_line deletes the line, including its line break. Fails on out-of-range or duplicate line numbers.',
+                'Replace lines in a file. Provide a list of edits, each with a 1-based line_number and a literal new_line (include your own trailing newline); an empty new_line deletes the line, including its line break. Fails on out-of-range or duplicate line numbers. Line numbers are 1-based and count lines terminated by \\n, \\r\\n, or a lone \\r; each line keeps its own terminator, and content ending in a terminator has no extra empty line after it.',
             parametersSchema: lineEditsSchema,
             callback: (arguments, {cancellationToken}) {
               return replaceLinesAsync(
@@ -512,6 +591,11 @@ Use these tools to read input data provided by the user, write output artifacts,
               'type': 'string',
               'description':
                   'Literal replacement text for the line; empty deletes the line.',
+            },
+            'expected_line': {
+              'type': 'string',
+              'description':
+                  'Optional: the text you believe is currently on that line, as reported by grep. Give the line\'s own text only: a numbered read prefixes each line with its number and a tab, and that prefix is not part of the line. When supplied, the edit is rejected unless it matches, which catches an out-of-date line number or a file that changed since you looked. The trailing newline is ignored in the comparison.',
             },
           },
           'required': ['line_number', 'new_line'],
@@ -561,6 +645,25 @@ Use these tools to read input data provided by the user, write output artifacts,
       ];
     }
     throw ArgumentError.value(value, name, 'Expected a list of line edits.');
+  }
+
+  static int _getRequiredInt(AIFunctionArguments arguments, String name) {
+    final value = arguments[name];
+    if (value is num) {
+      return value.toInt();
+    }
+    throw ArgumentError.value(value, name, 'Expected an integer value.');
+  }
+
+  static int? _getOptionalInt(AIFunctionArguments arguments, String name) {
+    final value = arguments[name];
+    if (value == null) {
+      return null;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    throw ArgumentError.value(value, name, 'Expected an integer value.');
   }
 
   static bool? _getOptionalBool(AIFunctionArguments arguments, String name) {

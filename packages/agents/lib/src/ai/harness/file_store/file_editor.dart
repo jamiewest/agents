@@ -1,7 +1,9 @@
+import 'agent_file_store.dart';
 import 'file_line_edit.dart';
 
 /// Helpers shared by the file access and file memory providers for the
-/// `replace` and `replace_lines` tools.
+/// `replace`, `replace_lines`, and `read_lines` tools, and by the file stores
+/// for `grep`.
 class FileEditor {
   FileEditor._();
 
@@ -50,7 +52,7 @@ class FileEditor {
       throw ArgumentError('At least one line edit must be provided.');
     }
 
-    final lines = _splitLinesKeepEnds(content);
+    final lines = splitLinesKeepEnds(content);
 
     final seen = <int>{};
     for (final edit in edits) {
@@ -66,6 +68,21 @@ class FileEditor {
           '${lines.length} lines).',
         );
       }
+
+      // When the caller says what it expects to be there, a mismatch means
+      // the number is stale or was never right. Refusing turns a silent
+      // overwrite of the wrong line into an error, and is the one check that
+      // also covers the file changing under us.
+      final expectedLine = edit.expectedLine;
+      if (expectedLine != null) {
+        final actual = trimLineTerminator(lines[edit.lineNumber - 1]);
+        if (actual != trimLineTerminator(expectedLine)) {
+          throw ArgumentError(
+            'line_number ${edit.lineNumber} does not match the expected text. '
+            'Re-read the file to get current line numbers.',
+          );
+        }
+      }
     }
 
     for (final edit in edits) {
@@ -76,6 +93,72 @@ class FileEditor {
     }
 
     return lines.join();
+  }
+
+  /// Returns the 1-based inclusive `[startLine, endLine]` slice of [content],
+  /// with each line's terminator kept attached.
+  ///
+  /// An [endLine] past the last line is clamped, and omitting it reads to the
+  /// end of the content.
+  ///
+  /// Throws an [ArgumentError] when either bound is not positive, when
+  /// [endLine] precedes [startLine], or when [startLine] is past the last
+  /// line.
+  static List<String> sliceLines(String content, int startLine, int? endLine) {
+    final lines = splitLinesKeepEnds(content);
+    final total = lines.length;
+
+    // These messages reach the model as the tool's failure text, so they name
+    // the arguments as the tool schema exposes them (startLine/endLine), not
+    // in snake_case.
+    if (startLine < 1) {
+      throw ArgumentError(
+        'startLine must be a positive integer, got $startLine.',
+      );
+    }
+
+    if (endLine != null && endLine < 1) {
+      throw ArgumentError('endLine must be a positive integer, got $endLine.');
+    }
+
+    if (endLine != null && endLine < startLine) {
+      throw ArgumentError(
+        'endLine ($endLine) must not be less than startLine ($startLine).',
+      );
+    }
+
+    if (startLine > total) {
+      throw ArgumentError(
+        'startLine $startLine is out of range (file has $total lines).',
+      );
+    }
+
+    // Clamping endLine rather than failing keeps "read from here to the end"
+    // a single call.
+    final lastLine = endLine == null
+        ? total
+        : (endLine < total ? endLine : total);
+    return lines.sublist(startLine - 1, lastLine);
+  }
+
+  /// Returns [line] without its trailing `\r\n`, `\n` or lone `\r`.
+  static String trimLineTerminator(String line) =>
+      line.substring(0, lineContentLength(line));
+
+  /// Returns the length of [line] up to but excluding the `\r\n`, `\n`, or
+  /// lone `\r` that terminates it, so search patterns are matched against a
+  /// line's text rather than its line break.
+  ///
+  /// Leaving any part of the terminator in range would make an end-anchored
+  /// pattern such as `match$` fail on a CRLF or lone-CR line whose text is
+  /// exactly `match`.
+  static int lineContentLength(String line) {
+    if (line.endsWith('\r\n')) {
+      return line.length - 2;
+    }
+    return (line.endsWith('\n') || line.endsWith('\r'))
+        ? line.length - 1
+        : line.length;
   }
 
   static int _countOccurrences(String content, String value) {
@@ -91,7 +174,14 @@ class FileEditor {
   /// Splits content into lines, keeping each line's trailing newline
   /// (`\r\n`, `\n`, or a lone `\r`) attached. The final line has no
   /// terminator when the content does not end with a newline.
-  static List<String> _splitLinesKeepEnds(String content) {
+  ///
+  /// This is the single definition of a "line" for the line-edit tools, so
+  /// the line numbers reported by `grep` address the same lines that
+  /// `replace_lines` edits. A store supplying its own
+  /// [AgentFileStore.searchFilesAsync] is expected to number by this split;
+  /// nothing enforces that at runtime, so an implementation that numbers
+  /// differently edits the wrong line silently.
+  static List<String> splitLinesKeepEnds(String content) {
     final lines = <String>[];
     var start = 0;
     for (var i = 0; i < content.length; i++) {

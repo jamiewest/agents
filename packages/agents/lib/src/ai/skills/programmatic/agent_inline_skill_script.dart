@@ -48,7 +48,9 @@ class AgentInlineSkillScript extends AgentSkillScript {
     }
     if (value is! Map) {
       throw StateError(
-        'Inline skill scripts expect arguments as a JSON Object.',
+        'Inline skill scripts expect arguments as a JSON object but received '
+        '${value.runtimeType}. Configure a custom argument marshaler on the '
+        'skill to handle other argument formats.',
       );
     }
     return AIFunctionArguments(

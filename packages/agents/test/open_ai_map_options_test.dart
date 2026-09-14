@@ -9,6 +9,7 @@ import 'package:agents/src/abstractions/agent_run_options.dart';
 import 'package:agents/src/abstractions/agent_session.dart';
 import 'package:agents/src/abstractions/agent_session_state_bag.dart';
 import 'package:agents/src/abstractions/ai_agent.dart';
+import 'package:agents/src/ai/chat_client/chat_client_agent_run_options.dart';
 import 'package:agents/src/hosting/open_ai/chat_completions/converters/chat_client_agent_run_options_converter.dart';
 import 'package:agents/src/hosting/open_ai/chat_completions/models/create_chat_completion.dart';
 import 'package:agents/src/hosting/open_ai/open_ai_chat_completions_map_options.dart';
@@ -53,6 +54,155 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('OpenAIResponsesMapOptions.dangerouslyAllowClientFunctionTools', () {
+    Map<String, Object?> functionTool(
+      String name, {
+      String? description,
+      Map<String, Object?>? parameters,
+      bool? strict,
+    }) => {
+      'type': 'function',
+      'name': name,
+      'description': ?description,
+      'parameters': ?parameters,
+      'strict': ?strict,
+    };
+
+    test('rejects client tools by default', () {
+      final info = OpenAIResponseRequestInfo()
+        ..tools = [functionTool('lookup')];
+
+      expect(
+        () => OpenAIResponsesMapOptions().runOptionsFactory(info),
+        throwsA(
+          isA<UnsupportedError>().having(
+            (e) => e.message,
+            'message',
+            contains('tools'),
+          ),
+        ),
+      );
+    });
+
+    test('forwards function declarations when enabled', () {
+      final options = OpenAIResponsesMapOptions()
+        ..dangerouslyAllowClientFunctionTools = true;
+      final info = OpenAIResponseRequestInfo()
+        ..tools = [
+          functionTool(
+            'lookup',
+            description: 'Look something up',
+            parameters: {'type': 'object'},
+            strict: true,
+          ),
+        ];
+
+      final runOptions =
+          options.runOptionsFactory(info) as ChatClientAgentRunOptions;
+      final tool =
+          runOptions.chatOptions!.tools!.single as AIFunctionDeclaration;
+
+      expect(tool.name, 'lookup');
+      expect(tool.description, 'Look something up');
+      expect(tool.parametersSchema, {'type': 'object'});
+      expect(tool.additionalProperties, containsPair('strict', true));
+    });
+
+    test('still rejects tool entries that are not function declarations', () {
+      final options = OpenAIResponsesMapOptions()
+        ..dangerouslyAllowClientFunctionTools = true;
+      final info = OpenAIResponseRequestInfo()
+        ..tools = [
+          functionTool('lookup'),
+          {'type': 'web_search'},
+        ];
+
+      expect(
+        () => options.runOptionsFactory(info),
+        throwsA(
+          isA<UnsupportedError>().having(
+            (e) => e.message,
+            'message',
+            contains('tools'),
+          ),
+        ),
+      );
+    });
+
+    test('still rejects other unsupported settings when enabled', () {
+      final options = OpenAIResponsesMapOptions()
+        ..dangerouslyAllowClientFunctionTools = true;
+      final info = OpenAIResponseRequestInfo()
+        ..temperature = 0.2
+        ..tools = [functionTool('lookup')];
+
+      expect(
+        () => options.runOptionsFactory(info),
+        throwsA(
+          isA<UnsupportedError>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('temperature'), isNot(contains('tools'))),
+          ),
+        ),
+      );
+    });
+
+    test('does not enable tool_choice', () {
+      final options = OpenAIResponsesMapOptions()
+        ..dangerouslyAllowClientFunctionTools = true;
+      final info = OpenAIResponseRequestInfo()
+        ..tools = [functionTool('lookup')]
+        ..toolChoice = ChatToolMode.auto
+        ..hasToolChoice = true;
+
+      expect(
+        () => options.runOptionsFactory(info),
+        throwsA(
+          isA<UnsupportedError>().having(
+            (e) => e.message,
+            'message',
+            contains('tool_choice'),
+          ),
+        ),
+      );
+    });
+
+    test('a tool_choice with no ChatToolMode equivalent is still rejected', () {
+      // toolChoice maps to null, so only hasToolChoice catches this.
+      final info = OpenAIResponseRequestInfo()..hasToolChoice = true;
+
+      expect(
+        () => OpenAIResponsesMapOptions.rejectRequestSettings(info),
+        throwsA(
+          isA<UnsupportedError>().having(
+            (e) => e.message,
+            'message',
+            contains('tool_choice'),
+          ),
+        ),
+      );
+    });
+
+    test('a custom factory replaces the default mapping entirely', () {
+      var called = 0;
+      final options = OpenAIResponsesMapOptions()
+        ..dangerouslyAllowClientFunctionTools = true
+        ..runOptionsFactory = (request) {
+          called++;
+          return null;
+        };
+
+      expect(
+        options.runOptionsFactory(
+          OpenAIResponseRequestInfo()..tools = [functionTool('lookup')],
+        ),
+        isNull,
+      );
+      expect(called, 1);
     });
   });
 

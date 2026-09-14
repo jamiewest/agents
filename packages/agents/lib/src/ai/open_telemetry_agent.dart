@@ -15,6 +15,11 @@ import 'open_telemetry_consts.dart';
 /// Provides a delegating [AIAgent] implementation that instruments agent
 /// operations via [OpenTelemetryChatClient].
 class OpenTelemetryAgent extends DelegatingAIAgent implements Disposable {
+  /// Creates an [OpenTelemetryAgent] wrapping [innerAgent].
+  ///
+  /// [sourceName] optionally identifies the telemetry data from this agent.
+  /// When specified, register the same value with the tracing pipeline so it
+  /// subscribes to these spans. When omitted, [defaultSourceName] is used.
   OpenTelemetryAgent(AIAgent innerAgent, {String? sourceName})
     : super(innerAgent) {
     final metadata = innerAgent.getService(AIAgentMetadata) as AIAgentMetadata?;
@@ -26,6 +31,16 @@ class OpenTelemetryAgent extends DelegatingAIAgent implements Disposable {
           : sourceName,
     );
   }
+
+  /// The default telemetry source name used when no source name is supplied
+  /// to the constructor.
+  ///
+  /// Pass this value to the tracing pipeline to subscribe to the spans
+  /// emitted by agents that use the default source name, instead of
+  /// hardcoding the literal name. This is a getter rather than a constant so
+  /// that the value is read at run time: a consumer that upgrades the package
+  /// picks up the current source name without recompiling.
+  static String get defaultSourceName => OpenTelemetryConsts.defaultSourceName;
 
   late final OpenTelemetryChatClient _otelClient;
   late final String? _providerName;

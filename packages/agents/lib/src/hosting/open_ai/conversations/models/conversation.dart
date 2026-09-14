@@ -30,12 +30,14 @@ class Conversation {
   /// The object type, always `conversation`.
   String get object => 'conversation';
 
-  /// Returns a copy of this conversation with replaced [metadata].
-  Conversation copyWith({Map<String, String>? metadata}) => Conversation(
-    id: id,
-    createdAt: createdAt,
-    metadata: metadata ?? this.metadata,
-  );
+  /// Returns a copy of this conversation with replaced [id] and/or
+  /// [metadata].
+  Conversation copyWith({String? id, Map<String, String>? metadata}) =>
+      Conversation(
+        id: id ?? this.id,
+        createdAt: createdAt,
+        metadata: metadata ?? this.metadata,
+      );
 
   /// Serializes this conversation.
   Map<String, dynamic> toJson() => {

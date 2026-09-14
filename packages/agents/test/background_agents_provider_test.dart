@@ -54,6 +54,75 @@ void main() {
     });
   });
 
+  group('BackgroundAgentsProvider wait timeout', () {
+    test('rejects a non-positive waitTimeout', () {
+      expect(
+        () => BackgroundAgentsProvider(
+          [TestAgent('Research', 'Research agent')],
+          options: BackgroundAgentsProviderOptions()
+            ..waitTimeout = Duration.zero,
+        ),
+        throwsA(isA<RangeError>()),
+      );
+    });
+
+    test('rejects a waitTimeout above the maximum', () {
+      expect(
+        () => BackgroundAgentsProvider(
+          [TestAgent('Research', 'Research agent')],
+          options: BackgroundAgentsProviderOptions()
+            ..waitTimeout =
+                BackgroundAgentsProviderOptions.maximumWaitTimeout +
+                const Duration(milliseconds: 1),
+        ),
+        throwsA(isA<RangeError>()),
+      );
+    });
+
+    test('returns control and leaves the task running on timeout', () async {
+      final completion = Completer<AgentResponse>();
+      final agent = TestAgent.withRunResult('Research', completion.future);
+      final tools = await createTools(
+        agent,
+        options: BackgroundAgentsProviderOptions()
+          ..waitTimeout = const Duration(milliseconds: 20),
+      );
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
+      final waitForFirst = getTool(
+        tools,
+        'BackgroundAgents_WaitForFirstCompletion',
+      );
+
+      await startTask.invoke(
+        AIFunctionArguments({
+          'agentName': 'Research',
+          'input': 'Task 1',
+          'description': 'Slow task',
+        }),
+      );
+
+      final timedOut = await waitForFirst.invoke(
+        AIFunctionArguments({
+          'taskIds': [1],
+        }),
+      );
+
+      expect(timedOut, isA<String>());
+      expect(timedOut as String, contains('No background task completed'));
+      expect(timedOut, contains('still running'));
+
+      // The task was left running, so a second call still observes it finish.
+      completion.complete(agentResponseText('Result 1'));
+      final finished = await waitForFirst.invoke(
+        AIFunctionArguments({
+          'taskIds': [1],
+        }),
+      );
+
+      expect(finished, contains('finished with status: Completed'));
+    });
+  });
+
   group('BackgroundAgentsProvider context', () {
     test('returns tools and instructions', () async {
       final agent = TestAgent('Research', 'Research agent');
@@ -678,8 +747,11 @@ void main() {
   });
 }
 
-Future<Iterable<AITool>> createTools(TestAgent agent) async {
-  final provider = BackgroundAgentsProvider([agent]);
+Future<Iterable<AITool>> createTools(
+  TestAgent agent, {
+  BackgroundAgentsProviderOptions? options,
+}) async {
+  final provider = BackgroundAgentsProvider([agent], options: options);
   final result = await provider.invoking(createInvokingContext());
   return result.tools!;
 }

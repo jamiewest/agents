@@ -317,6 +317,79 @@ void main() {
       expect(skills, isEmpty);
       expect(Directory('${root.path}/limit-skill').existsSync(), isFalse);
     });
+
+    test('rejects a gzip archive even when the URL claims .zip', () async {
+      final root = await Directory.systemTemp.createTemp('mcp_skills_gzip_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      // A .zip URL and zip media type over gzip bytes: the signature wins.
+      const archiveUri = 'skill://gzip-skill/archive.zip';
+      final client = _FakeMcpClient()
+        ..resources[AgentMcpSkillsSource.indexUri] = _textResource(
+          jsonEncode({
+            'skills': [
+              {
+                'name': 'gzip-skill',
+                'type': 'archive',
+                'description': 'Gzip skill',
+                'url': archiveUri,
+              },
+            ],
+          }),
+        )
+        ..resources[archiveUri] = _blobResource(
+          GZipEncoder().encodeBytes(_zipSkillArchive()),
+          mimeType: 'application/zip',
+        );
+
+      final skills = await AgentMcpSkillsSource(
+        client,
+        options: AgentMcpSkillsSourceOptions(archiveSkillsDirectory: root.path),
+      ).getSkills(_skillsContext);
+
+      expect(skills, isEmpty);
+      expect(Directory('${root.path}/gzip-skill').existsSync(), isFalse);
+    });
+
+    test('rejects a tar archive advertised by media type', () async {
+      final root = await Directory.systemTemp.createTemp('mcp_skills_tar_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      const archiveUri = 'skill://tar-skill/archive';
+      final client = _FakeMcpClient()
+        ..resources[AgentMcpSkillsSource.indexUri] = _textResource(
+          jsonEncode({
+            'skills': [
+              {
+                'name': 'tar-skill',
+                'type': 'archive',
+                'description': 'Tar skill',
+                'url': archiveUri,
+              },
+            ],
+          }),
+        )
+        ..resources[archiveUri] = _blobResource(
+          TarEncoder().encodeBytes(
+            Archive()..addFile(
+              ArchiveFile.string('tar-skill/SKILL.md', '''
+---
+name: tar-skill
+description: Tar skill
+---
+Use tar skill.
+'''),
+            ),
+          ),
+          mimeType: 'application/x-tar',
+        );
+
+      final skills = await AgentMcpSkillsSource(
+        client,
+        options: AgentMcpSkillsSourceOptions(archiveSkillsDirectory: root.path),
+      ).getSkills(_skillsContext);
+
+      expect(skills, isEmpty);
+      expect(Directory('${root.path}/tar-skill').existsSync(), isFalse);
+    });
   });
 }
 
@@ -450,12 +523,15 @@ mcp.ReadResourceResult _textResource(String text) {
   );
 }
 
-mcp.ReadResourceResult _blobResource(List<int> bytes) {
+mcp.ReadResourceResult _blobResource(
+  List<int> bytes, {
+  String mimeType = 'application/zip',
+}) {
   return mcp.ReadResourceResult(
     contents: [
       mcp.BlobResourceContents(
         uri: 'test://resource',
-        mimeType: 'application/zip',
+        mimeType: mimeType,
         blob: base64Encode(bytes),
       ),
     ],

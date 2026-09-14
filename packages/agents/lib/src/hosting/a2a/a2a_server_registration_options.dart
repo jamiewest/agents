@@ -4,6 +4,6 @@ import 'agent_run_mode.dart';
 class A2AServerRegistrationOptions {
   /// The run mode that controls how the agent responds to A2A requests.
   ///
-  /// When `null`, defaults to [AgentRunMode.disallowBackground].
+  /// When `null`, defaults to [AgentRunMode.returnMessage].
   AgentRunMode? agentRunMode;
 }

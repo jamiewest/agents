@@ -11,6 +11,7 @@ import 'package:agents/src/abstractions/ai_agent.dart';
 import 'package:agents/src/abstractions/ai_context.dart';
 import 'package:agents/src/ai/harness/file_access/file_access_provider.dart';
 import 'package:agents/src/ai/harness/file_access/file_access_provider_options.dart';
+import 'package:agents/src/ai/harness/file_store/file_line_edit.dart';
 import 'package:agents/src/ai/harness/file_store/file_store_entry.dart';
 import 'package:agents/src/ai/harness/file_store/in_memory_agent_file_store.dart';
 import 'package:agents/src/abstractions/invoking_context.dart';
@@ -32,12 +33,13 @@ void main() {
     test('returns tools', () async {
       final tools = await createTools();
 
-      expect(tools, hasLength(7));
+      expect(tools, hasLength(8));
       expect(
         tools.whereType<AIFunction>().map((t) => t.name),
         unorderedEquals([
           'file_access_write',
           'file_access_read',
+          'file_access_read_lines',
           'file_access_delete',
           'file_access_replace',
           'file_access_replace_lines',
@@ -512,6 +514,7 @@ void main() {
 
       final readOnly = [
         'file_access_read',
+        'file_access_read_lines',
         'file_access_ls',
         'file_access_grep',
       ];
@@ -534,6 +537,7 @@ void main() {
         tools.whereType<AIFunction>().map((t) => t.name),
         unorderedEquals([
           'file_access_read',
+          'file_access_read_lines',
           'file_access_ls',
           'file_access_grep',
         ]),
@@ -583,6 +587,95 @@ void main() {
               as List<FileStoreEntry>;
 
       expect(entries.map((e) => e.name), ['summary.md']);
+    });
+  });
+
+  group('FileAccessProvider read lines', () {
+    Future<FileAccessProvider> providerWith(String content) async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', content);
+      return FileAccessProvider(store);
+    }
+
+    test('prefixes each line with its number and a tab', () async {
+      final provider = await providerWith('one\ntwo\nthree\n');
+
+      final result = await provider.readLinesAsync('notes.md', 2, endLine: 3);
+
+      expect(result, '2\ttwo\n3\tthree\n');
+    });
+
+    test('reads to the end when endLine is omitted', () async {
+      final provider = await providerWith('one\ntwo\nthree');
+
+      expect(await provider.readLinesAsync('notes.md', 2), '2\ttwo\n3\tthree');
+    });
+
+    test('clamps an endLine past the last line', () async {
+      final provider = await providerWith('one\ntwo\n');
+
+      expect(
+        await provider.readLinesAsync('notes.md', 1, endLine: 50),
+        '1\tone\n2\ttwo\n',
+      );
+    });
+
+    test('reports the line verbatim, terminator included', () async {
+      final provider = await providerWith('one\r\ntwo\r');
+
+      expect(
+        await provider.readLinesAsync('notes.md', 1),
+        '1\tone\r\n2\ttwo\r',
+      );
+    });
+
+    test('returns a not-found message for a missing file', () async {
+      final provider = await providerWith('one\n');
+
+      expect(
+        await provider.readLinesAsync('missing.md', 1),
+        "File 'missing.md' not found.",
+      );
+    });
+
+    test('throws for a startLine past the last line', () async {
+      final provider = await providerWith('one\n');
+
+      expect(() => provider.readLinesAsync('notes.md', 9), throwsArgumentError);
+    });
+
+    test('a read row feeds straight back into replace_lines', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\ntwo\nthree\n');
+      final provider = FileAccessProvider(store);
+
+      final row = await provider.readLinesAsync('notes.md', 2, endLine: 2);
+      // Everything after the first tab is the line itself.
+      final line = row.substring(row.indexOf('\t') + 1);
+
+      await provider.replaceLinesAsync('notes.md', [
+        FileLineEdit(lineNumber: 2, newLine: 'TWO\n', expectedLine: line),
+      ]);
+
+      expect(await store.readFileAsync('notes.md'), 'one\nTWO\nthree\n');
+    });
+
+    test('grep line numbers address the same lines read_lines shows', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'a\r\nmatch\r\nc\r\n');
+      final provider = FileAccessProvider(store);
+
+      final results = await provider.grepAsync('match');
+      final match = results.single.matchingLines.single;
+
+      expect(
+        await provider.readLinesAsync(
+          'notes.md',
+          match.lineNumber,
+          endLine: match.lineNumber,
+        ),
+        '${match.lineNumber}\t${match.line}',
+      );
     });
   });
 }

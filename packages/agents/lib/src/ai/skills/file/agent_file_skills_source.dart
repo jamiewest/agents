@@ -13,6 +13,8 @@ import '../agent_skill_frontmatter.dart';
 import '../agent_skills_source.dart';
 import '../agent_skills_source_context.dart';
 import 'agent_file_skill.dart';
+import 'agent_file_skill_path_scope.dart';
+import 'agent_file_skill_path_validator.dart';
 import 'agent_file_skill_filter_context.dart';
 import 'agent_file_skill_resource.dart';
 import 'agent_file_skill_script.dart';
@@ -125,15 +127,19 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     return skills;
   }
 
-  List<String> discoverSkillDirectories(Iterable<String> skillPaths) {
-    final discoveredPaths = <String>[];
+  List<AgentFileSkillPathScope> discoverSkillDirectories(
+    Iterable<String> skillPaths,
+  ) {
+    final discoveredPaths = <AgentFileSkillPathScope>[];
     for (final rootDirectory in skillPaths) {
       if (rootDirectory.trim().isEmpty ||
           !_fs.directory(rootDirectory).existsSync()) {
         continue;
       }
+      final trustedRoot = p.canonicalize(rootDirectory);
       searchDirectoriesForSkills(
-        p.canonicalize(rootDirectory),
+        trustedRoot,
+        trustedRoot,
         discoveredPaths,
         currentDepth: 0,
       );
@@ -143,7 +149,8 @@ class AgentFileSkillsSource extends AgentSkillsSource {
 
   void searchDirectoriesForSkills(
     String directory,
-    List<String> results, {
+    String trustedRootFullPath,
+    List<AgentFileSkillPathScope> results, {
     required int currentDepth,
   }) {
     final skillFilePath = p.join(directory, skillFileName);
@@ -156,7 +163,7 @@ class AgentFileSkillsSource extends AgentSkillsSource {
       // Once a SKILL.md is found, this directory is the skill root.
       // Subdirectories are part of this skill and should not be treated as
       // independent skill roots.
-      results.add(p.canonicalize(directory));
+      results.add(AgentFileSkillPathScope(trustedRootFullPath, directory));
       return;
     }
     if (currentDepth >= maxSearchDepth) {
@@ -172,6 +179,7 @@ class AgentFileSkillsSource extends AgentSkillsSource {
       }
       searchDirectoriesForSkills(
         entry.path,
+        trustedRootFullPath,
         results,
         currentDepth: currentDepth + 1,
       );
@@ -180,14 +188,8 @@ class AgentFileSkillsSource extends AgentSkillsSource {
 
   /// Checks whether the entity at [path] is a symbolic link, or cannot be
   /// inspected at all — both are treated as unsafe during skill discovery.
-  bool _isLinkOrInaccessible(String path) {
-    try {
-      return _fs.typeSync(path, followLinks: false) ==
-          FileSystemEntityType.link;
-    } on FileSystemException {
-      return true;
-    }
-  }
+  bool _isLinkOrInaccessible(String path) =>
+      AgentFileSkillPathValidator.isLinkOrInaccessible(path, fs: _fs);
 
   /// Best-effort directory listing that returns an empty list when the
   /// directory cannot be inspected, so a single inaccessible child does not
@@ -200,28 +202,20 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     }
   }
 
-  AgentFileSkill? parseSkillDirectory(String skillDirectoryFullPath) {
-    final skillFilePath = p.join(skillDirectoryFullPath, skillFileName);
+  AgentFileSkill? parseSkillDirectory(AgentFileSkillPathScope scope) {
+    final skillFilePath = p.join(scope.skillDirectoryPath, skillFileName);
     final content = _fs.file(skillFilePath).readAsStringSync(encoding: utf8);
     final (valid, frontmatter) = tryParseFrontmatter(content, skillFilePath);
     if (!valid || frontmatter == null) {
       return null;
     }
 
-    final normalizedSkillDirectoryFullPath =
-        '${p.canonicalize(skillDirectoryFullPath)}${p.separator}';
-    final resources = discoverResourceFiles(
-      normalizedSkillDirectoryFullPath,
-      frontmatter.name,
-    );
-    final scripts = discoverScriptFiles(
-      normalizedSkillDirectoryFullPath,
-      frontmatter.name,
-    );
+    final resources = discoverResourceFiles(scope, frontmatter.name);
+    final scripts = discoverScriptFiles(scope, frontmatter.name);
     return AgentFileSkill(
       frontmatter,
       content,
-      skillDirectoryFullPath,
+      scope.skillDirectoryPath,
       resources: resources,
       scripts: scripts,
     );
@@ -282,9 +276,10 @@ class AgentFileSkillsSource extends AgentSkillsSource {
   }
 
   List<AgentFileSkillResource> discoverResourceFiles(
-    String skillDirectoryFullPath,
+    AgentFileSkillPathScope scope,
     String skillName,
   ) {
+    final skillDirectoryFullPath = scope.skillDirectoryPrefix;
     final resources = <AgentFileSkillResource>[];
     for (final directory in _resourceDirectories.toSet()) {
       final isRootDirectory = directory == rootDirectoryIndicator;
@@ -296,7 +291,7 @@ class AgentFileSkillsSource extends AgentSkillsSource {
       }
       discoverResourceFilesInDirectory(
         targetDirectory,
-        skillDirectoryFullPath,
+        scope,
         skillName,
         resources,
         currentDepth: 1,
@@ -307,18 +302,19 @@ class AgentFileSkillsSource extends AgentSkillsSource {
 
   void discoverResourceFilesInDirectory(
     String targetDirectory,
-    String skillDirectoryFullPath,
+    AgentFileSkillPathScope scope,
     String skillName,
     List<AgentFileSkillResource> resources, {
     required int currentDepth,
   }) {
+    final skillDirectoryFullPath = scope.skillDirectoryPrefix;
     for (final entry
         in _fs.directory(targetDirectory).listSync(followLinks: false)) {
       if (entry is Directory) {
         if (currentDepth < _resourceSearchDepth) {
           discoverResourceFilesInDirectory(
             '${p.canonicalize(entry.path)}${p.separator}',
-            skillDirectoryFullPath,
+            scope,
             skillName,
             resources,
             currentDepth: currentDepth + 1,
@@ -356,15 +352,16 @@ class AgentFileSkillsSource extends AgentSkillsSource {
         continue;
       }
       resources.add(
-        AgentFileSkillResource(relativePath, resolvedFilePath, fs: _fs),
+        AgentFileSkillResource(relativePath, resolvedFilePath, scope, fs: _fs),
       );
     }
   }
 
   List<AgentFileSkillScript> discoverScriptFiles(
-    String skillDirectoryFullPath,
+    AgentFileSkillPathScope scope,
     String skillName,
   ) {
+    final skillDirectoryFullPath = scope.skillDirectoryPrefix;
     final scripts = <AgentFileSkillScript>[];
     for (final directory in _scriptDirectories.toSet()) {
       final isRootDirectory = directory == rootDirectoryIndicator;
@@ -404,7 +401,9 @@ class AgentFileSkillsSource extends AgentSkillsSource {
           AgentFileSkillScript(
             relativePath,
             resolvedFilePath,
+            scope,
             runner: _scriptRunner,
+            fs: _fs,
           ),
         );
       }

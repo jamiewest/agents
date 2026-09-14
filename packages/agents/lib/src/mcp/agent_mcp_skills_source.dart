@@ -473,16 +473,13 @@ class _ArchiveEntryLoader {
     _ArchiveFormat format,
     String targetDirectory,
   ) {
-    final archive = switch (format) {
-      _ArchiveFormat.zip => ZipDecoder().decodeBytes(bytes),
-      _ArchiveFormat.tar => TarDecoder().decodeBytes(bytes),
-      _ArchiveFormat.tarGz => TarDecoder().decodeBytes(
-        Uint8List.fromList(GZipDecoder().decodeBytes(bytes)),
-      ),
-      _ArchiveFormat.unknown => throw UnsupportedError(
-        'Unknown archive format.',
-      ),
-    };
+    if (format != _ArchiveFormat.zip) {
+      throw UnsupportedError(
+        "Unsupported skill archive format '${format.name}'. Use ZIP instead.",
+      );
+    }
+
+    final archive = ZipDecoder().decodeBytes(bytes);
 
     Directory(targetDirectory).createSync(recursive: true);
     final fullTarget = p.canonicalize(targetDirectory);
@@ -533,15 +530,17 @@ const List<String> _defaultArchiveResourceExtensions = [
   '.csx',
 ];
 
-enum _ArchiveFormat { unknown, zip, tar, tarGz }
+enum _ArchiveFormat { unknown, zip }
 
 _ArchiveFormat _detectArchiveFormat(
   List<int> bytes,
   String? mediaType,
   String? url,
 ) {
+  // Reject gzip by signature before considering a potentially incorrect MIME
+  // type or URL hint.
   if (bytes.length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
-    return _ArchiveFormat.tarGz;
+    return _ArchiveFormat.unknown;
   }
   if (bytes.length >= 4 &&
       bytes[0] == 0x50 &&
@@ -554,24 +553,10 @@ _ArchiveFormat _detectArchiveFormat(
   if (media == 'application/zip' || media == 'application/x-zip-compressed') {
     return _ArchiveFormat.zip;
   }
-  if (media == 'application/gzip' ||
-      media == 'application/x-gzip' ||
-      media == 'application/x-compressed-tar') {
-    return _ArchiveFormat.tarGz;
-  }
-  if (media == 'application/x-tar' || media == 'application/tar') {
-    return _ArchiveFormat.tar;
-  }
 
   final lowerUrl = (url ?? '').toLowerCase();
   if (lowerUrl.endsWith('.zip')) {
     return _ArchiveFormat.zip;
-  }
-  if (lowerUrl.endsWith('.tar.gz') || lowerUrl.endsWith('.tgz')) {
-    return _ArchiveFormat.tarGz;
-  }
-  if (lowerUrl.endsWith('.tar')) {
-    return _ArchiveFormat.tar;
   }
   return _ArchiveFormat.unknown;
 }

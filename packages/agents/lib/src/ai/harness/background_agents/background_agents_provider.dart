@@ -26,8 +26,9 @@ import 'package:agents/src/abstractions/invoking_context.dart';
 ///
 /// * `BackgroundAgents_StartTask` — Start a background task on a named agent
 ///   with text input. Returns the task ID.
-/// * `BackgroundAgents_WaitForFirstCompletion` — Block until the first of the
-///   specified tasks completes. Returns the completed task's ID.
+/// * `BackgroundAgents_WaitForFirstCompletion` — Wait until the first
+///   specified task completes or the configured timeout expires. A timeout
+///   leaves the tasks running so the tool can be called again.
 /// * `BackgroundAgents_GetTaskResults` — Retrieve the text output of a
 ///   completed background task.
 /// * `BackgroundAgents_GetAllTasks` — List all background tasks with their
@@ -49,6 +50,26 @@ class BackgroundAgentsProvider extends AIContextProvider {
     Iterable<AIAgent> agents, {
     BackgroundAgentsProviderOptions? options,
   }) : _agents = validateAndBuildAgentDictionary(agents) {
+    _waitTimeout =
+        options?.waitTimeout ??
+        BackgroundAgentsProviderOptions.defaultWaitTimeout;
+    if (_waitTimeout <= Duration.zero) {
+      throw RangeError.value(
+        _waitTimeout.inMilliseconds,
+        'options.waitTimeout',
+        'waitTimeout must be positive',
+      );
+    }
+    if (_waitTimeout > BackgroundAgentsProviderOptions.maximumWaitTimeout) {
+      throw RangeError.value(
+        _waitTimeout.inMilliseconds,
+        'options.waitTimeout',
+        'waitTimeout must not exceed '
+            '${BackgroundAgentsProviderOptions.maximumWaitTimeout.inMilliseconds} '
+            'milliseconds',
+      );
+    }
+
     final baseInstructions = options?.instructions ?? defaultInstructions;
     final agentListBuilder = options?.agentListBuilder;
     final agentListText = agentListBuilder != null
@@ -107,6 +128,8 @@ You have access to background agents that can perform work on your behalf.
   _runtimeSessionState;
 
   late final String _instructions;
+
+  late final Duration _waitTimeout;
 
   List<String>? _stateKeys;
 
@@ -619,7 +642,7 @@ You have access to background agents that can perform work on your behalf.
       AIFunctionFactory.create(
         name: 'BackgroundAgents_WaitForFirstCompletion',
         description:
-            'Block until the first of the specified background tasks completes. Provide one or more task IDs. Returns a status message containing the ID of the task that completed first.',
+            'Wait until the first of the specified background tasks completes or the configured timeout expires. Provide one or more task IDs. Returns a status message containing the ID of the task that completed first. On timeout, the tasks remain running and this tool can be called again to continue waiting.',
         parametersSchema: _objectSchema({
           'taskIds': 'The task IDs to wait on.',
         }),
@@ -659,10 +682,18 @@ You have access to background agents that can perform work on your behalf.
             return 'Error: None of the specified task IDs correspond to running tasks.';
           }
 
-          // Wait for the first one to complete.
-          final completedId = await Future.any(
-            waitableTasks.map((t) => t.task.completion.then((_) => t.id)),
-          );
+          // Wait for the first task to complete, but return control without
+          // stopping the tasks if the timeout elapses.
+          final completedId = await Future.any<int?>(
+            waitableTasks.map((t) => t.task.completion.then<int?>((_) => t.id)),
+          ).timeout(_waitTimeout, onTimeout: () => null);
+
+          if (completedId == null) {
+            return 'No background task completed within '
+                '${_formatSeconds(_waitTimeout)} seconds. The tasks are still '
+                'running; call this tool again if you wish to continue '
+                'waiting.';
+          }
 
           // Find which ID completed.
           final completedEntry = waitableTasks.firstWhere(
@@ -918,6 +949,15 @@ You have access to background agents that can perform work on your behalf.
       BackgroundTaskStatus.failed => 'Failed',
       BackgroundTaskStatus.lost => 'Lost',
     };
+  }
+
+  /// Renders [duration] as a whole number of seconds when it divides evenly,
+  /// mirroring the C# `TotalSeconds:g` format used in the wait-tool message.
+  static String _formatSeconds(Duration duration) {
+    final seconds = duration.inMicroseconds / Duration.microsecondsPerSecond;
+    return seconds == seconds.roundToDouble()
+        ? seconds.toStringAsFixed(0)
+        : seconds.toString();
   }
 
   static String _getErrorMessage(Object error) {

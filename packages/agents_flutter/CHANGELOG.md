@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0
+
+- Raised the `agents` constraint to `^3.0.0` and the `extensions` constraint
+  to `^0.7.1`. Updated the A2A host for the `AgentRunMode` rename in
+  `agents` 3.0.0 (`disallowBackground` is now `returnMessage`); the package's
+  own public API is unchanged.
+
 ## 0.8.2
 
 - Agents can now author skills. A new skills module adds `SkillStore` and

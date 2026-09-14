@@ -221,6 +221,8 @@ export 'src/ai/skills/decorators/delegating_agent_skills_source.dart';
 export 'src/ai/skills/decorators/filtering_agent_skills_source.dart';
 export 'src/ai/skills/file/agent_file_skill.dart';
 export 'src/ai/skills/file/agent_file_skill_filter_context.dart';
+export 'src/ai/skills/file/agent_file_skill_path_scope.dart';
+export 'src/ai/skills/file/agent_file_skill_path_validator.dart';
 export 'src/ai/skills/file/agent_file_skill_resource.dart';
 export 'src/ai/skills/file/agent_file_skill_script.dart';
 export 'src/ai/skills/file/agent_file_skill_script_runner.dart';

@@ -18,9 +18,11 @@ import 'converters/message_converter.dart';
 /// agent for incoming requests and publishes the results to the supplied
 /// [A2AExecutionEventBus] as A2A protocol events.
 ///
-/// Lightweight responses (no continuation token) are published as a single
-/// `agent` message. Long-running responses surface task lifecycle events
-/// (submitted/working/completed) so callers can track progress.
+/// The configured [AgentRunMode] decides which A2A artifact a new message is
+/// answered with: [AgentRunMode.returnMessage] publishes one aggregated
+/// `agent` message, while [AgentRunMode.returnTask] emits task lifecycle
+/// events (submitted/working/completed) so callers can track progress.
+/// Continuations of an existing task are always task responses.
 class A2AAgentHandler implements A2AAgentExecutor {
   /// Creates a handler that runs [hostAgent] using the given [runMode].
   A2AAgentHandler(this._hostAgent, this._runMode);
@@ -70,10 +72,12 @@ class A2AAgentHandler implements A2AAgentExecutor {
     }
 
     final chatMessages = [requestContext.userMessage.toChatMessage()];
-    final allowBackground = await _runMode.shouldRunInBackground(
+
+    // Decide which A2A artifact to return based on the configured run mode.
+    final returnTask = await _runMode.shouldReturnTask(
       A2ARunDecisionContext(requestContext),
     );
-    final options = _buildOptions(requestContext, allowBackground);
+    final options = _buildOptions(requestContext);
 
     final response = await _hostAgent.run(
       session,
@@ -81,14 +85,25 @@ class A2AAgentHandler implements A2AAgentExecutor {
       messages: chatMessages,
     );
 
-    if (response.continuationToken == null) {
-      // Lightweight message response (no task lifecycle needed).
+    if (!returnTask) {
+      // The run mode returns a message, so publish one aggregated message.
       eventBus.publish(_createMessageFromResponse(contextId, response));
     } else {
-      // Long-running operation: emit task lifecycle events.
       final events = _TaskEvents(eventBus, requestContext.taskId, contextId);
       events.submit();
-      events.startWork(_progressMessage(contextId, response));
+      if (response.continuationToken == null) {
+        // The run already finished: hand back a completed task carrying the
+        // result rather than one the caller has to poll and that would never
+        // leave the working state.
+        final parts = response.toParts();
+        if (parts.isNotEmpty) {
+          events.addArtifact(parts);
+        }
+        events.complete();
+      } else {
+        // Long-running operation: report progress and let the caller poll.
+        events.startWork(_progressMessage(contextId, response));
+      }
     }
     // Deliberately no eventBus.finished(): the a2a package's execution
     // event queue drops still-buffered events once finished arrives, and
@@ -103,10 +118,9 @@ class A2AAgentHandler implements A2AAgentExecutor {
     AgentSession session,
   ) async {
     final chatMessages = _extractChatMessages(requestContext.task);
-    final allowBackground = await _runMode.shouldRunInBackground(
-      A2ARunDecisionContext(requestContext),
-    );
-    final options = _buildOptions(requestContext, allowBackground);
+    // Continuations of an existing task stay task responses and do not
+    // consult the run mode.
+    final options = _buildOptions(requestContext);
 
     AgentResponse response;
     try {
@@ -128,12 +142,8 @@ class A2AAgentHandler implements A2AAgentExecutor {
     // No eventBus.finished(): see _handleNewMessage.
   }
 
-  AgentRunOptions _buildOptions(
-    A2ARequestContext requestContext,
-    bool allowBackground,
-  ) {
-    final options = AgentRunOptions()
-      ..allowBackgroundResponses = allowBackground;
+  AgentRunOptions _buildOptions(A2ARequestContext requestContext) {
+    final options = AgentRunOptions();
     final metadata = requestContext.userMessage.metadata;
     if (metadata != null && metadata.isNotEmpty) {
       options.additionalProperties = metadata.toAdditionalProperties();
