@@ -17,7 +17,82 @@ extension OpenAIResponseRequestInfoBuilder on CreateResponse {
     ..instructions = instructions
     ..model = model
     ..tools = (tools?.isNotEmpty ?? false) ? List<Object?>.of(tools!) : null
-    ..toolChoice = _toChatToolMode(toolChoice);
+    ..toolChoice = _toChatToolMode(toolChoice)
+    ..hasToolChoice = toolChoice != null;
+
+  /// Splits [tools] into the client-supplied function declarations this
+  /// hosting layer can forward and the entries it cannot.
+  static (List<AITool>? clientTools, List<Object?>? remainingTools)
+  convertClientFunctionTools(List<Object?> tools) {
+    List<AITool>? clientTools;
+    List<Object?>? remainingTools;
+
+    for (final tool in tools) {
+      final functionTool = _toFunctionTool(tool);
+      if (functionTool != null) {
+        (clientTools ??= <AITool>[]).add(functionTool);
+      } else {
+        (remainingTools ??= <Object?>[]).add(tool);
+      }
+    }
+
+    return (clientTools, remainingTools);
+  }
+}
+
+/// Converts a raw Responses tool entry into a declaration-only function, or
+/// returns `null` when the entry is not a well-formed function declaration.
+ClientAIFunctionDeclaration? _toFunctionTool(Object? tool) {
+  if (tool is! Map) {
+    return null;
+  }
+  if (tool['type'] != 'function') {
+    return null;
+  }
+  final name = tool['name'];
+  if (name is! String || name.isEmpty) {
+    return null;
+  }
+
+  final requestParameters = tool['parameters'];
+  final parameters = requestParameters is Map
+      ? requestParameters.cast<String, dynamic>()
+      : <String, dynamic>{};
+
+  final requestDescription = tool['description'];
+  final description = requestDescription is String ? requestDescription : null;
+
+  final requestStrict = tool['strict'];
+  final strict = requestStrict is bool ? requestStrict : null;
+
+  return ClientAIFunctionDeclaration(
+    name: name,
+    description: description,
+    parametersSchema: parameters,
+    strict: strict,
+  );
+}
+
+/// A declaration-only function forwarded from a client request.
+///
+/// The declaration carries no executable body: it only tells the model that
+/// the function exists, and any call the model makes is returned to the
+/// client to execute.
+class ClientAIFunctionDeclaration extends AIFunctionDeclaration {
+  /// Creates a client-supplied function declaration.
+  ClientAIFunctionDeclaration({
+    required super.name,
+    super.description,
+    super.parametersSchema,
+    bool? strict,
+  }) : strict = strict {
+    if (strict != null) {
+      additionalProperties = <String, Object?>{'strict': strict};
+    }
+  }
+
+  /// The request's `strict` flag, when it supplied one.
+  final bool? strict;
 }
 
 /// Maps an OpenAI Responses `tool_choice` value onto its [ChatToolMode]

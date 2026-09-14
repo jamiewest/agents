@@ -10,6 +10,7 @@ import 'package:extensions/ai.dart';
 import 'package:extensions/system.dart';
 
 import '../conversations/conversation_storage.dart';
+import '../isolation_key_resolver.dart';
 import '../id_generator.dart';
 import '../models/list_response.dart';
 import '../models/sort_order.dart';
@@ -24,10 +25,20 @@ import 'responses_service.dart';
 /// In-memory [ResponsesService] backed by a [ResponseExecutor].
 class InMemoryResponsesService implements ResponsesService {
   /// Creates an [InMemoryResponsesService].
-  InMemoryResponsesService(this._executor, [this._conversationStorage]);
+  ///
+  /// When [isolationKeyResolver] is supplied, response and conversation
+  /// identifiers are scoped by the caller's isolation key before they reach
+  /// storage, so one caller cannot resolve another caller's response by
+  /// guessing its id. Without a resolver, all callers share one namespace.
+  InMemoryResponsesService(
+    this._executor, [
+    this._conversationStorage,
+    this._isolationKeyResolver,
+  ]);
 
   final ResponseExecutor _executor;
   final ConversationStorage? _conversationStorage;
+  final IsolationKeyResolver? _isolationKeyResolver;
 
   final Map<String, Response> _responses = {};
   final Map<String, List<StreamingResponseEvent>> _events = {};
@@ -101,7 +112,7 @@ class InMemoryResponsesService implements ResponsesService {
   Future<Response?> getResponse(
     String responseId, {
     CancellationToken? cancellationToken,
-  }) async => _responses[responseId];
+  }) async => _responses[await _storageId(responseId, cancellationToken)];
 
   @override
   Stream<StreamingResponseEvent> getResponseStreaming(
@@ -109,7 +120,8 @@ class InMemoryResponsesService implements ResponsesService {
     int? startingAfter,
     CancellationToken? cancellationToken,
   }) async* {
-    final events = _events[responseId] ?? const [];
+    final storageId = await _storageId(responseId, cancellationToken);
+    final events = _events[storageId] ?? const [];
     for (final event in events) {
       if (startingAfter == null || event.sequenceNumber > startingAfter) {
         yield event;
@@ -122,7 +134,8 @@ class InMemoryResponsesService implements ResponsesService {
     String responseId, {
     CancellationToken? cancellationToken,
   }) async {
-    final response = _responses[responseId];
+    final response =
+        _responses[await _storageId(responseId, cancellationToken)];
     if (response == null) {
       throw StateError("Response '$responseId' not found.");
     }
@@ -138,9 +151,10 @@ class InMemoryResponsesService implements ResponsesService {
     String responseId, {
     CancellationToken? cancellationToken,
   }) async {
-    _events.remove(responseId);
-    _inputItems.remove(responseId);
-    return _responses.remove(responseId) != null;
+    final storageId = await _storageId(responseId, cancellationToken);
+    _events.remove(storageId);
+    _inputItems.remove(storageId);
+    return _responses.remove(storageId) != null;
   }
 
   @override
@@ -152,11 +166,12 @@ class InMemoryResponsesService implements ResponsesService {
     String? before,
     CancellationToken? cancellationToken,
   }) async {
-    if (!_responses.containsKey(responseId)) {
+    final storageId = await _storageId(responseId, cancellationToken);
+    if (!_responses.containsKey(storageId)) {
       throw StateError("Response '$responseId' not found.");
     }
 
-    final all = _inputItems[responseId] ?? const <ItemResource>[];
+    final all = _inputItems[storageId] ?? const <ItemResource>[];
     final effectiveLimit = (limit ?? ResponsesService.defaultListLimit).clamp(
       1,
       100,
@@ -185,6 +200,19 @@ class InMemoryResponsesService implements ResponsesService {
     );
   }
 
+  /// Scopes [id] by the caller's isolation key, or returns it unchanged when
+  /// no resolver is configured.
+  Future<String> _storageId(
+    String id,
+    CancellationToken? cancellationToken,
+  ) async {
+    final resolver = _isolationKeyResolver;
+    if (resolver == null) {
+      return id;
+    }
+    return resolver.scopeIdAsync(id, cancellationToken: cancellationToken);
+  }
+
   AgentInvocationContext _contextFor(CreateResponse request) {
     final idGenerator = IdGenerator(
       responseId: request.metadata?['response_id'],
@@ -207,7 +235,7 @@ class InMemoryResponsesService implements ResponsesService {
       return null;
     }
     final items = await storage.listItems(
-      conversation.id,
+      await _storageId(conversation.id, cancellationToken),
       order: SortOrder.ascending,
       limit: 100,
       cancellationToken: cancellationToken,
@@ -225,14 +253,15 @@ class InMemoryResponsesService implements ResponsesService {
     if (request.store == false) {
       return;
     }
-    _responses[response.id] = response;
-    _events[response.id] = events;
-    _inputItems[response.id] = _buildInputItems(request, context);
+    final storageId = await _storageId(response.id, cancellationToken);
+    _responses[storageId] = response;
+    _events[storageId] = events;
+    _inputItems[storageId] = _buildInputItems(request, context);
 
     final conversation = request.conversation;
     if (conversation != null && _conversationStorage != null) {
       await _conversationStorage.addItems(
-        conversation.id,
+        await _storageId(conversation.id, cancellationToken),
         response.output,
         cancellationToken: cancellationToken,
       );

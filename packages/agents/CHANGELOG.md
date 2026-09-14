@@ -1,5 +1,70 @@
 # Changelog
 
+## 3.0.0
+
+Upstream drift sync against `microsoft/agent-framework` `dotnet/src` through
+2026-09-14 (`7a82595`). See `PORTING.md` for the divergences recorded here.
+
+- **Breaking: the line-numbering contract moved onto `AgentFileStore`**
+  (upstream #7671). `FileSearchMatch.line` now reports the matching line
+  verbatim, terminator included, and both stores number lines with
+  `AgentFileStore.splitLines` — so `file_access_grep` / `file_memory_grep`
+  line numbers address exactly the lines `file_access_replace_lines` edits.
+  Line numbers change on content containing a lone `\r` or a trailing
+  newline. `searchFilesAsync` gains a base implementation plus a
+  `findMatchingFilesAsync` narrowing hook for stores with a native index, and
+  `AgentFileStore.scanContent` is published so a store supplying its own
+  search can produce aligned results.
+- **New: `file_access_read_lines`** (upstream #7671). Reads an inclusive
+  1-based line range, each row rendered as `<n>\t<line>` with everything
+  after the tab verbatim, so a row feeds straight back into
+  `file_access_replace_lines`. Omitting `endLine` reads to the end; an
+  `endLine` past the last line is clamped. It joins the read-only tool group
+  for `disableWriteTools` and both auto-approval rules.
+- **New: `FileLineEdit.expectedLine`** (upstream #7671). When supplied, the
+  edit is rejected unless the targeted line matches, turning a stale line
+  number into an error instead of a silent overwrite of the wrong line. The
+  trailing terminator is ignored in the comparison.
+- **Breaking: `AgentRunMode` now selects the A2A artifact** (upstream #8032).
+  `disallowBackground`, `allowBackgroundIfSupported`, `allowBackgroundWhen`
+  and `shouldRunInBackground` are renamed to `returnMessage`, `returnTask`,
+  `returnTaskWhen` and `shouldReturnTask`. The run mode — not the response's
+  `continuationToken` — decides whether a new message is answered with an
+  `AgentMessage` or an `AgentTask`, the handler no longer sets
+  `AgentRunOptions.allowBackgroundResponses`, and task continuations no
+  longer consult the mode. A `returnTask` run that already finished now emits
+  a completed task carrying the result rather than one stuck in `working`.
+- **Breaking: MCP skill archives are limited to ZIP** (upstream #8290). Tar
+  and gzip-compressed tar payloads are rejected, and gzip is rejected by
+  signature before any MIME-type or URL hint is consulted.
+- **Security: file-backed skill paths are revalidated before use**
+  (upstream #8151). Resources and scripts carry the trusted path scope they
+  were discovered in and are rechecked immediately before being read or run,
+  so a file swapped for a link after discovery is refused.
+- **Security: OpenAI hosting storage is scoped by isolation key**
+  (upstream #8146). `IsolationKeyScopedConversationStorage` and
+  `IsolationKeyScopedAgentConversationIndex` scope conversation keys, and
+  `InMemoryResponsesService` scopes response keys, by the registered
+  `AgentIsolationKeyProvider`. `addOpenAIConversations` wraps the in-memory
+  defaults automatically when a provider is registered.
+- **New: opt-in client function forwarding for Responses hosting**
+  (upstream #7844). `OpenAIResponsesMapOptions.dangerouslyAllowClientFunctionTools`
+  forwards well-formed client function declarations onto the run while still
+  rejecting every other tool type and unsupported setting.
+- **New: `BackgroundAgentsProviderOptions.waitTimeout`** (upstream #7911).
+  `BackgroundAgents_WaitForFirstCompletion` now returns control after the
+  timeout (five minutes by default) and leaves the tasks running, so the
+  tool can be called again instead of blocking indefinitely.
+- **New: `OpenTelemetryAgent.defaultSourceName`** (upstream #7815), so a
+  tracing pipeline can subscribe without hardcoding the source name.
+- **Fix: persistent PowerShell sessions report the right exit code**
+  (upstream #8259). `$LASTEXITCODE` is cleared before each command and the
+  pipeline status is captured immediately after it, so a cmdlet-only command
+  no longer inherits a previous command's exit code.
+- **Fix: clearer inline-skill argument error** (upstream #8118), pointing at
+  a custom argument marshaler for non-object arguments.
+- Raised the `extensions` constraint to `^0.7.1`.
+
 ## 2.0.0
 
 - **Breaking: `streamAsync` and `resumeStreamAsync` now return a live run.**

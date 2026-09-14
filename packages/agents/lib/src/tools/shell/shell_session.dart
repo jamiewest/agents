@@ -321,13 +321,23 @@ class ShellSession {
       sb.writeln(_cdCommand(confineWorkdir));
     }
 
+    if (family == ShellFamily.powerShell) {
+      // $LASTEXITCODE persists across commands in a persistent session and
+      // cmdlets do not update it. Clear it so any value observed after the
+      // command belongs to this command.
+      sb.writeln(r'$global:LASTEXITCODE = $null');
+    }
+
     sb.writeln(command);
 
     if (family == ShellFamily.powerShell) {
-      // Capture last exit code, then print sentinel+code on one line.
-      // Use raw string literal for the PowerShell variable references.
+      // Capture the pipeline status before anything else can overwrite it,
+      // then derive the exit code: a native exit code when the command set
+      // one, otherwise failure of the last pipeline maps to 1.
+      sb.writeln(r'$__af_ok__ = $?');
       sb.writeln(
-        r'$__af_ec__ = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } else { 0 }',
+        r'$__af_ec__ = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } '
+        r'elseif (-not $__af_ok__) { 1 } else { 0 }',
       );
       // Combine sentinel prefix (Dart interpolation) with PS variable (raw).
       sb.write(

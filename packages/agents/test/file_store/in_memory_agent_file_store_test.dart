@@ -1,3 +1,5 @@
+import 'package:agents/src/ai/harness/file_store/file_editor.dart';
+import 'package:agents/src/ai/harness/file_store/file_line_edit.dart';
 import 'package:agents/src/ai/harness/file_store/file_store_entry.dart';
 import 'package:agents/src/ai/harness/file_store/in_memory_agent_file_store.dart';
 import 'package:test/test.dart';
@@ -132,18 +134,58 @@ void main() {
       expect(results, hasLength(1));
       expect(results[0].matchingLines, hasLength(2));
       expect(results[0].matchingLines[0].lineNumber, 2);
-      expect(results[0].matchingLines[0].line, 'Line two with match');
+      expect(results[0].matchingLines[0].line, 'Line two with match\n');
       expect(results[0].matchingLines[1].lineNumber, 4);
       expect(results[0].matchingLines[1].line, 'Line four with match');
     });
 
-    test('search files strips trailing carriage return from line', () async {
+    test(
+      'search files reports the line verbatim with its terminator',
+      () async {
+        final store = InMemoryAgentFileStore();
+        await store.writeFileAsync(
+          'folder/notes.md',
+          'first\r\nmatch here\r\n',
+        );
+
+        final results = await store.searchFilesAsync('folder', 'match');
+
+        expect(results[0].matchingLines[0].lineNumber, 2);
+        expect(results[0].matchingLines[0].line, 'match here\r\n');
+      },
+    );
+
+    test('search matches an end-anchored pattern on a CRLF line', () async {
       final store = InMemoryAgentFileStore();
-      await store.writeFileAsync('folder/notes.md', 'first\r\nmatch here\r\n');
+      await store.writeFileAsync('folder/notes.md', 'first\r\nmatch\r\n');
+
+      final results = await store.searchFilesAsync('folder', r'match$');
+
+      expect(results, hasLength(1));
+      expect(results[0].matchingLines[0].lineNumber, 2);
+    });
+
+    test('search numbers lines the same way the line editor does', () async {
+      final store = InMemoryAgentFileStore();
+      // A lone '\r' terminates a line for the editor; grep must agree, or an
+      // edit by the reported number lands on text the caller never saw.
+      await store.writeFileAsync('folder/notes.md', 'one\rtwo\rmatch\r');
 
       final results = await store.searchFilesAsync('folder', 'match');
+      final match = results[0].matchingLines[0];
 
-      expect(results[0].matchingLines[0].line, 'match here');
+      expect(match.lineNumber, 3);
+      final edited = FileEditor.applyReplaceLines(
+        (await store.readFileAsync('folder/notes.md'))!,
+        [
+          FileLineEdit(
+            lineNumber: match.lineNumber,
+            newLine: 'edited\r',
+            expectedLine: match.line,
+          ),
+        ],
+      );
+      expect(edited, 'one\rtwo\redited\r');
     });
 
     test('search files is case-insensitive', () async {

@@ -331,6 +331,88 @@ Use the file skill.
       );
     });
 
+    test('revalidates a resource path before reading it', () async {
+      final root = await Directory.systemTemp.createTemp(
+        'agent_skills_toctou_',
+      );
+      addTearDown(() => root.deleteSync(recursive: true));
+      final skillDir = Directory('${root.path}/toctou-skill')..createSync();
+      File('${skillDir.path}/SKILL.md').writeAsStringSync('''
+---
+name: toctou-skill
+description: TOCTOU skill
+---
+Use the skill.
+''');
+      Directory('${skillDir.path}/references').createSync();
+      final guide = File('${skillDir.path}/references/guide.md')
+        ..writeAsStringSync('guide');
+      final outside = File('${root.path}/secret.md')
+        ..writeAsStringSync('secret');
+
+      final skill =
+          (await AgentFileSkillsSource([
+                root.path,
+              ]).getSkills(_skillsContext)).single
+              as AgentFileSkill;
+      final resource = skill.resources.single;
+      expect(await resource.read(), 'guide');
+
+      // Swap the discovered file for a link pointing outside the skill
+      // directory, as an attacker would after discovery has run.
+      guide.deleteSync();
+      Link(guide.path).createSync(outside.path);
+
+      await expectLater(resource.read(), throwsStateError);
+    });
+
+    test('revalidates a script path before running it', () async {
+      final root = await Directory.systemTemp.createTemp(
+        'agent_skills_script_',
+      );
+      addTearDown(() => root.deleteSync(recursive: true));
+      final skillDir = Directory('${root.path}/script-skill')..createSync();
+      File('${skillDir.path}/SKILL.md').writeAsStringSync('''
+---
+name: script-skill
+description: Script skill
+---
+Use the skill.
+''');
+      Directory('${skillDir.path}/scripts').createSync();
+      final script = File('${skillDir.path}/scripts/run.sh')
+        ..writeAsStringSync('echo hi');
+
+      var ran = 0;
+      final source = AgentFileSkillsSource(
+        [root.path],
+        scriptRunner:
+            (
+              skill,
+              script,
+              arguments,
+              serviceProvider, {
+              cancellationToken,
+            }) async {
+              ran++;
+              return 'ran';
+            },
+      );
+      final skill =
+          (await source.getSkills(_skillsContext)).single as AgentFileSkill;
+
+      expect(await skill.scripts.single.run(skill, null, null), 'ran');
+
+      // The script disappears between discovery and the next run.
+      script.deleteSync();
+
+      await expectLater(
+        skill.scripts.single.run(skill, null, null),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(ran, 1);
+    });
+
     test('normalizes directories and validates extensions', () {
       expect(
         AgentFileSkillsSource.normalizePath(r'.\references\guide.md'),

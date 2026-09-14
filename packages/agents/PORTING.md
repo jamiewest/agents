@@ -15,7 +15,7 @@ append it here (with a date) — do not record it only in session memory.
 The newest upstream commit touching `dotnet/src` that a drift sync has
 reviewed (ported or deliberately skipped):
 
-`upstream-sync: 92aec78c94c3e2cb5bab980c6e7a00e7bf2d6f0e 2026-08-25`
+`upstream-sync: 7a82595cbd9e2efb06356ea81f6a6e4640e537b8 2026-09-14`
 
 This line is machine-read by `/drift` and by
 `.github/workflows/upstream-watch.yml` — keep the `upstream-sync: <sha> <date>`
@@ -301,6 +301,95 @@ Hosting.AGUI.AspNetCore, Aspire.*.
   per-segment reparse-point walk — equivalent outcome (canonicalize
   resolves links), different mechanism.
 
+- **Line numbering is published on `AgentFileStore`** (2026-09-14, ports
+  upstream #7671). `searchFilesAsync` gains a base implementation plus a
+  `findMatchingFilesAsync` narrowing hook, and `splitLines`/`scanContent`
+  become the published numbering primitives, so grep and the line editor
+  cannot drift. Deviations: Dart has no `protected`, so
+  `findMatchingFilesAsync` is a plain overridable public method documented as
+  the override hook; upstream's `internal static FileEditor` is already public
+  here, so `splitLinesKeepEnds`/`sliceLines`/`trimLineTerminator`/
+  `lineContentLength` are public statics on it rather than internal. BREAKING,
+  as upstream: `FileSearchMatch.line` now carries the line's terminator, and
+  line numbers change on content containing a lone `\r` or a trailing newline.
+- **A2A hosting streaming split not applicable** (2026-09-14, upstream #7998
+  merged the streaming and non-streaming `A2AAgentHandler` paths and added an
+  `aggregateTaskUpdates` toggle driven by the request's `ReturnImmediately`,
+  plus an `AgentEventQueueExtensions.AddArtifactAsync` metadata shim). The
+  Dart `package:a2a` executor seam is non-streaming (`execute` + event bus;
+  no `ExecuteStreamingAsync`), the same reason recorded for #7722 above, so
+  there is no `StreamTaskUpdatesAsync` counterpart and nothing for the toggle
+  to select: the port always aggregates. The portable half — emitting a
+  terminal task carrying the result instead of one stuck in `working` — is
+  ported as part of #8032 below. The metadata shim is an A2A-SDK version
+  workaround with no Dart equivalent. Revisit only if the handler is
+  restructured onto `runStreaming`.
+- **`AgentRunMode` selects the A2A artifact, not a background flag**
+  (2026-09-14, ports upstream #8032). `disallowBackground`/
+  `allowBackgroundIfSupported`/`allowBackgroundWhen`/`shouldRunInBackground`
+  become `returnMessage`/`returnTask`/`returnTaskWhen`/`shouldReturnTask`, and
+  the run mode — not the response's `continuationToken` — now decides whether
+  a new message is answered with an `AgentMessage` or an `AgentTask`;
+  `AgentRunOptions.allowBackgroundResponses` is no longer set by the handler,
+  and task continuations no longer consult the mode. Deviation: on the port's
+  non-streaming seam, `returnTask` over a run that already finished emits
+  `submitted` → artifact → `completed` (upstream's `AggregateTaskUpdatesAsync`
+  shape) rather than leaving a task in `working`. BREAKING rename of the
+  public `AgentRunMode` surface.
+- **Skill paths are revalidated immediately before use** (2026-09-14, ports
+  upstream #8151). `AgentFileSkillPathScope` (configured discovery root +
+  skill directory) is threaded through discovery and carried by
+  `AgentFileSkillResource`/`AgentFileSkillScript`, which call
+  `AgentFileSkillPathValidator.validateForUse` before reading or running.
+  Deviation: containment is enforced by the pre-existing canonicalize-plus-
+  prefix boundary check (canonicalize resolves links, so a skill directory
+  swapped for a link after discovery resolves outside the recorded prefix)
+  rather than upstream's per-segment reparse-point walk from the root — the
+  same mechanism difference already recorded for #7540 above. The discovery
+  methods on `AgentFileSkillsSource` (public here, private upstream) change
+  signature to carry the scope.
+- **MCP skill archives are ZIP-only** (2026-09-14, ports upstream #8290).
+  `_ArchiveFormat` loses `tar`/`tarGz`; gzip is rejected by signature before
+  any MIME-type or URL hint is consulted, the tar/gzip media types and the
+  `.tar`/`.tar.gz`/`.tgz` URL hints are gone, and extraction throws
+  `UnsupportedError` for anything but ZIP. BREAKING for servers that served
+  tar archives.
+- **Hosting.OpenAI storage is scoped by isolation key** (2026-09-14, ports
+  upstream #8146). Adds `IsolationKeyResolver`,
+  `IsolationKeyScopedConversationStorage` and
+  `IsolationKeyScopedAgentConversationIndex`, using the same escaped
+  `{key}::{id}` prefix as `IsolationKeyScopedAgentSessionStore`, and scopes
+  the `InMemoryResponsesService` response/conversation keys directly as
+  upstream does. Deviations: upstream resolves the key per request from
+  ASP.NET claims through request-scoped DI and wires the decorators in
+  `EndpointRouteBuilderExtensions`; the port's shelf routers take `storage`
+  and `index` as parameters, so `addOpenAIConversations` wraps the in-memory
+  defaults when an `AgentIsolationKeyProvider` is registered (strict, so a
+  host that configured isolation never silently falls back to a shared
+  namespace) and a host mounting its own storage wraps it the same way. The
+  ASP.NET endpoint wiring and the conversation-index cache bounding have no
+  counterpart.
+- **Responses client-function forwarding is opt-in** (2026-09-14, ports
+  upstream #7844). `OpenAIResponsesMapOptions.dangerouslyAllowClientFunctionTools`
+  selects `mapClientFunctionTools` as the default `runOptionsFactory`, which
+  forwards well-formed client function declarations as
+  `ChatClientAgentRunOptions.chatOptions.tools` and still rejects every other
+  tool entry and unsupported setting; `hasToolChoice` keeps a `tool_choice`
+  with no `ChatToolMode` equivalent from slipping through. Deviation:
+  `package:extensions` has no `AIFunctionFactory.createDeclaration`, so the
+  port subclasses the existing `AIFunctionDeclaration` directly as
+  `ClientAIFunctionDeclaration` (carrying `strict` in
+  `additionalProperties`) instead of wrapping a factory-produced declaration.
+- **Hosted-workflow `includeWorkflowOutputsInResponse` not ported**
+  (2026-09-14, upstream #8020 threads that flag from
+  `HostedWorkflowBuilderExtensions.AddAsAIAgent` into
+  `Workflow.AsAIAgent`). The port's `asAIAgent`/`WorkflowHostAgent` has no
+  such parameter — workflow outputs already flow through `yieldOutput` per
+  the Magentic divergence above — and the port's `addAsAIAgent` registers a
+  keyed agent rather than resolving the workflow and wrapping it, so there is
+  nothing to thread the flag through. Revisit if `WorkflowHostAgent` gains an
+  output-gating option.
+
 ## Verified faithful (do NOT re-flag as bugs)
 
 - `ScopeId` `==`/`hashCode` ignores `executorId` for named scopes — upstream
@@ -311,6 +400,11 @@ Hosting.AGUI.AspNetCore, Aspire.*.
   `GetOrAdd`+`SetDeserialized`.
 - Custom `_generateUuid` in `a2a_agent_handler` is a correct UUID v4
   (`package:uuid` is not allowlisted).
+- Upstream's public-API analyzer baselines (2026-09-14, #7935) are
+  `PublicAPI.{Shipped,Unshipped}.txt` build files with no Dart counterpart;
+  likewise the xunit/dependency bumps (#8202) and the `Shared/Workflows`
+  sample runner overload (#7913), which lives in sample infrastructure rather
+  than a ported project.
 - Upstream's 2026-08 removal of AGUI special cases in `ChatClientAgent`
   (#7741) needs no port — the AGUI provider-name checks were never ported
   (AGUI is out of scope). Likewise the camelCase tool-argument description

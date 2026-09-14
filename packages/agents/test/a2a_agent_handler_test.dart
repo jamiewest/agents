@@ -30,7 +30,7 @@ A2AAgentHandler _handler(
   AgentSessionStore? store,
 }) => A2AAgentHandler(
   AIHostAgent(agent, store ?? InMemoryAgentSessionStore()),
-  runMode ?? AgentRunMode.disallowBackground,
+  runMode ?? AgentRunMode.returnMessage,
 );
 
 void main() {
@@ -76,7 +76,7 @@ void main() {
 
         await _handler(
           agent,
-          runMode: AgentRunMode.allowBackgroundIfSupported,
+          runMode: AgentRunMode.returnTask,
         ).execute(_request(_userMessage('do work')), bus);
 
         final statuses = bus.published
@@ -89,6 +89,96 @@ void main() {
         expect(statuses.last.status!.message, isNotNull);
       },
     );
+
+    test(
+      'returnTask completes the task when the run already finished',
+      () async {
+        final agent = _FakeAgent(
+          responseBuilder: () => AgentResponse(
+            message: ChatMessage.fromText(ChatRole.assistant, 'all done'),
+          )..responseId = 'resp-1',
+        );
+        final bus = _CapturingEventBus();
+
+        await _handler(
+          agent,
+          runMode: AgentRunMode.returnTask,
+        ).execute(_request(_userMessage('do work')), bus);
+
+        // No continuation, so the caller gets a terminal task carrying the
+        // result rather than one stuck in the working state.
+        expect(
+          bus.published.whereType<A2ATaskStatusUpdateEvent>().map(
+            (s) => s.status!.state,
+          ),
+          [A2ATaskState.submitted, A2ATaskState.completed],
+        );
+        final artifacts = bus.published
+            .whereType<A2ATaskArtifactUpdateEvent>()
+            .toList();
+        expect(artifacts, hasLength(1));
+        expect(
+          (artifacts.single.artifact!.parts.single as A2ATextPart).text,
+          'all done',
+        );
+        expect(bus.published.whereType<A2AMessage>(), isEmpty);
+      },
+    );
+
+    test(
+      'returnMessage aggregates into a message even with a continuation',
+      () async {
+        final agent = _FakeAgent(
+          responseBuilder: () => AgentResponse(
+            message: ChatMessage.fromText(ChatRole.assistant, 'working on it'),
+          )..continuationToken = A2AContinuationToken('t-1'),
+        );
+        final bus = _CapturingEventBus();
+
+        // The run mode, not the continuation token, decides the artifact.
+        await _handler(
+          agent,
+          runMode: AgentRunMode.returnMessage,
+        ).execute(_request(_userMessage('do work')), bus);
+
+        expect(bus.published.whereType<A2AMessage>(), hasLength(1));
+        expect(bus.published.whereType<A2ATaskStatusUpdateEvent>(), isEmpty);
+      },
+    );
+
+    test('returnTaskWhen decides per request', () async {
+      final agent = _FakeAgent(
+        responseBuilder: () => AgentResponse(
+          message: ChatMessage.fromText(ChatRole.assistant, 'hi'),
+        ),
+      );
+      final seen = <String?>[];
+      final mode = AgentRunMode.returnTaskWhen((context, _) async {
+        seen.add(context.requestContext.contextId);
+        return true;
+      });
+      final bus = _CapturingEventBus();
+
+      await _handler(
+        agent,
+        runMode: mode,
+      ).execute(_request(_userMessage('hi')), bus);
+
+      expect(seen, ['ctx-1']);
+      expect(bus.published.whereType<A2ATaskStatusUpdateEvent>(), isNotEmpty);
+    });
+
+    test('does not set allowBackgroundResponses on the run options', () async {
+      final agent = _FakeAgent();
+      final bus = _CapturingEventBus();
+
+      await _handler(
+        agent,
+        runMode: AgentRunMode.returnTask,
+      ).execute(_request(_userMessage('hi')), bus);
+
+      expect(agent.receivedOptions?.allowBackgroundResponses, isNull);
+    });
 
     test('throws when the message references prior tasks', () async {
       final agent = _FakeAgent();
@@ -241,6 +331,7 @@ class _FakeAgent extends AIAgent {
   final AgentResponse Function()? responseBuilder;
   final bool throwOnRun;
   List<ChatMessage> receivedMessages = const [];
+  AgentRunOptions? receivedOptions;
 
   @override
   Future<AgentSession> createSessionCore({
@@ -269,6 +360,7 @@ class _FakeAgent extends AIAgent {
     CancellationToken? cancellationToken,
   }) async {
     receivedMessages = messages.toList();
+    receivedOptions = options;
     if (throwOnRun) {
       throw StateError('boom');
     }

@@ -403,7 +403,7 @@ Use these tools to store plans, memories, processing results, or downloaded data
       AIFunctionFactory.create(
         name: readFileToolName,
         description:
-            'Read the content of a memory file by name. Returns the file content or a message indicating the file was not found.',
+            'Read the content of a memory file by name. Returns the file content or a message indicating the file was not found. To edit by 1-based line number afterwards, count lines terminated by \\n, \\r\\n, or a lone \\r; each line keeps its own terminator, and content ending in a terminator has no extra empty line after it.',
         parametersSchema: _objectSchema({
           'fileName': 'The name of the file to read.',
         }),
@@ -491,7 +491,7 @@ Use these tools to store plans, memories, processing results, or downloaded data
       AIFunctionFactory.create(
         name: replaceLinesToolName,
         description:
-            'Replace lines in a memory file. Provide a list of edits, each with a 1-based line_number and a literal new_line (include your own trailing newline); an empty new_line deletes the line, including its line break. Fails on out-of-range or duplicate line numbers.',
+            'Replace lines in a memory file. Provide a list of edits, each with a 1-based line_number and a literal new_line (include your own trailing newline); an empty new_line deletes the line, including its line break. Fails on out-of-range or duplicate line numbers. Line numbers are 1-based and count lines terminated by \\n, \\r\\n, or a lone \\r; each line keeps its own terminator, and content ending in a terminator has no extra empty line after it.',
         parametersSchema: const {
           'type': 'object',
           'properties': {

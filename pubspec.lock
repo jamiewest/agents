@@ -285,18 +285,18 @@ packages:
     dependency: transitive
     description:
       name: extensions
-      sha256: cc4fb5675287a0cce06f6f32cf985e8871578777102d20ad812897aa34a790bd
+      sha256: b4032a4f8590bdfc5c7fdfdd0eb8c5223ba673e48b99429fb6823205bb3d195e
       url: "https://pub.dev"
     source: hosted
-    version: "0.6.0"
+    version: "0.7.1"
   extensions_flutter:
     dependency: transitive
     description:
       name: extensions_flutter
-      sha256: "6eaf2cbb59a110354b07e106c22fabdfd9cb48802c1aa3f38ab84cbaafa2b528"
+      sha256: ef0ba58f32094cbc48117be97836344a02c1bfbc62527f7242c7ba09ef5a7f38
       url: "https://pub.dev"
     source: hosted
-    version: "0.5.0"
+    version: "0.5.2"
   fake_async:
     dependency: transitive
     description:
