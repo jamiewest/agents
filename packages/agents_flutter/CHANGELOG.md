@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.3
+
+- Raised the `extensions` constraint to `^0.7.1` and `extensions_flutter` to
+  `^0.5.2`.
+
 ## 0.8.2
 
 - Agents can now author skills. A new skills module adds `SkillStore` and
