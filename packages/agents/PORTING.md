@@ -301,6 +301,30 @@ Hosting.AGUI.AspNetCore, Aspire.*.
   per-segment reparse-point walk — equivalent outcome (canonicalize
   resolves links), different mechanism.
 
+- **Background-agents wait timeout uses `ArgumentError` and mirrors the .NET
+  delay cap** (2026-08-31, ports upstream #7911 `WaitTimeout`). The wait tool
+  now races `Future.any` against `Future.timeout`, returning control (and
+  leaving the tasks running) when `waitTimeout` elapses; `Future.timeout`
+  never cancels the underlying futures, so it is the exact analogue of
+  upstream's `Task.WhenAny(firstCompletion, Task.Delay(...))` plus
+  `timeoutCts.Cancel()`. Deviations: upstream's
+  `ArgumentOutOfRangeException` becomes `ArgumentError.value` (Dart has no
+  range-specific subtype), and `maximumWaitTimeout` keeps upstream's
+  `uint.MaxValue - 1` ms value even though it is a .NET `Task.Delay`
+  constraint rather than a Dart one — retained so the validated option range
+  matches upstream, and because web `Timer` delays overflow past 2^31 ms
+  anyway. The timeout message reproduces C# `TotalSeconds:g` via
+  `_formatSeconds` (trailing `.0` stripped).
+- **`dotnet/src/Shared/Workflows` is sample-harness code, not a shipped
+  project** (2026-08-31, skip decision from upstream #7913, which added a
+  `ChatMessage` input overload to `Shared/Workflows/Execution/
+  WorkflowRunner.cs`). That file lives in `namespace Shared.Workflows`, is
+  `internal sealed`, drives `Console`/stdin, and targets
+  `Microsoft.Agents.AI.Workflows.Declarative` (out of scope). It is
+  console-sample plumbing shared by the declarative workflow samples, not
+  part of any ported namespace — `workflows/execution/` maps to
+  `Microsoft.Agents.AI.Workflows`, not to `Shared/`. Future drift runs
+  should classify `dotnet/src/Shared/Workflows/**` as out of scope.
 - **Shell policy regex timeouts not portable** (2026-09-21, upstream #8507).
   Upstream compiles every allow/deny pattern with a one-second
   `RegexMatchTimeout` so a catastrophically backtracking operator pattern

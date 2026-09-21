@@ -3,7 +3,8 @@
 ## 3.0.0
 
 Upstream drift sync against `microsoft/agent-framework` `dotnet/src`, covering
-everything from `92aec78` (2026-08-25) through `0799f6a` (2026-09-18). Skip
+everything through `0799f6a` (2026-09-18). 2.1.0 carried the 2026-08-25 →
+2026-08-31 slice of the same window; this release carries the rest. Skip
 decisions and deviations are recorded in `PORTING.md`.
 
 ### Breaking
@@ -59,9 +60,6 @@ decisions and deviations are recorded in `PORTING.md`.
 - `OpenAIResponsesMapOptions.dangerouslyAllowClientFunctionTools` forwards
   client-supplied function declarations as run-option tools while still
   rejecting other tool types and unsupported settings. (upstream #7844)
-- `BackgroundAgentsProviderOptions.waitTimeout` bounds
-  `BackgroundAgents_WaitForFirstCompletion`; on timeout the tasks keep running
-  and the tool can be called again. Defaults to five minutes. (upstream #7911)
 - `AgentModeProviderOptions.disableModeSetTool` / `disableModeGetTool` omit the
   corresponding built-in tool while keeping mode state and instructions, and
   `setMode` gains `disableNotification`. (upstream #8458)
@@ -90,7 +88,17 @@ decisions and deviations are recorded in `PORTING.md`.
 - Persistent PowerShell shell sessions clear `$LASTEXITCODE` before each
   command, so a stale exit code from an earlier command is no longer reported.
   (upstream #8259)
-- `extensions` is now `^0.7.1`.
+## 2.1.0
+
+- `BackgroundAgentsProvider`'s wait tool no longer blocks indefinitely. The
+  new `BackgroundAgentsProviderOptions.waitTimeout` (default five minutes,
+  validated against `maximumWaitTimeout`) bounds how long
+  `BackgroundAgents_WaitForFirstCompletion` waits; when it elapses the tool
+  returns a message saying the tasks are still running and can be waited on
+  again, leaving the background work untouched. The timeout is provider-
+  controlled — the tool's schema still exposes only `taskIds`. Ports upstream
+  #7911.
+- Raised the `extensions` constraint to `^0.7.1`.
 
 ## 2.0.0
 

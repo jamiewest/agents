@@ -2,11 +2,15 @@
 
 ## 0.9.0
 
-- **Breaking: requires `agents` ^3.0.0 and `extensions` ^0.7.1.** The A2A host
-  service follows the upstream rename of `AgentRunMode.disallowBackground` to
+- **Breaking: requires `agents` ^3.0.0.** The A2A host service follows the
+  upstream rename of `AgentRunMode.disallowBackground` to
   `AgentRunMode.returnMessage`; behavior is unchanged (a message response, as
   before). See the `agents` 3.0.0 changelog for the rest of that release.
-- `extensions_flutter` is now `^0.5.2`.
+
+## 0.8.3
+
+- Raised the `extensions` constraint to `^0.7.1` and `extensions_flutter` to
+  `^0.5.2`.
 
 ## 0.8.2
 

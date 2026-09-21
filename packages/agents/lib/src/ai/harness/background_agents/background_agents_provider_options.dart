@@ -6,6 +6,14 @@ import 'background_agents_provider.dart';
 class BackgroundAgentsProviderOptions {
   BackgroundAgentsProviderOptions();
 
+  /// The default value of [waitTimeout]: five minutes.
+  static const Duration defaultWaitTimeout = Duration(minutes: 5);
+
+  /// The largest value [waitTimeout] may take: 4,294,967,294 milliseconds.
+  ///
+  /// Mirrors upstream's `uint.MaxValue - 1` cap on a single delay.
+  static const Duration maximumWaitTimeout = Duration(milliseconds: 4294967294);
+
   /// Custom instructions provided to the agent for using the background agent
   /// tools.
   ///
@@ -20,19 +28,9 @@ class BackgroundAgentsProviderOptions {
   /// The maximum amount of time the wait tool blocks for a background task to
   /// complete.
   ///
-  /// The default is five minutes. The value must be greater than
+  /// Defaults to [defaultWaitTimeout]. The value must be greater than
   /// [Duration.zero] and must not exceed [maximumWaitTimeout]. When the
   /// timeout elapses the tool returns control to the agent and leaves the
-  /// background tasks running, so it can be called again to keep waiting.
+  /// background tasks running.
   Duration waitTimeout = defaultWaitTimeout;
-
-  /// The default value of [waitTimeout].
-  static const Duration defaultWaitTimeout = Duration(minutes: 5);
-
-  /// The largest value [waitTimeout] may take.
-  ///
-  /// Mirrors upstream's `uint.MaxValue - 1` millisecond cap (~49.7 days),
-  /// which is also the largest delay a `Timer` can represent when this
-  /// package is compiled to JavaScript.
-  static const Duration maximumWaitTimeout = Duration(milliseconds: 4294967294);
 }

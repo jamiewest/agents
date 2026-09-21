@@ -26,8 +26,8 @@ import 'package:agents/src/abstractions/invoking_context.dart';
 ///
 /// * `BackgroundAgents_StartTask` — Start a background task on a named agent
 ///   with text input. Returns the task ID.
-/// * `BackgroundAgents_WaitForFirstCompletion` — Wait until the first of the
-///   specified tasks completes or the configured timeout expires. A timeout
+/// * `BackgroundAgents_WaitForFirstCompletion` — Wait until the first
+///   specified task completes or the configured timeout expires. A timeout
 ///   leaves the tasks running so the tool can be called again.
 /// * `BackgroundAgents_GetTaskResults` — Retrieve the text output of a
 ///   completed background task.
@@ -46,26 +46,29 @@ import 'package:agents/src/abstractions/invoking_context.dart';
 class BackgroundAgentsProvider extends AIContextProvider {
   /// Creates a [BackgroundAgentsProvider] with the given [agents] and optional
   /// [options].
+  ///
+  /// Throws an [ArgumentError] when
+  /// [BackgroundAgentsProviderOptions.waitTimeout] is not positive or exceeds
+  /// [BackgroundAgentsProviderOptions.maximumWaitTimeout].
   BackgroundAgentsProvider(
     Iterable<AIAgent> agents, {
     BackgroundAgentsProviderOptions? options,
-  }) : _agents = validateAndBuildAgentDictionary(agents),
-       _waitTimeout =
-           options?.waitTimeout ??
-           BackgroundAgentsProviderOptions.defaultWaitTimeout {
+  }) : _agents = validateAndBuildAgentDictionary(agents) {
+    _waitTimeout =
+        options?.waitTimeout ??
+        BackgroundAgentsProviderOptions.defaultWaitTimeout;
     if (_waitTimeout <= Duration.zero) {
-      throw RangeError.value(
-        _waitTimeout.inMilliseconds,
-        'options.waitTimeout',
-        'must be positive',
+      throw ArgumentError.value(
+        _waitTimeout,
+        'options',
+        'waitTimeout must be positive',
       );
     }
-
     if (_waitTimeout > BackgroundAgentsProviderOptions.maximumWaitTimeout) {
-      throw RangeError.value(
-        _waitTimeout.inMilliseconds,
-        'options.waitTimeout',
-        'must not exceed '
+      throw ArgumentError.value(
+        _waitTimeout,
+        'options',
+        'waitTimeout must not exceed '
             '${BackgroundAgentsProviderOptions.maximumWaitTimeout.inMilliseconds}'
             ' milliseconds',
       );
@@ -123,14 +126,14 @@ You have access to background agents that can perform work on your behalf.
 
   final Map<String, AIAgent> _agents;
 
-  final Duration _waitTimeout;
-
   late final ProviderSessionState<BackgroundAgentState> _sessionState;
 
   late final ProviderSessionState<BackgroundAgentRuntimeState>
   _runtimeSessionState;
 
   late final String _instructions;
+
+  late final Duration _waitTimeout;
 
   List<String>? _stateKeys;
 
@@ -685,22 +688,9 @@ You have access to background agents that can perform work on your behalf.
 
           // Wait for the first task to complete, but return control without
           // stopping the tasks if the timeout elapses.
-          final timedOut = Completer<void>();
-          final timeoutTimer = Timer(_waitTimeout, () {
-            if (!timedOut.isCompleted) {
-              timedOut.complete();
-            }
-          });
-
-          final int? completedId;
-          try {
-            completedId = await Future.any(<Future<int?>>[
-              ...waitableTasks.map((t) => t.task.completion.then((_) => t.id)),
-              timedOut.future.then((_) => null),
-            ]);
-          } finally {
-            timeoutTimer.cancel();
-          }
+          final completedId = await Future.any(
+            waitableTasks.map((t) => t.task.completion.then<int?>((_) => t.id)),
+          ).timeout(_waitTimeout, onTimeout: () => null);
 
           if (completedId == null) {
             return 'No background task completed within '
@@ -956,13 +946,14 @@ You have access to background agents that can perform work on your behalf.
     return null;
   }
 
-  /// Formats [duration] as a whole number of seconds where it is exact, and
-  /// with fractional seconds otherwise (mirrors the C# `:g` format).
+  /// Renders [duration] as a count of seconds without a trailing `.0`,
+  /// matching the C# `TimeSpan.TotalSeconds:g` format used in the timeout
+  /// message (300 seconds → `300`, 50 ms → `0.05`).
   static String _formatSeconds(Duration duration) {
-    final seconds = duration.inMicroseconds / Duration.microsecondsPerSecond;
-    return seconds == seconds.roundToDouble()
-        ? seconds.toStringAsFixed(0)
-        : seconds.toString();
+    final seconds =
+        duration.inMicroseconds / Duration.microsecondsPerSecond.toDouble();
+    final text = seconds.toString();
+    return text.endsWith('.0') ? text.substring(0, text.length - 2) : text;
   }
 
   static String _statusName(BackgroundTaskStatus status) {
