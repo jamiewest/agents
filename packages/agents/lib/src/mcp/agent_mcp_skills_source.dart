@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:extensions/system.dart';
 import 'package:mcp_dart/mcp_dart.dart' as mcp;
 import 'package:path/path.dart' as p;
@@ -295,7 +297,12 @@ class McpSkillIndexEntry {
   /// MCP resource URI.
   final String? url;
 
-  /// Optional digest from non-MCP indexes.
+  /// The SHA-256 digest of the artifact bytes, formatted as `sha256:`
+  /// followed by 64 lowercase hexadecimal characters.
+  ///
+  /// Required by the base v0.2.0 schema but optional under this MCP index
+  /// binding. Supplied archive digests are verified before extraction;
+  /// verification does not apply to `skill-md` entries.
   final String? digest;
 
   /// Parses a skill index entry from JSON.
@@ -431,7 +438,46 @@ class _ArchiveEntryLoader {
     if (bytes.isEmpty || bytes.length > maxSize) {
       return null;
     }
+
+    final digest = entry.digest;
+    if (digest != null && !_verifyDigest(entry.name!, digest, bytes)) {
+      return null;
+    }
+
     return (Uint8List.fromList(bytes), blob.mimeType);
+  }
+
+  /// Verifies a supplied digest against decoded archive bytes before
+  /// extraction.
+  bool _verifyDigest(String skillName, String digest, List<int> bytes) {
+    if (!_archiveDigestPattern.hasMatch(digest)) {
+      _logDigestVerificationFailed(
+        skillName,
+        "digest must be 'sha256:' followed by 64 lowercase hexadecimal "
+        'characters',
+      );
+      return false;
+    }
+
+    final actualDigest = crypto.sha256.convert(bytes).toString();
+    if (actualDigest.toLowerCase() !=
+        digest.substring('sha256:'.length).toLowerCase()) {
+      _logDigestVerificationFailed(
+        skillName,
+        'digest does not match downloaded content',
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  static void _logDigestVerificationFailed(String skillName, String reason) {
+    developer.log(
+      "Skipping archive skill '$skillName': $reason",
+      name: 'AgentMcpSkillsSource',
+      level: 900,
+    );
   }
 
   bool _isValidArchiveEntry(McpSkillIndexEntry entry) {
@@ -473,16 +519,13 @@ class _ArchiveEntryLoader {
     _ArchiveFormat format,
     String targetDirectory,
   ) {
-    final archive = switch (format) {
-      _ArchiveFormat.zip => ZipDecoder().decodeBytes(bytes),
-      _ArchiveFormat.tar => TarDecoder().decodeBytes(bytes),
-      _ArchiveFormat.tarGz => TarDecoder().decodeBytes(
-        Uint8List.fromList(GZipDecoder().decodeBytes(bytes)),
-      ),
-      _ArchiveFormat.unknown => throw UnsupportedError(
-        'Unknown archive format.',
-      ),
-    };
+    if (format != _ArchiveFormat.zip) {
+      throw UnsupportedError(
+        "Unsupported skill archive format '${format.name}'. Use ZIP instead.",
+      );
+    }
+
+    final archive = ZipDecoder().decodeBytes(bytes);
 
     Directory(targetDirectory).createSync(recursive: true);
     final fullTarget = p.canonicalize(targetDirectory);
@@ -533,15 +576,21 @@ const List<String> _defaultArchiveResourceExtensions = [
   '.csx',
 ];
 
-enum _ArchiveFormat { unknown, zip, tar, tarGz }
+/// Matches a `sha256:` digest followed by 64 lowercase hexadecimal
+/// characters.
+final RegExp _archiveDigestPattern = RegExp(r'^sha256:[0-9a-f]{64}$');
+
+enum _ArchiveFormat { unknown, zip }
 
 _ArchiveFormat _detectArchiveFormat(
   List<int> bytes,
   String? mediaType,
   String? url,
 ) {
+  // Reject gzip by signature before considering a potentially incorrect MIME
+  // type or URL hint.
   if (bytes.length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
-    return _ArchiveFormat.tarGz;
+    return _ArchiveFormat.unknown;
   }
   if (bytes.length >= 4 &&
       bytes[0] == 0x50 &&
@@ -554,24 +603,10 @@ _ArchiveFormat _detectArchiveFormat(
   if (media == 'application/zip' || media == 'application/x-zip-compressed') {
     return _ArchiveFormat.zip;
   }
-  if (media == 'application/gzip' ||
-      media == 'application/x-gzip' ||
-      media == 'application/x-compressed-tar') {
-    return _ArchiveFormat.tarGz;
-  }
-  if (media == 'application/x-tar' || media == 'application/tar') {
-    return _ArchiveFormat.tar;
-  }
 
   final lowerUrl = (url ?? '').toLowerCase();
   if (lowerUrl.endsWith('.zip')) {
     return _ArchiveFormat.zip;
-  }
-  if (lowerUrl.endsWith('.tar.gz') || lowerUrl.endsWith('.tgz')) {
-    return _ArchiveFormat.tarGz;
-  }
-  if (lowerUrl.endsWith('.tar')) {
-    return _ArchiveFormat.tar;
   }
   return _ArchiveFormat.unknown;
 }

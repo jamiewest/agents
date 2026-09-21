@@ -91,14 +91,6 @@ extension ChatClientExtensions on ChatClient {
       );
     }
 
-    final agentChatClient = chatBuilder.build();
-    final tools = options?.chatOptions?.tools;
-    if (tools != null && tools.isNotEmpty) {
-      final functionService = agentChatClient
-          .getService<FunctionInvokingChatClient>();
-      functionService?.additionalTools = List<AITool>.of(tools);
-    }
-
-    return agentChatClient;
+    return chatBuilder.build();
   }
 }

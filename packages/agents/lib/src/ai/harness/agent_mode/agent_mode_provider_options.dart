@@ -16,6 +16,20 @@ class AgentModeProviderOptions {
 
   /// Initial mode for new sessions.
   String? defaultMode;
+
+  /// Whether the built-in `AgentMode_Set` tool is disabled.
+  ///
+  /// When `false` (the default), the provider exposes the tool. When `true`,
+  /// the tool is not exposed, while mode state and instructions remain
+  /// enabled.
+  bool disableModeSetTool = false;
+
+  /// Whether the built-in `AgentMode_Get` tool is disabled.
+  ///
+  /// When `false` (the default), the provider exposes the tool. When `true`,
+  /// the tool is not exposed, while mode state and instructions remain
+  /// enabled.
+  bool disableModeGetTool = false;
 }
 
 /// Represents an agent operating mode with a name and description.

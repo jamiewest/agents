@@ -30,7 +30,7 @@ A2AAgentHandler _handler(
   AgentSessionStore? store,
 }) => A2AAgentHandler(
   AIHostAgent(agent, store ?? InMemoryAgentSessionStore()),
-  runMode ?? AgentRunMode.disallowBackground,
+  runMode ?? AgentRunMode.returnMessage,
 );
 
 void main() {
@@ -76,7 +76,7 @@ void main() {
 
         await _handler(
           agent,
-          runMode: AgentRunMode.allowBackgroundIfSupported,
+          runMode: AgentRunMode.returnTask,
         ).execute(_request(_userMessage('do work')), bus);
 
         final statuses = bus.published
@@ -87,6 +87,54 @@ void main() {
           A2ATaskState.working,
         ]);
         expect(statuses.last.status!.message, isNotNull);
+      },
+    );
+
+    test(
+      'returnTask completes the task with an artifact when the run finishes',
+      () async {
+        final agent = _FakeAgent(
+          responseBuilder: () => AgentResponse(
+            message: ChatMessage.fromText(ChatRole.assistant, 'all done'),
+          ),
+        );
+        final bus = _CapturingEventBus();
+
+        await _handler(
+          agent,
+          runMode: AgentRunMode.returnTask,
+        ).execute(_request(_userMessage('go')), bus);
+
+        final statuses = bus.published
+            .whereType<A2ATaskStatusUpdateEvent>()
+            .toList();
+        expect(statuses.map((s) => s.status!.state), [
+          A2ATaskState.submitted,
+          A2ATaskState.completed,
+        ]);
+        expect(
+          bus.published.whereType<A2ATaskArtifactUpdateEvent>(),
+          hasLength(1),
+        );
+        // The run mode, not the continuation token, decides the artifact.
+        expect(bus.published.whereType<A2AMessage>(), isEmpty);
+      },
+    );
+
+    test(
+      'returnMessage answers with a message even with a continuation',
+      () async {
+        final agent = _FakeAgent(
+          responseBuilder: () => AgentResponse(
+            message: ChatMessage.fromText(ChatRole.assistant, 'working'),
+          )..continuationToken = A2AContinuationToken('t-1'),
+        );
+        final bus = _CapturingEventBus();
+
+        await _handler(agent).execute(_request(_userMessage('go')), bus);
+
+        expect(bus.published.whereType<A2AMessage>(), hasLength(1));
+        expect(bus.published.whereType<A2ATaskStatusUpdateEvent>(), isEmpty);
       },
     );
 

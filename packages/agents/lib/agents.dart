@@ -79,6 +79,7 @@ export 'src/ai/ai_context_provider_decorators/ai_context_provider_chat_client.da
 export 'src/ai/ai_context_provider_decorators/message_ai_context_provider_agent.dart';
 
 // AI — chat client
+export 'src/ai/chat_client/ai_agent_chat_client.dart';
 export 'src/ai/chat_client/chat_client_agent.dart';
 export 'src/ai/chat_client/chat_client_agent_continuation_token.dart';
 export 'src/ai/chat_client/chat_client_agent_custom_options.dart';
@@ -221,6 +222,8 @@ export 'src/ai/skills/decorators/delegating_agent_skills_source.dart';
 export 'src/ai/skills/decorators/filtering_agent_skills_source.dart';
 export 'src/ai/skills/file/agent_file_skill.dart';
 export 'src/ai/skills/file/agent_file_skill_filter_context.dart';
+export 'src/ai/skills/file/agent_file_skill_path_scope.dart';
+export 'src/ai/skills/file/agent_file_skill_path_validator.dart';
 export 'src/ai/skills/file/agent_file_skill_resource.dart';
 export 'src/ai/skills/file/agent_file_skill_script.dart';
 export 'src/ai/skills/file/agent_file_skill_script_runner.dart';

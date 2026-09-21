@@ -11,6 +11,12 @@ class CachingAgentSkillsSourceOptions {
   /// stored in the shared cache bucket. When it returns a non-null string, the
   /// skills are cached under that key.
   ///
+  /// The shared cache bucket is used across all invocations of the provider.
+  /// If the inner source returns skills that vary by session, user, tenant, or
+  /// another security boundary, configure a key that provides the required
+  /// isolation or disable caching through
+  /// `AgentSkillsProviderBuilder.disableCaching`.
+  ///
   /// The isolation key should be low-cardinality and stable. High-cardinality
   /// keys (for example, per-session IDs) can cause the cache to grow without
   /// bound.

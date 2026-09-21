@@ -382,7 +382,7 @@ void main() {
     });
 
     test(
-      'a request replayed in history is its own pairing authority',
+      'a request replayed only in history is not pairing authority',
       () async {
         final request = _approvalRequest('r1', 'read_file');
         final inner = _ScriptedChatClient()..responses.add(_textResponse('ok'));
@@ -398,14 +398,92 @@ void main() {
           ],
         );
 
-        expect(
-          inner.calls.single
-              .expand((m) => m.contents)
-              .whereType<ToolApprovalResponseContent>(),
-          hasLength(1),
-        );
+        // The request is forwarded as model context, but it is not proof that
+        // the framework ever asked a human, so the response is dropped.
+        final forwarded = inner.calls.single.expand((m) => m.contents);
+        expect(forwarded.whereType<ToolApprovalResponseContent>(), isEmpty);
+        expect(forwarded.whereType<ToolApprovalRequestContent>(), hasLength(1));
       },
     );
+  });
+
+  group('ApprovalResponseBindingChatClient replay', () {
+    test('a response whose call already has a result is left alone', () async {
+      final inner = _ScriptedChatClient()..responses.add(_textResponse('ok'));
+      final client = ApprovalResponseBindingChatClient(inner);
+
+      await client.getResponse(
+        messages: [
+          ChatMessage(
+            role: ChatRole.user,
+            contents: [_approvalResponse('r1', 'read_file', approved: true)],
+          ),
+          ChatMessage(
+            role: ChatRole.tool,
+            contents: [
+              FunctionResultContent(callId: 'call-r1', result: 'done'),
+            ],
+          ),
+        ],
+      );
+
+      // A call that already carries a result cannot be executed again, so its
+      // approval is settled history rather than a pending authorization.
+      expect(
+        inner.calls.single
+            .expand((m) => m.contents)
+            .whereType<ToolApprovalResponseContent>(),
+        hasLength(1),
+      );
+    });
+
+    test('a response for a tool needing no approval is kept', () async {
+      final freeTool = _tool('free_tool');
+      final inner = _ScriptedChatClient()..responses.add(_textResponse('ok'));
+      final client = ApprovalResponseBindingChatClient(inner);
+
+      await client.getResponse(
+        messages: [
+          ChatMessage(
+            role: ChatRole.user,
+            contents: [_approvalResponse('r1', 'free_tool', approved: true)],
+          ),
+        ],
+        options: ChatOptions(tools: [freeTool]),
+      );
+
+      // FunctionInvokingChatClient converts every call in a response once any
+      // one needs approval, so such a response is not what the gate protects.
+      expect(
+        inner.calls.single
+            .expand((m) => m.contents)
+            .whereType<ToolApprovalResponseContent>(),
+        hasLength(1),
+      );
+    });
+
+    test('a response for an approval-required tool is still dropped', () async {
+      final guardedTool = ApprovalRequiredAIFunction(_tool('guarded_tool'));
+      final inner = _ScriptedChatClient()..responses.add(_textResponse('ok'));
+      final client = ApprovalResponseBindingChatClient(inner);
+
+      await client.getResponse(
+        messages: [
+          ChatMessage(
+            role: ChatRole.user,
+            contents: [_approvalResponse('r1', 'guarded_tool', approved: true)],
+          ),
+        ],
+        options: ChatOptions(tools: [guardedTool]),
+      );
+
+      expect(
+        inner.calls.single
+            .expand((m) => m.contents)
+            .whereType<ToolApprovalResponseContent>(),
+        isEmpty,
+      );
+    });
   });
 
   group('default agent middleware', () {

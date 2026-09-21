@@ -199,6 +199,69 @@ void main() {
       expect(result, contains('finished with status: Completed'));
     });
 
+    test('wait for first completion returns on timeout', () async {
+      // The task never completes, so only the wait timeout can end the call.
+      final agent = TestAgent.withRunResult(
+        'Research',
+        Completer<AgentResponse>().future,
+      );
+      final tools = await createTools(
+        agent,
+        options: BackgroundAgentsProviderOptions()
+          ..waitTimeout = const Duration(milliseconds: 20),
+      );
+      final startTask = getTool(tools, 'BackgroundAgents_StartTask');
+      final waitForFirst = getTool(
+        tools,
+        'BackgroundAgents_WaitForFirstCompletion',
+      );
+
+      await startTask.invoke(
+        AIFunctionArguments({
+          'agentName': 'Research',
+          'input': 'Task 1',
+          'description': 'First task',
+        }),
+      );
+
+      final result = await waitForFirst.invoke(
+        AIFunctionArguments({
+          'taskIds': [1],
+        }),
+      );
+
+      expect(result, contains('No background task completed within'));
+      expect(result, contains('still running'));
+    });
+
+    test('a non-positive wait timeout is rejected', () {
+      final agent = TestAgent('Research', 'Research agent');
+
+      expect(
+        () => BackgroundAgentsProvider(
+          [agent],
+          options: BackgroundAgentsProviderOptions()
+            ..waitTimeout = Duration.zero,
+        ),
+        throwsRangeError,
+      );
+    });
+
+    test('a wait timeout beyond the maximum is rejected', () {
+      final agent = TestAgent('Research', 'Research agent');
+
+      expect(
+        () => BackgroundAgentsProvider(
+          [agent],
+          options: BackgroundAgentsProviderOptions()
+            ..waitTimeout =
+                BackgroundAgentsProviderOptions.maximumWaitTimeout +
+                const Duration(milliseconds: 1),
+        ),
+        throwsRangeError,
+      );
+    });
+
     test(
       'wait for first completion with empty list returns an error',
       () async {
@@ -678,8 +741,11 @@ void main() {
   });
 }
 
-Future<Iterable<AITool>> createTools(TestAgent agent) async {
-  final provider = BackgroundAgentsProvider([agent]);
+Future<Iterable<AITool>> createTools(
+  TestAgent agent, {
+  BackgroundAgentsProviderOptions? options,
+}) async {
+  final provider = BackgroundAgentsProvider([agent], options: options);
   final result = await provider.invoking(createInvokingContext());
   return result.tools!;
 }

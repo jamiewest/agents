@@ -10,11 +10,11 @@ class FileAccessProviderOptions {
 
   /// Whether the tools that modify the store (write, delete, replace, and
   /// replace_lines) are omitted, exposing only the read-only tools (read,
-  /// ls, and grep).
+  /// read_lines, ls, and grep).
   bool disableWriteTools = false;
 
-  /// Whether approval is disabled for the read-only tools (read, ls, and
-  /// grep).
+  /// Whether approval is disabled for the read-only tools (read, read_lines,
+  /// ls, and grep).
   ///
   /// When `false` (the default), the read-only tools require approval before
   /// invocation. When approval is required, auto-approval rules (e.g.

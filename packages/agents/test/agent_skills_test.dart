@@ -331,6 +331,109 @@ Use the file skill.
       );
     });
 
+    test('rejects an incorrectly cased frontmatter field', () async {
+      final root = await Directory.systemTemp.createTemp('agent_skills_test_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final skillDir = Directory('${root.path}/cased-skill')..createSync();
+      File('${skillDir.path}/SKILL.md').writeAsStringSync('''
+---
+Name: cased-skill
+description: Casing variants are rejected rather than silently honored
+---
+Body.
+''');
+
+      final source = AgentFileSkillsSource([root.path]);
+
+      expect(await source.getSkills(_skillsContext), isEmpty);
+    });
+
+    test('rejects a duplicated frontmatter field', () async {
+      final root = await Directory.systemTemp.createTemp('agent_skills_test_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final skillDir = Directory('${root.path}/dup-skill')..createSync();
+      File('${skillDir.path}/SKILL.md').writeAsStringSync('''
+---
+name: dup-skill
+name: other-skill
+description: Duplicates are rejected rather than silently resolved
+---
+Body.
+''');
+
+      final source = AgentFileSkillsSource([root.path]);
+
+      expect(await source.getSkills(_skillsContext), isEmpty);
+    });
+
+    test('keeps the first value for a duplicate metadata key', () async {
+      final root = await Directory.systemTemp.createTemp('agent_skills_test_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final skillDir = Directory('${root.path}/meta-skill')..createSync();
+      File('${skillDir.path}/SKILL.md').writeAsStringSync('''
+---
+name: meta-skill
+description: Metadata keys are compared case-insensitively
+metadata:
+  owner: first
+  Owner: second
+---
+Body.
+''');
+
+      final source = AgentFileSkillsSource([root.path]);
+      final skill = (await source.getSkills(_skillsContext)).single;
+
+      // The first value and key spelling win, and the skill is not rejected.
+      expect(skill.frontmatter.metadata, containsPair('owner', 'first'));
+      expect(skill.frontmatter.metadata, isNot(contains('Owner')));
+    });
+
+    test('an empty optional field declaration leaves it unset', () async {
+      final root = await Directory.systemTemp.createTemp('agent_skills_test_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final skillDir = Directory('${root.path}/empty-skill')..createSync();
+      File('${skillDir.path}/SKILL.md').writeAsStringSync('''
+---
+name: empty-skill
+description: An empty declaration participates in key validation only
+license:
+---
+Body.
+''');
+
+      final source = AgentFileSkillsSource([root.path]);
+      final skill = (await source.getSkills(_skillsContext)).single;
+
+      expect(skill.frontmatter.license, isNull);
+    });
+
+    test('a resource is revalidated against its scope before use', () async {
+      final root = await Directory.systemTemp.createTemp('agent_skills_test_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final skillDir = Directory('${root.path}/scoped-skill')..createSync();
+      File('${skillDir.path}/SKILL.md').writeAsStringSync('''
+---
+name: scoped-skill
+description: Discovered files are revalidated immediately before use
+---
+Body.
+''');
+      Directory('${skillDir.path}/references').createSync();
+      final resourceFile = File('${skillDir.path}/references/guide.md')
+        ..writeAsStringSync('guide');
+
+      final source = AgentFileSkillsSource([root.path]);
+      final skill = (await source.getSkills(_skillsContext)).single;
+      final resource = skill.resources!.single;
+      expect(await resource.read(), 'guide');
+
+      // Deleting the file after discovery must surface as an error rather
+      // than reading whatever now sits at that path.
+      resourceFile.deleteSync();
+      await expectLater(resource.read(), throwsA(isA<FileSystemException>()));
+    });
+
     test('normalizes directories and validates extensions', () {
       expect(
         AgentFileSkillsSource.normalizePath(r'.\references\guide.md'),

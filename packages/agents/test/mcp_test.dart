@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart' as crypto;
 
 import 'package:agents/src/abstractions/agent_response.dart';
 import 'package:agents/src/abstractions/agent_response_update.dart';
@@ -283,6 +286,124 @@ void main() {
       );
       expect(await source.getSkills(_skillsContext), isEmpty);
       expect(Directory('${root.path}/zip-skill').existsSync(), isFalse);
+    });
+
+    test('verifies a supplied archive digest', () async {
+      final root = await Directory.systemTemp.createTemp('mcp_digest_test_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      const archiveUri = 'skill://zip-skill/archive.zip';
+      final archive = _zipSkillArchive();
+      final digest = crypto.sha256.convert(archive).toString();
+      final client = _FakeMcpClient()
+        ..resources[AgentMcpSkillsSource.indexUri] = _textResource(
+          jsonEncode({
+            'skills': [
+              {
+                'name': 'zip-skill',
+                'type': 'archive',
+                'description': 'Digest skill',
+                'url': archiveUri,
+                'digest': 'sha256:$digest',
+              },
+            ],
+          }),
+        )
+        ..resources[archiveUri] = _blobResource(archive);
+
+      final skills = await AgentMcpSkillsSource(
+        client,
+        options: AgentMcpSkillsSourceOptions(archiveSkillsDirectory: root.path),
+      ).getSkills(_skillsContext);
+
+      expect(skills.single.frontmatter.name, 'zip-skill');
+    });
+
+    test('skips an archive whose digest does not match', () async {
+      final root = await Directory.systemTemp.createTemp('mcp_digest_test_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      const archiveUri = 'skill://zip-skill/archive.zip';
+      final client = _FakeMcpClient()
+        ..resources[AgentMcpSkillsSource.indexUri] = _textResource(
+          jsonEncode({
+            'skills': [
+              {
+                'name': 'zip-skill',
+                'type': 'archive',
+                'description': 'Digest skill',
+                'url': archiveUri,
+                'digest': 'sha256:${'0' * 64}',
+              },
+            ],
+          }),
+        )
+        ..resources[archiveUri] = _blobResource(_zipSkillArchive());
+
+      final skills = await AgentMcpSkillsSource(
+        client,
+        options: AgentMcpSkillsSourceOptions(archiveSkillsDirectory: root.path),
+      ).getSkills(_skillsContext);
+
+      expect(skills, isEmpty);
+      expect(Directory('${root.path}/zip-skill').existsSync(), isFalse);
+    });
+
+    test('skips an archive whose digest is malformed', () async {
+      final root = await Directory.systemTemp.createTemp('mcp_digest_test_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      const archiveUri = 'skill://zip-skill/archive.zip';
+      final client = _FakeMcpClient()
+        ..resources[AgentMcpSkillsSource.indexUri] = _textResource(
+          jsonEncode({
+            'skills': [
+              {
+                'name': 'zip-skill',
+                'type': 'archive',
+                'description': 'Digest skill',
+                'url': archiveUri,
+                'digest': 'md5:whatever',
+              },
+            ],
+          }),
+        )
+        ..resources[archiveUri] = _blobResource(_zipSkillArchive());
+
+      final skills = await AgentMcpSkillsSource(
+        client,
+        options: AgentMcpSkillsSourceOptions(archiveSkillsDirectory: root.path),
+      ).getSkills(_skillsContext);
+
+      expect(skills, isEmpty);
+    });
+
+    test('rejects a gzip payload by signature', () async {
+      final root = await Directory.systemTemp.createTemp('mcp_gzip_test_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      const archiveUri = 'skill://zip-skill/archive.zip';
+      final client = _FakeMcpClient()
+        ..resources[AgentMcpSkillsSource.indexUri] = _textResource(
+          jsonEncode({
+            'skills': [
+              {
+                'name': 'zip-skill',
+                'type': 'archive',
+                'description': 'Tar skill',
+                'url': archiveUri,
+              },
+            ],
+          }),
+        )
+        // ZIP is the only supported format; a gzip signature is rejected even
+        // though the URL ends in .zip.
+        ..resources[archiveUri] = _blobResource(
+          Uint8List.fromList([0x1f, 0x8b, 0x08, 0x00, 0x00]),
+        );
+
+      final skills = await AgentMcpSkillsSource(
+        client,
+        options: AgentMcpSkillsSourceOptions(archiveSkillsDirectory: root.path),
+      ).getSkills(_skillsContext);
+
+      expect(skills, isEmpty);
     });
 
     test('skips archives that exceed extraction limits', () async {

@@ -44,7 +44,7 @@ void main() {
         ..addA2AServer(
           agentName: 'myAgent',
           configureOptions: (options) =>
-              options.agentRunMode = AgentRunMode.allowBackgroundIfSupported,
+              options.agentRunMode = AgentRunMode.returnTask,
         );
       final provider = services.buildServiceProvider();
 

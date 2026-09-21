@@ -14,6 +14,8 @@ import '../agent_skills_source.dart';
 import '../agent_skills_source_context.dart';
 import 'agent_file_skill.dart';
 import 'agent_file_skill_filter_context.dart';
+import 'agent_file_skill_path_scope.dart';
+import 'agent_file_skill_path_validator.dart';
 import 'agent_file_skill_resource.dart';
 import 'agent_file_skill_script.dart';
 import 'agent_file_skill_script_runner.dart';
@@ -24,6 +26,11 @@ import 'agent_file_skills_source_options.dart';
 ///
 /// Symbolic links below configured roots are not followed during skill
 /// discovery, and paths that cannot be inspected are skipped as unsafe.
+///
+/// Recognized top-level frontmatter fields must use lowercase names and must
+/// not be repeated. Within the optional metadata mapping, keys are compared
+/// case-insensitively: the first value is retained for duplicate keys, and
+/// subsequent entries produce warnings without rejecting the skill.
 class AgentFileSkillsSource extends AgentSkillsSource {
   AgentFileSkillsSource(
     Iterable<String> skillPaths, {
@@ -111,11 +118,11 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     AgentSkillsSourceContext context, {
     CancellationToken? cancellationToken,
   }) async {
-    final discoveredPaths = discoverSkillDirectories(_skillPaths);
-    logSkillsDiscovered(_logger, discoveredPaths.length);
+    final discoveredScopes = discoverSkillScopes(_skillPaths);
+    logSkillsDiscovered(_logger, discoveredScopes.length);
     final skills = <AgentSkill>[];
-    for (final skillPath in discoveredPaths) {
-      final skill = parseSkillDirectory(skillPath);
+    for (final scope in discoveredScopes) {
+      final skill = parseSkillScope(scope);
       if (skill != null) {
         skills.add(skill);
         logSkillLoaded(_logger, skill.frontmatter.name);
@@ -126,19 +133,38 @@ class AgentFileSkillsSource extends AgentSkillsSource {
   }
 
   List<String> discoverSkillDirectories(Iterable<String> skillPaths) {
-    final discoveredPaths = <String>[];
+    return [
+      for (final scope in discoverSkillScopes(skillPaths))
+        scope.skillDirectoryPath,
+    ];
+  }
+
+  /// Discovers skill directories and pairs each with the configured discovery
+  /// root it was found under, so files can be revalidated against that root
+  /// immediately before use.
+  List<AgentFileSkillPathScope> discoverSkillScopes(
+    Iterable<String> skillPaths,
+  ) {
+    final discoveredScopes = <AgentFileSkillPathScope>[];
     for (final rootDirectory in skillPaths) {
       if (rootDirectory.trim().isEmpty ||
           !_fs.directory(rootDirectory).existsSync()) {
         continue;
       }
+      final trustedRootFullPath = p.canonicalize(rootDirectory);
+      final discoveredPaths = <String>[];
       searchDirectoriesForSkills(
-        p.canonicalize(rootDirectory),
+        trustedRootFullPath,
         discoveredPaths,
         currentDepth: 0,
       );
+      for (final skillDirectory in discoveredPaths) {
+        discoveredScopes.add(
+          AgentFileSkillPathScope(trustedRootFullPath, skillDirectory),
+        );
+      }
     }
-    return discoveredPaths;
+    return discoveredScopes;
   }
 
   void searchDirectoriesForSkills(
@@ -180,14 +206,8 @@ class AgentFileSkillsSource extends AgentSkillsSource {
 
   /// Checks whether the entity at [path] is a symbolic link, or cannot be
   /// inspected at all — both are treated as unsafe during skill discovery.
-  bool _isLinkOrInaccessible(String path) {
-    try {
-      return _fs.typeSync(path, followLinks: false) ==
-          FileSystemEntityType.link;
-    } on FileSystemException {
-      return true;
-    }
-  }
+  bool _isLinkOrInaccessible(String path) =>
+      AgentFileSkillPathValidator.isLinkOrInaccessible(path, fs: _fs);
 
   /// Best-effort directory listing that returns an empty list when the
   /// directory cannot be inspected, so a single inaccessible child does not
@@ -200,28 +220,42 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     }
   }
 
-  AgentFileSkill? parseSkillDirectory(String skillDirectoryFullPath) {
-    final skillFilePath = p.join(skillDirectoryFullPath, skillFileName);
+  AgentFileSkill? parseSkillDirectory(
+    String skillDirectoryFullPath, {
+    String? trustedRootFullPath,
+  }) {
+    return parseSkillScope(
+      AgentFileSkillPathScope(
+        trustedRootFullPath ?? skillDirectoryFullPath,
+        skillDirectoryFullPath,
+      ),
+    );
+  }
+
+  /// Parses the skill directory described by [scope], revalidating its
+  /// resources and scripts against that scope when they are used.
+  AgentFileSkill? parseSkillScope(AgentFileSkillPathScope scope) {
+    final skillFilePath = p.join(scope.skillDirectoryPath, skillFileName);
     final content = _fs.file(skillFilePath).readAsStringSync(encoding: utf8);
     final (valid, frontmatter) = tryParseFrontmatter(content, skillFilePath);
     if (!valid || frontmatter == null) {
       return null;
     }
 
-    final normalizedSkillDirectoryFullPath =
-        '${p.canonicalize(skillDirectoryFullPath)}${p.separator}';
     final resources = discoverResourceFiles(
-      normalizedSkillDirectoryFullPath,
+      scope.skillDirectoryPrefix,
       frontmatter.name,
+      scope: scope,
     );
     final scripts = discoverScriptFiles(
-      normalizedSkillDirectoryFullPath,
+      scope.skillDirectoryPrefix,
       frontmatter.name,
+      scope: scope,
     );
     return AgentFileSkill(
       frontmatter,
       content,
-      skillDirectoryFullPath,
+      scope.skillDirectoryPath,
       resources: resources,
       scripts: scripts,
     );
@@ -240,7 +274,10 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     }
 
     final yamlContent = match.group(1) ?? '';
-    final values = _parseYamlFrontmatter(yamlContent);
+    final values = _parseYamlFrontmatter(yamlContent, skillFilePath);
+    if (values == null) {
+      return (false, null);
+    }
     final name = values['name'];
     final description = values['description'];
     final compatibility = values['compatibility'];
@@ -276,15 +313,16 @@ class AgentFileSkillsSource extends AgentSkillsSource {
         compatibility: compatibility,
         license: values['license'],
         allowedTools: values['allowed-tools'],
-        metadata: _parseMetadataBlock(yamlContent),
+        metadata: _parseMetadataBlock(yamlContent, skillFilePath),
       ),
     );
   }
 
   List<AgentFileSkillResource> discoverResourceFiles(
     String skillDirectoryFullPath,
-    String skillName,
-  ) {
+    String skillName, {
+    AgentFileSkillPathScope? scope,
+  }) {
     final resources = <AgentFileSkillResource>[];
     for (final directory in _resourceDirectories.toSet()) {
       final isRootDirectory = directory == rootDirectoryIndicator;
@@ -300,6 +338,7 @@ class AgentFileSkillsSource extends AgentSkillsSource {
         skillName,
         resources,
         currentDepth: 1,
+        scope: scope,
       );
     }
     return resources;
@@ -311,6 +350,7 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     String skillName,
     List<AgentFileSkillResource> resources, {
     required int currentDepth,
+    AgentFileSkillPathScope? scope,
   }) {
     for (final entry
         in _fs.directory(targetDirectory).listSync(followLinks: false)) {
@@ -322,6 +362,7 @@ class AgentFileSkillsSource extends AgentSkillsSource {
             skillName,
             resources,
             currentDepth: currentDepth + 1,
+            scope: scope,
           );
         }
         continue;
@@ -356,15 +397,21 @@ class AgentFileSkillsSource extends AgentSkillsSource {
         continue;
       }
       resources.add(
-        AgentFileSkillResource(relativePath, resolvedFilePath, fs: _fs),
+        AgentFileSkillResource(
+          relativePath,
+          resolvedFilePath,
+          fs: _fs,
+          scope: scope,
+        ),
       );
     }
   }
 
   List<AgentFileSkillScript> discoverScriptFiles(
     String skillDirectoryFullPath,
-    String skillName,
-  ) {
+    String skillName, {
+    AgentFileSkillPathScope? scope,
+  }) {
     final scripts = <AgentFileSkillScript>[];
     for (final directory in _scriptDirectories.toSet()) {
       final isRootDirectory = directory == rootDirectoryIndicator;
@@ -405,6 +452,8 @@ class AgentFileSkillsSource extends AgentSkillsSource {
             relativePath,
             resolvedFilePath,
             runner: _scriptRunner,
+            scope: scope,
+            fs: _fs,
           ),
         );
       }
@@ -412,33 +461,96 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     return scripts;
   }
 
-  static Map<String, String> _parseYamlFrontmatter(String yamlContent) {
+  /// Recognized top-level frontmatter fields.
+  ///
+  /// The map is keyed by the lowercase field name and holds the exact
+  /// spelling a SKILL.md file must use.
+  static const Map<String, String> _frontmatterFieldNames = {
+    'name': 'name',
+    'description': 'description',
+    'license': 'license',
+    'compatibility': 'compatibility',
+    'metadata': 'metadata',
+    'allowed-tools': 'allowed-tools',
+  };
+
+  /// Parses the top-level `key: value` pairs of a frontmatter block.
+  ///
+  /// Returns `null` when the block uses an incorrectly cased or duplicated
+  /// recognized field, both of which reject the skill rather than silently
+  /// changing which value it exposes. Unrecognized fields are ignored for
+  /// forward compatibility.
+  Map<String, String>? _parseYamlFrontmatter(
+    String yamlContent,
+    String skillFilePath,
+  ) {
     final values = <String, String>{};
+    final seenFields = <String>{};
     final lineRegex = RegExp(
-      r'''^([\w-]+)\s*:\s*(?:"([^"]*)"|'([^']*)'|(.+?))\s*$''',
+      r'''^(?:([\w-]+)|"([\w-]+)"|'([\w-]+)')[ \t]*:[ \t]*'''
+      r'''(?:"([^"]*)"|'([^']*)'|(.*?))\s*$''',
     );
     for (final line in const LineSplitter().convert(yamlContent)) {
       final match = lineRegex.firstMatch(line);
       if (match == null) {
         continue;
       }
-      values[match.group(1)!] =
-          match.group(2) ?? match.group(3) ?? match.group(4)?.trim() ?? '';
+      final key = (match.group(1) ?? match.group(2) ?? match.group(3))!;
+
+      // Unknown fields are intentionally excluded from this validation for
+      // forward compatibility.
+      final canonicalKey = _frontmatterFieldNames[key.toLowerCase()];
+      if (canonicalKey == null) {
+        continue;
+      }
+
+      if (key != canonicalKey) {
+        logIncorrectlyCasedFrontmatterField(
+          _logger,
+          skillFilePath,
+          key,
+          canonicalKey,
+        );
+        return null;
+      }
+
+      if (!seenFields.add(key)) {
+        logDuplicateFrontmatterField(_logger, skillFilePath, key);
+        return null;
+      }
+
+      final quoted = match.group(4) ?? match.group(5);
+      final unquoted = match.group(6)?.trim() ?? '';
+
+      // Empty declarations participate in key validation, but leave optional
+      // scalar fields unset.
+      if (quoted == null && unquoted.isEmpty) {
+        continue;
+      }
+
+      values[key] = quoted ?? unquoted;
     }
     return values;
   }
 
-  static AdditionalPropertiesDictionary? _parseMetadataBlock(
+  AdditionalPropertiesDictionary? _parseMetadataBlock(
     String yamlContent,
+    String skillFilePath,
   ) {
     final lines = const LineSplitter().convert(yamlContent);
     final metadata = <String, Object?>{};
+    // Keys are compared case-insensitively; this tracks the lowercase form of
+    // the keys already stored so the first spelling and value win.
+    final seenKeys = <String>{};
     var inMetadata = false;
+    final metadataKeyRegex = RegExp(
+      r'''^(?:metadata|"metadata"|'metadata')\s*:\s*$''',
+    );
     final valueRegex = RegExp(
       r'''^\s+([\w-]+)\s*:\s*(?:"([^"]*)"|'([^']*)'|(.+?))\s*$''',
     );
     for (final line in lines) {
-      if (line.trim() == 'metadata:') {
+      if (metadataKeyRegex.hasMatch(line.trim())) {
         inMetadata = true;
         continue;
       }
@@ -453,8 +565,16 @@ class AgentFileSkillsSource extends AgentSkillsSource {
       }
       final match = valueRegex.firstMatch(line);
       if (match != null) {
-        metadata[match.group(1)!] =
+        final key = match.group(1)!;
+        final value =
             match.group(2) ?? match.group(3) ?? match.group(4)?.trim() ?? '';
+
+        // Keep the first value and key spelling.
+        if (!seenKeys.add(key.toLowerCase())) {
+          logDuplicateMetadataKey(_logger, skillFilePath, key);
+          continue;
+        }
+        metadata[key] = value;
       }
     }
     return metadata.isEmpty ? null : metadata;
@@ -570,6 +690,46 @@ class AgentFileSkillsSource extends AgentSkillsSource {
     if (logger.isEnabled(LogLevel.warning)) {
       logger.logWarning(
         'Invalid skill $fieldName in ${sanitizePathForLog(skillFilePath)}: $reason',
+      );
+    }
+  }
+
+  static void logDuplicateFrontmatterField(
+    Logger logger,
+    String skillFilePath,
+    String fieldName,
+  ) {
+    if (logger.isEnabled(LogLevel.warning)) {
+      logger.logWarning(
+        'Duplicate skill frontmatter field $fieldName in '
+        '${sanitizePathForLog(skillFilePath)}.',
+      );
+    }
+  }
+
+  static void logIncorrectlyCasedFrontmatterField(
+    Logger logger,
+    String skillFilePath,
+    String fieldName,
+    String expectedFieldName,
+  ) {
+    if (logger.isEnabled(LogLevel.warning)) {
+      logger.logWarning(
+        'Incorrectly cased skill frontmatter field $fieldName in '
+        '${sanitizePathForLog(skillFilePath)}; expected $expectedFieldName.',
+      );
+    }
+  }
+
+  static void logDuplicateMetadataKey(
+    Logger logger,
+    String skillFilePath,
+    String key,
+  ) {
+    if (logger.isEnabled(LogLevel.warning)) {
+      logger.logWarning(
+        'Duplicate skill metadata key $key in '
+        '${sanitizePathForLog(skillFilePath)}; keeping the first value.',
       );
     }
   }

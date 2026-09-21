@@ -157,7 +157,7 @@ class A2AHostService {
           callerKeys,
         ),
       );
-      final handler = A2AAgentHandler(host, AgentRunMode.disallowBackground);
+      final handler = A2AAgentHandler(host, AgentRunMode.returnMessage);
       final requestHandler = a2a.A2ADefaultRequestHandler(
         _cardFor(config, path),
         // Strict, as the session store is by default: every path that reaches

@@ -2,62 +2,53 @@ import 'package:extensions/system.dart';
 
 import 'a2a_run_decision_context.dart';
 
-/// A delegate that decides whether an agent run should be wrapped in a
-/// background A2A task.
+/// A delegate that decides whether an agent response is returned as an
+/// `AgentTask`.
 ///
-/// Returns `true` to run in background mode (returning an `AgentTask` when the
-/// agent supports it), or `false` to run inline (returning an `AgentMessage`).
-typedef RunInBackgroundCallback =
+/// Returns `true` to return an `AgentTask`, or `false` to return an
+/// `AgentMessage`.
+typedef ReturnTaskCallback =
     Future<bool> Function(
       A2ARunDecisionContext context,
       CancellationToken? cancellationToken,
     );
 
-/// Specifies how the A2A hosting layer decides whether to run an agent in
-/// background mode.
-///
-/// Mirrors the semantics of the underlying
-/// `AgentRunOptions.allowBackgroundResponses` flag, translated into A2A
-/// protocol terms: background runs surface as an `AgentTask`, while inline runs
-/// surface as an `AgentMessage`.
+/// Specifies which A2A protocol artifact the hosting layer returns for a run
+/// of an agent: an `AgentMessage` or an `AgentTask`.
 final class AgentRunMode {
-  const AgentRunMode._(this._value, [this._runInBackground]);
+  const AgentRunMode._(this._value, [this._returnTask]);
 
   static const String _messageValue = 'message';
   static const String _taskValue = 'task';
   static const String _dynamicValue = 'dynamic';
 
   final String _value;
-  final RunInBackgroundCallback? _runInBackground;
+  final ReturnTaskCallback? _returnTask;
 
-  /// Disallows background responses.
+  /// Returns the agent response as an `AgentMessage`.
   ///
-  /// Equivalent to configuring `AgentRunOptions.allowBackgroundResponses` as
-  /// `false`. In A2A terms, responses are returned as an `AgentMessage`.
-  static const AgentRunMode disallowBackground = AgentRunMode._(_messageValue);
+  /// The updates produced by the agent are aggregated into a single message.
+  static const AgentRunMode returnMessage = AgentRunMode._(_messageValue);
 
-  /// Allows background responses when the agent supports them.
-  ///
-  /// Equivalent to configuring `AgentRunOptions.allowBackgroundResponses` as
-  /// `true`. In A2A terms, responses are returned as an `AgentTask` when the
-  /// agent supports background responses, and as an `AgentMessage` otherwise.
-  static const AgentRunMode allowBackgroundIfSupported = AgentRunMode._(
-    _taskValue,
-  );
+  /// Returns the agent response as an `AgentTask`, allowing the caller to
+  /// track its lifecycle and to receive the result incrementally.
+  static const AgentRunMode returnTask = AgentRunMode._(_taskValue);
 
-  /// Decides the run mode dynamically via [runInBackground].
+  /// Defers the choice between an `AgentMessage` and an `AgentTask` to the
+  /// supplied [returnTask] delegate, which is invoked for each new-message
+  /// request.
   ///
   /// The delegate receives an [A2ARunDecisionContext] describing the incoming
-  /// request and returns whether the agent should run in background mode.
-  static AgentRunMode allowBackgroundWhen(
-    RunInBackgroundCallback runInBackground,
-  ) {
-    return AgentRunMode._(_dynamicValue, runInBackground);
+  /// request and returns `true` to return an `AgentTask`, or `false` to
+  /// return an `AgentMessage`. Continuations of an existing task remain task
+  /// responses and do not invoke the delegate.
+  static AgentRunMode returnTaskWhen(ReturnTaskCallback returnTask) {
+    return AgentRunMode._(_dynamicValue, returnTask);
   }
 
   /// Determines whether the agent response should be returned as an
   /// `AgentTask` for the given [context].
-  Future<bool> shouldRunInBackground(
+  Future<bool> shouldReturnTask(
     A2ARunDecisionContext context, {
     CancellationToken? cancellationToken,
   }) {
@@ -67,10 +58,11 @@ final class AgentRunMode {
     if (_value == _taskValue) {
       return Future.value(true);
     }
-    final runInBackground = _runInBackground;
-    if (runInBackground != null) {
-      return runInBackground(context, cancellationToken);
+    final returnTask = _returnTask;
+    if (returnTask != null) {
+      return returnTask(context, cancellationToken);
     }
+    // No delegate provided — fall back to "message" behavior.
     return Future.value(false);
   }
 
@@ -79,10 +71,10 @@ final class AgentRunMode {
       identical(this, other) ||
       other is AgentRunMode &&
           _value == other._value &&
-          identical(_runInBackground, other._runInBackground);
+          identical(_returnTask, other._returnTask);
 
   @override
-  int get hashCode => Object.hash(_value, identityHashCode(_runInBackground));
+  int get hashCode => Object.hash(_value, identityHashCode(_returnTask));
 
   @override
   String toString() => _value;

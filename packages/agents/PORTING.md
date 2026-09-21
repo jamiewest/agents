@@ -15,7 +15,7 @@ append it here (with a date) — do not record it only in session memory.
 The newest upstream commit touching `dotnet/src` that a drift sync has
 reviewed (ported or deliberately skipped):
 
-`upstream-sync: 92aec78c94c3e2cb5bab980c6e7a00e7bf2d6f0e 2026-08-25`
+`upstream-sync: 0799f6afa1ecd8a6a077e03024fcb9a4dc2547a9 2026-09-18`
 
 This line is machine-read by `/drift` and by
 `.github/workflows/upstream-watch.yml` — keep the `upstream-sync: <sha> <date>`
@@ -301,6 +301,158 @@ Hosting.AGUI.AspNetCore, Aspire.*.
   per-segment reparse-point walk — equivalent outcome (canonicalize
   resolves links), different mechanism.
 
+- **Shell policy regex timeouts not portable** (2026-09-21, upstream #8507).
+  Upstream compiles every allow/deny pattern with a one-second
+  `RegexMatchTimeout` so a catastrophically backtracking operator pattern
+  cannot stall the authorization path, and fails closed on a deny-pattern
+  timeout. Dart's `RegExp` has no match-timeout facility at all and no way to
+  bound a match in the same isolate, so neither the timeout nor the
+  fail-closed branch has a counterpart. Not blocked on `extensions` — this is
+  a `dart:core` limitation. Revisit only if the Dart SDK gains a bounded
+  match. (Separately noted for Jamie: the port's `ShellPolicy.evaluate`
+  checks the allow list *before* the deny list, where upstream checks deny
+  first; that ordering predates this sync and was left alone.)
+- **A2A streaming/aggregation split not applicable** (2026-09-21, upstream
+  #7998 added `aggregateTaskUpdates`, `AggregateTaskUpdatesAsync` and an
+  `AgentEventQueueExtensions.AddArtifactAsync` metadata shim). The split keys
+  off two inputs the Dart seam does not expose: `RequestContext.StreamingResponse`
+  and `MessageSendConfiguration.ReturnImmediately`. `package:a2a`'s
+  `A2ARequestContext` carries neither, and the executor seam is non-streaming
+  (see the #7722 entry above), so the port always aggregates. The one part of
+  #7998 that is observable here — a completed run answered as a single
+  completed task with an artifact — is ported as part of #8032 below.
+- **A2A run modes decide the artifact, not a background flag** (2026-09-21,
+  ports upstream #8032). `AgentRunMode.disallowBackground` /
+  `allowBackgroundIfSupported` / `allowBackgroundWhen` are renamed
+  `returnMessage` / `returnTask` / `returnTaskWhen`, and
+  `shouldRunInBackground` becomes `shouldReturnTask`. `A2AAgentHandler` no
+  longer sets `AgentRunOptions.allowBackgroundResponses`; the run mode now
+  selects the response shape directly, and a task continuation stays a task
+  response without consulting the mode. Because the port's handler is
+  non-streaming, a `returnTask` run that finishes emits submitted → artifact →
+  completed in one pass rather than streaming updates into the task.
+- **Hosted workflow output flag not ported** (2026-09-21, upstream #8020).
+  The commit only threads `includeWorkflowOutputsInResponse` from
+  `AddAsAIAgent` down to `Workflow.AsAIAgent`. Neither the port's
+  `WorkflowHostingExtensions.asAIAgent` nor `WorkflowHostAgent` ever carried
+  that flag (nor `includeExceptionDetails`), and the port's
+  `HostedWorkflowBuilderExtensions.addAsAIAgent` registers by name without
+  resolving the keyed `Workflow` at all, so there is nothing to thread it
+  through. Porting the flag means first porting the host-agent surface it
+  gates, which is a separate decision — ask Jamie.
+- **Function-middleware re-entrancy guard not portable** (2026-09-21, partial
+  port of upstream #8402). Ported: the per-run `ChatClientAgentRunOptions`
+  copy and per-request `ChatOptions` clone (the port previously mutated
+  caller-owned options, which stacked a wrapper per request), idempotent
+  wrapping keyed on the middleware instance, and `MiddlewareEnabledTools`, a
+  `ListBase<AITool>` that wraps functions added or replaced later in the same
+  run. Not ported: upstream's `AsyncLocal` `PipelineBuildScope` and
+  `InvocationScope`, which have no Dart counterpart (see the
+  `currentRunContext` entry above — zone-based storage was deliberately not
+  used), and the post-callback `MiddlewareEnabledTools.ApplyTo` re-application,
+  which needs `FunctionInvocationContext.Options`. **Blocked on extensions:**
+  `extensions` 0.6.0/0.7.1 `FunctionInvocationContext` exposes no `options`,
+  so a callback that replaces the whole tool list mid-call cannot be
+  re-wrapped. The port composes nested middleware through the
+  `chatClientFactory` chain instead of a collected list, so the chain itself
+  needs no ambient scope.
+- **Tool-approval responses bind to surfaced requests** (2026-09-21, ports
+  upstream #7111 — a pre-pin change this port had missed — together with
+  #8432). `ToolApprovalState` gains `surfacedApprovalRequests`, and
+  `unwrapAlwaysApproveResponses` + `collectApprovalResponsesFromMessages`
+  collapse into one `bindApprovalResponses` pass: a response is honored only
+  when its request id matches one the agent surfaced, the matched request is
+  consumed so an id cannot be replayed, and both the forwarded response and
+  any standing rule derive from the *recorded* tool call. An unbound response
+  creates no rule and is forwarded unchanged rather than dropped. Deviations:
+  `surfacedApprovalRequests` is transient like the other in-flight approval
+  state (see the 2026-07-03 provider-state entry), so a host that serializes
+  the session between surfacing a request and receiving its answer cannot
+  bind it — the safe outcome, and the one upstream's own guidance describes
+  for a host without server-side recording. Requests are recorded as-is
+  rather than snapshotted, for the same reason the approval-binding chat
+  client cannot snapshot (2026-08-13 entry).
+- **Approval-request history is not pairing authority** (2026-09-21, ports
+  upstream #8375). `ApprovalResponseBindingChatClient` no longer treats an
+  approval request replayed in the caller's messages as proof the framework
+  asked for it; only state it recorded when surfacing counts. Settled calls
+  (a `FunctionResultContent` already present for the call id) and calls to
+  tools that require no approval are passed through, and a request id that
+  surfaces two different calls is poisoned so neither binds. The shared
+  `ApprovalRequirement` helper is a library-private file rather than an
+  `internal` class.
+- **File-backed skills revalidate on use** (2026-09-21, ports upstream
+  #8151). `AgentFileSkillPathScope` and `AgentFileSkillPathValidator` are
+  ported, and the validator's per-segment link walk from the configured
+  discovery root is what the 2026-08-25 #7540 entry said the port did not
+  have. Deviation: upstream's types are `internal` and its constructors take
+  the scope as a required parameter; the port's `AgentFileSkillResource` /
+  `AgentFileSkillScript` are exported, so `scope` is an optional named
+  parameter and validation is skipped when it is absent. Every skill produced
+  by `AgentFileSkillsSource` supplies it, so the production path is fully
+  covered; the optional shape only keeps the published constructors
+  source-compatible. `AgentFileSkillsSource.discoverSkillDirectories` and
+  `parseSkillDirectory` are likewise kept, with `discoverSkillScopes` /
+  `parseSkillScope` added beside them.
+- **Skill frontmatter block scalars still unsupported** (2026-09-21, partial
+  port of upstream #8430). Ported: recognized top-level fields must use the
+  exact lowercase spelling and must not repeat (either rejects the skill),
+  quoted root keys are accepted, an empty declaration participates in key
+  validation but leaves the field unset, and metadata keys are compared
+  case-insensitively with the first value and spelling winning. Not ported:
+  upstream's regex also lets a value start on a later indented line. The
+  port's parser has always been line-based with no block-scalar support, so
+  that is a pre-existing gap this commit neither introduced nor closed.
+- **MCP skill archives are ZIP-only, with optional digests** (2026-09-21,
+  ports upstream #8290 and #8404). TAR and gzip detection and extraction are
+  removed; a gzip signature is rejected before any MIME or URL hint is
+  consulted. A supplied `digest` must be `sha256:` plus 64 lowercase hex
+  characters and is verified against the decoded bytes before extraction, via
+  `package:crypto` (publisher `dart.dev`) since neither `dart:*` nor
+  `extensions` offers SHA-256. Verification failures warn through
+  `dart:developer` `log()` rather than an `ILogger`, matching the
+  2026-08-13 approval-decorator precedent, because `AgentMcpSkillsSource`
+  takes no `LoggerFactory`.
+- **`AgentFileStore` owns the line-numbering contract** (2026-09-21, ports
+  upstream #7671). `searchFilesAsync` gains a default implementation over a
+  new `findMatchingFilesAsync` hook, and `splitLines` / `scanContent` are
+  published so a store supplying its own search numbers by the same split the
+  line-edit tools use. `FileSystemAgentFileStore` and
+  `InMemoryAgentFileStore` delegate to `scanContent`. **Behavior change:**
+  `FileSearchMatch.line` is now reported verbatim with its terminator instead
+  of being stripped, so it can be reused as a `replace_lines` `new_line`; the
+  pattern is still matched against the line without its terminator, so
+  end-anchored patterns behave the same on CRLF content. `FileLineEdit` gains
+  `expected_line` and `FileAccessProvider` gains `file_access_read_lines`.
+  Making `searchFilesAsync` virtual is additive for existing subclasses,
+  which keep overriding it.
+- **`AIAgent.asChatClient` mirrors `AsIChatClient`** (2026-09-21, ports
+  upstream #7687). Naming follows the port's convention (`asChatClient`, not
+  `asIChatClient`), and `AIAgentChatClient` is exported rather than
+  `internal` because Dart has no equivalent. The rejection paths throw
+  `StateError` where upstream throws `InvalidOperationException` and
+  `ArgumentError` where it throws `ArgumentException`. Upstream's
+  `ChatResponse_SettableMembersMatchTheConversationIdStampCopySet` reflection
+  test has no counterpart (no runtime reflection); the member-wise copy in
+  `_cloneWithConversationId` must be updated by hand if `extensions`
+  `ChatResponse` gains a settable member.
+- **`AgentSessionStore` promotion deferred** (2026-09-21, upstream #7991,
+  `[PREVIEW BREAKING]`). Upstream moves `AgentSessionStore` into
+  `Microsoft.Agents.AI.Abstractions`, replaces the
+  `(agent, conversationId)` pair with an `AgentSessionStoreKey`
+  (session id plus named partitions), makes `GetSessionAsync` nullable, adds
+  `GetOrCreateSessionAsync`, and reworks `IsolationKeyScopedAgentSessionStore`
+  to add a partition instead of rewriting the id. Porting it breaks the base
+  contract of `AgentSessionStore` and every implementation of it, which means
+  a major version of `agents` plus coordinated changes in `agents_flutter`,
+  `agents_llama` and `agents_app` — and the sibling checkouts are not
+  available in the drift-sync environment, so the ripple cannot be verified
+  here. Left for Jamie to schedule as its own coordinated change.
+- **Upstream public-API analyzer files are out of scope** (2026-09-21,
+  upstream #7935). The commit only adds `PublicAPI.Shipped.txt` /
+  `PublicAPI.Unshipped.txt` baselines and analyzer wiring; there is no Dart
+  counterpart and no behavior to port.
+
 ## Verified faithful (do NOT re-flag as bugs)
 
 - `ScopeId` `==`/`hashCode` ignores `executorId` for named scopes — upstream
@@ -317,6 +469,12 @@ Hosting.AGUI.AspNetCore, Aspire.*.
   fix (#7731) was already in the port's harness providers, and the
   broadened telemetry-serialization catch (#7612) has no counterpart
   because `WorkflowTelemetryContext` is a no-op stub here.
+- Upstream's 2026-09 `ChatClientExtensions` change (#8531) stopping the
+  constructor tools from being pinned onto `FunctionInvokingChatClient.
+  AdditionalTools` is ported by deletion in both copies of
+  `withDefaultAgentMiddleware`: the port already merges agent-level tools into
+  the per-run `ChatOptions` (`_mergeAgentChatOptions`), so the removal changes
+  nothing else.
 
 ## Naming conventions (do not flag as API gaps)
 
