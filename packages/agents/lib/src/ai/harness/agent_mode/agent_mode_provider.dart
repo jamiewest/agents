@@ -18,6 +18,11 @@ import 'package:agents/src/abstractions/invoking_context.dart';
 /// long-running complex tasks. The current mode is persisted in the session
 /// state and is included in the instructions provided to the agent on each
 /// invocation.
+///
+/// By default the provider exposes the `AgentMode_Set` and `AgentMode_Get`
+/// tools. Set [AgentModeProviderOptions.disableModeSetTool] or
+/// [AgentModeProviderOptions.disableModeGetTool] to omit the corresponding
+/// built-in tool while retaining mode state and instructions.
 class AgentModeProvider extends AIContextProvider {
   /// Creates an [AgentModeProvider] with optional [options].
   AgentModeProvider({AgentModeProviderOptions? options}) {
@@ -26,7 +31,10 @@ class AgentModeProvider extends AIContextProvider {
       throw ArgumentError('At least one mode must be configured.', 'options');
     }
 
+    _usesDefaultInstructions = options?.instructions == null;
     _instructions = options?.instructions ?? defaultInstructions;
+    _disableModeSetTool = options?.disableModeSetTool ?? false;
+    _disableModeGetTool = options?.disableModeGetTool ?? false;
 
     _validModeNames = <String>{};
     final modeNamesList = <String>[];
@@ -78,13 +86,19 @@ class AgentModeProvider extends AIContextProvider {
 
 You can operate in different modes. Depending on the mode you are in, you will be required to follow different processes.
 
-Use the AgentMode_Get tool to check your current operating mode.
-Use the AgentMode_Set tool to switch between modes as your work progresses. Only use AgentMode_Set if the user explicitly instructs/allows you to change modes.
-
+{mode_get_instructions}{mode_set_instructions}
 {available_modes}
 
 You are currently operating in the {current_mode} mode.
 ''';
+
+  static const String _modeGetInstructions =
+      'Use the AgentMode_Get tool to check your current operating mode.\n';
+
+  static const String _modeSetInstructions =
+      'Use the AgentMode_Set tool to switch between modes as your work '
+      'progresses. Only use AgentMode_Set if the user explicitly '
+      'instructs/allows you to change modes.\n';
 
   static final List<AgentMode> defaultModes = [
     AgentMode(
@@ -101,6 +115,9 @@ You are currently operating in the {current_mode} mode.
   late final List<AgentMode?> _modes;
   late final String _defaultMode;
   late final String _instructions;
+  late final bool _disableModeSetTool;
+  late final bool _disableModeGetTool;
+  late final bool _usesDefaultInstructions;
   late final Set<String> _validModeNames;
   late final String _modeNamesDisplay;
   List<String>? _stateKeys;
@@ -114,14 +131,25 @@ You are currently operating in the {current_mode} mode.
   }
 
   /// Sets the operating mode in the session state.
-  void setMode(AgentSession? session, String mode) {
+  ///
+  /// Pass `true` for [disableNotification] to avoid notifying the agent about
+  /// the mode change on its next invocation — use it when the agent changes
+  /// mode through a custom function tool and has already observed the tool
+  /// result. It also clears any pending mode-change notification.
+  void setMode(
+    AgentSession? session,
+    String mode, {
+    bool disableNotification = false,
+  }) {
     validateMode(mode);
 
     final state = _sessionState.getOrInitializeState(session);
     final previousMode = state.currentMode;
     state.currentMode = mode;
 
-    if (previousMode != mode) {
+    if (disableNotification) {
+      state.previousModeForNotification = null;
+    } else if (previousMode != mode) {
       state.previousModeForNotification = previousMode;
     }
 
@@ -161,7 +189,19 @@ You are currently operating in the {current_mode} mode.
       modesListBuilder.writeln('- "${mode!.name}": ${mode.description}');
     }
     final modesListText = modesListBuilder.toString();
-    return _instructions
+    var instructions = _instructions;
+    if (_usesDefaultInstructions) {
+      instructions = instructions
+          .replaceAll(
+            '{mode_get_instructions}',
+            _disableModeGetTool ? '' : _modeGetInstructions,
+          )
+          .replaceAll(
+            '{mode_set_instructions}',
+            _disableModeSetTool ? '' : _modeSetInstructions,
+          );
+    }
+    return instructions
         .replaceAll('{available_modes}', modesListText)
         .replaceAll('{current_mode}', currentMode);
   }
@@ -177,27 +217,29 @@ You are currently operating in the {current_mode} mode.
 
   List<AITool> createTools(AgentModeState state, AgentSession? session) {
     return [
-      AIFunctionFactory.create(
-        name: 'AgentMode_Set',
-        description:
-            'Switch the agent\'s operating mode. Supported modes: "$_modeNamesDisplay".',
-        parametersSchema: _objectSchema({
-          'mode': 'The operating mode to switch to.',
-        }),
-        callback: (arguments, {cancellationToken}) async {
-          final mode = _getRequiredString(arguments, 'mode');
-          validateMode(mode);
+      if (!_disableModeSetTool)
+        AIFunctionFactory.create(
+          name: 'AgentMode_Set',
+          description:
+              'Switch the agent\'s operating mode. Supported modes: "$_modeNamesDisplay".',
+          parametersSchema: _objectSchema({
+            'mode': 'The operating mode to switch to.',
+          }),
+          callback: (arguments, {cancellationToken}) async {
+            final mode = _getRequiredString(arguments, 'mode');
+            validateMode(mode);
 
-          state.currentMode = mode;
-          _sessionState.saveState(session, state);
-          return 'Mode changed to "$mode".';
-        },
-      ),
-      AIFunctionFactory.create(
-        name: 'AgentMode_Get',
-        description: 'Get the agent\'s current operating mode.',
-        callback: (arguments, {cancellationToken}) async => state.currentMode,
-      ),
+            state.currentMode = mode;
+            _sessionState.saveState(session, state);
+            return 'Mode changed to "$mode".';
+          },
+        ),
+      if (!_disableModeGetTool)
+        AIFunctionFactory.create(
+          name: 'AgentMode_Get',
+          description: 'Get the agent\'s current operating mode.',
+          callback: (arguments, {cancellationToken}) async => state.currentMode,
+        ),
     ];
   }
 

@@ -6,6 +6,11 @@ import 'open_telemetry_agent.dart';
 /// [AIAgentBuilder] instances.
 extension OpenTelemetryAgentBuilderExtensions on AIAgentBuilder {
   /// Adds OpenTelemetry instrumentation to the agent pipeline.
+  ///
+  /// [sourceName] optionally identifies the telemetry data from this agent.
+  /// When supplied, register the same value with the tracing pipeline so it
+  /// subscribes to these spans. When omitted,
+  /// [OpenTelemetryAgent.defaultSourceName] is used.
   AIAgentBuilder useOpenTelemetry({
     String? sourceName,
     Action1<OpenTelemetryAgent>? configure,

@@ -19,18 +19,30 @@ class ToolApprovalState {
   /// the caller.
   List<ToolApprovalRequestContent> queuedApprovalRequests = [];
 
+  /// The approval requests this agent has surfaced to the caller and is still
+  /// awaiting a response for, keyed by request id.
+  ///
+  /// An inbound approval response is honored only when its request id appears
+  /// here, so a caller cannot approve a call the harness never surfaced.
+  Map<String, ToolApprovalRequestContent> surfacedApprovalRequests = {};
+
   /// Encodes the durable part of this state (the standing rules) to a
   /// JSON-compatible map so the session bag can serialize it.
   ///
-  /// The in-flight approval content ([collectedApprovalResponses] and
-  /// [queuedApprovalRequests]) is transient — it only exists mid-turn while
-  /// an approval round-trip is pending — and is intentionally not persisted.
+  /// The in-flight approval content ([collectedApprovalResponses],
+  /// [queuedApprovalRequests] and [surfacedApprovalRequests]) is transient —
+  /// it only exists while an approval round-trip is pending — and is
+  /// intentionally not persisted. A host that serializes the session between
+  /// surfacing a request and receiving its response therefore cannot bind
+  /// that response, which is the safe outcome: no standing rule is recorded
+  /// and the response is forwarded for the approval-binding chat client to
+  /// validate against its own record.
   Map<String, Object?> toJson() => {
     'rules': [for (final rule in rules) rule.toJson()],
   };
 
   /// Rebuilds the state from a raw JSON-decoded value produced by [toJson].
-  /// The transient in-flight approval lists start empty.
+  /// The transient in-flight approval collections start empty.
   static ToolApprovalState fromJson(Object? json) {
     final state = ToolApprovalState();
     if (json is Map) {

@@ -1,5 +1,93 @@
 # Changelog
 
+## 3.0.0
+
+Upstream drift sync against `microsoft/agent-framework` `dotnet/src`, covering
+everything through `0799f6a` (2026-09-18). 2.1.0 carried the 2026-08-25 →
+2026-08-31 slice of the same window; this release carries the rest. Skip
+decisions and deviations are recorded in `PORTING.md`.
+
+### Breaking
+
+- **A2A run modes name the artifact they return.** `AgentRunMode.disallowBackground`,
+  `allowBackgroundIfSupported` and `allowBackgroundWhen` are now `returnMessage`,
+  `returnTask` and `returnTaskWhen`, `shouldRunInBackground` is
+  `shouldReturnTask`, and `RunInBackgroundCallback` is `ReturnTaskCallback`.
+  `A2AAgentHandler` no longer sets `AgentRunOptions.allowBackgroundResponses`:
+  the run mode selects the response shape directly, so a `returnTask` run that
+  finishes now answers with a completed task carrying an artifact rather than a
+  message, and a `returnMessage` run always answers with one aggregated message.
+  Continuations of an existing task stay task responses and do not consult the
+  mode. (upstream #8032, with the observable part of #7998)
+- **`FileSearchMatch.line` is reported verbatim.** Matching lines keep their own
+  terminator (`\r\n`, `\n` or a lone `\r`) instead of having it stripped, so a
+  grep result can be reused as a `replace_lines` `new_line` without re-reading
+  the file. Patterns are still matched against the line without its terminator,
+  so end-anchored patterns behave the same on CRLF content. (upstream #7671)
+- **Tool-approval responses must bind to a surfaced request.**
+  `ToolApprovalAgent.unwrapAlwaysApproveResponses` and
+  `collectApprovalResponsesFromMessages` are replaced by a single
+  `bindApprovalResponses` pass. An always-approve response now records a
+  standing rule only when the agent actually surfaced the request it answers,
+  and the rule derives from the recorded tool call rather than the
+  caller-supplied one. (upstream #7111, #8432)
+- **MCP skill archives are ZIP-only.** TAR and gzip payloads are no longer
+  detected or extracted, and a gzip signature is rejected before any MIME type
+  or URL hint is consulted. (upstream #8290)
+
+### Added
+
+- `AIAgent.asChatClient(...)` exposes an agent as a `ChatClient`, stateless by
+  default or bound to a session, with a single conversation id it both reports
+  and accepts. (upstream #7687)
+- `file_access_read_lines` reads a 1-based inclusive line range, each line
+  prefixed with its number and a tab, numbered by the same split
+  `file_access_grep` and `file_access_replace_lines` use. `FileLineEdit` gains
+  an optional `expected_line` that rejects an edit landing on a changed line.
+  `AgentFileStore` gains a default `searchFilesAsync` over a new
+  `findMatchingFilesAsync` hook, plus published `splitLines` and `scanContent`
+  primitives. (upstream #7671)
+- `AgentFileSkillPathScope` and `AgentFileSkillPathValidator` revalidate a
+  discovered skill resource or script against its trusted discovery root
+  immediately before it is read or run, rejecting a path swapped for a link
+  after discovery. (upstream #8151)
+- MCP skill index entries may carry a `sha256:` digest, verified against the
+  decoded archive bytes before extraction. (upstream #8404)
+- `IsolationKeyResolver` plus isolation-key-scoped conversation storage and
+  agent-conversation index scope the OpenAI hosting storage per caller, so one
+  caller cannot resolve, list or delete another's conversations or responses.
+  (upstream #8146)
+- `OpenAIResponsesMapOptions.dangerouslyAllowClientFunctionTools` forwards
+  client-supplied function declarations as run-option tools while still
+  rejecting other tool types and unsupported settings. (upstream #7844)
+- `AgentModeProviderOptions.disableModeSetTool` / `disableModeGetTool` omit the
+  corresponding built-in tool while keeping mode state and instructions, and
+  `setMode` gains `disableNotification`. (upstream #8458)
+- `OpenTelemetryAgent.defaultSourceName` exposes the default telemetry source
+  name so consumers need not hardcode it. (upstream #7815)
+
+### Changed
+
+- Recognized SKILL.md frontmatter fields must use their exact lowercase
+  spelling and must not repeat; either rejects the skill instead of silently
+  changing which value it exposes. Metadata keys are compared
+  case-insensitively, keeping the first value and spelling with a warning.
+  (upstream #8430)
+- `ApprovalResponseBindingChatClient` no longer treats an approval request
+  replayed in the caller's history as proof the framework requested it. Calls
+  that already carry a result, and calls to tools that require no approval,
+  pass through; a request id that surfaces two different calls binds neither.
+  (upstream #8375)
+- Function-invocation middleware works on per-run and per-request copies of the
+  caller's options instead of mutating them, wraps idempotently, and wraps tools
+  added or replaced later in the same run. (upstream #8402, partial — see
+  `PORTING.md`)
+- `ChatClientAgent` no longer pins constructor tools onto
+  `FunctionInvokingChatClient.additionalTools`; they are already merged into the
+  per-run `ChatOptions`. (upstream #8531)
+- Persistent PowerShell shell sessions clear `$LASTEXITCODE` before each
+  command, so a stale exit code from an earlier command is no longer reported.
+  (upstream #8259)
 ## 2.1.0
 
 - `BackgroundAgentsProvider`'s wait tool no longer blocks indefinitely. The

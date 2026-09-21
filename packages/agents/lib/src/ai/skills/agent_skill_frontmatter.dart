@@ -40,6 +40,12 @@ class AgentSkillFrontmatter {
   final String description;
   String? license;
   String? allowedTools;
+
+  /// Arbitrary key-value metadata for this skill.
+  ///
+  /// Keys are compared case-insensitively. When parsed from a SKILL.md file,
+  /// duplicate entries retain the first value and key spelling and produce
+  /// warnings without rejecting the skill.
   AdditionalPropertiesDictionary? metadata;
 
   String? _compatibility;

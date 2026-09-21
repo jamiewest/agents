@@ -84,6 +84,13 @@ class AgentSkillsProviderBuilder {
   /// multiple providers, use [useSourceFactory], which creates a fresh source
   /// per build, or pass the source directly to an [AgentSkillsProvider]
   /// constructor with `ownsSource: false` to retain ownership.
+  ///
+  /// Custom sources are cached by default. Unless
+  /// [CachingAgentSkillsSourceOptions.cacheIsolationKeySelector] returns a
+  /// non-null key, the cached skill list is shared by all invocations of the
+  /// provider. If this source returns skills that vary by session, user,
+  /// tenant, or another security boundary, call [disableCaching] or configure
+  /// an appropriate cache isolation key through [useCachingOptions].
   AgentSkillsProviderBuilder useSource(AgentSkillsSource source) {
     _sourceFactories.add((_, _) => source);
     return this;
@@ -93,6 +100,13 @@ class AgentSkillsProviderBuilder {
   /// builder's logger factory at build time. Use this when the source needs
   /// logging and should not require the caller to pass a [LoggerFactory]
   /// explicitly.
+  ///
+  /// Custom sources are cached by default. Unless
+  /// [CachingAgentSkillsSourceOptions.cacheIsolationKeySelector] returns a
+  /// non-null key, the cached skill list is shared by all invocations of the
+  /// provider. If this source returns skills that vary by session, user,
+  /// tenant, or another security boundary, call [disableCaching] or configure
+  /// an appropriate cache isolation key through [useCachingOptions].
   AgentSkillsProviderBuilder useSourceFactory(
     AgentSkillsSource Function(LoggerFactory? loggerFactory) factory,
   ) {
@@ -147,6 +161,14 @@ class AgentSkillsProviderBuilder {
     return this;
   }
 
+  /// Builds the configured [AgentSkillsProvider].
+  ///
+  /// The source pipeline is cached by default. Unless
+  /// [CachingAgentSkillsSourceOptions.cacheIsolationKeySelector] returns a
+  /// non-null key, the cached skill list is shared by all invocations of the
+  /// provider. Sources that return skills that vary by session, user, tenant,
+  /// or another security boundary must use [disableCaching] or configure an
+  /// appropriate cache isolation key through [useCachingOptions].
   AgentSkillsProvider build() {
     final resolvedSources = _sourceFactories
         .map((factory) => factory(_scriptRunner, _loggerFactory))

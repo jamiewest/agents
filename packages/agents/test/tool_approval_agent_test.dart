@@ -201,25 +201,19 @@ void main() {
       final request = _approvalRequest('r1', 'Search');
       final innerAgent = _ScriptedAgent()
         ..responses.addAll([
-          _responseText('setup'),
           _responseContents([request]),
           _responseText('done'),
         ]);
       final agent = ToolApprovalAgent(innerAgent);
       final session = _TestSession();
 
-      await agent.runCore([
-        ChatMessage(
-          role: ChatRole.user,
-          contents: [request.createAlwaysApproveToolResponse()],
-        ),
-      ], session: session);
+      await _establishAlwaysApproveRule(agent, innerAgent, session, request);
       final response = await agent.runCore([
         _userText('again'),
       ], session: session);
 
       expect(response.text, 'done');
-      expect(innerAgent.runCount, 3);
+      expect(innerAgent.runCount, 4);
       expect(
         innerAgent.capturedRuns.last.first.contents,
         contains(isA<ToolApprovalResponseContent>()),
@@ -239,7 +233,6 @@ void main() {
       );
       final innerAgent = _ScriptedAgent()
         ..responses.addAll([
-          _responseText('setup'),
           _responseContents([mismatch]),
           _responseContents([request]),
           _responseText('matched'),
@@ -247,12 +240,13 @@ void main() {
       final agent = ToolApprovalAgent(innerAgent);
       final session = _TestSession();
 
-      await agent.runCore([
-        ChatMessage(
-          role: ChatRole.user,
-          contents: [request.createAlwaysApproveToolWithArgumentsResponse()],
-        ),
-      ], session: session);
+      await _establishAlwaysApproveRule(
+        agent,
+        innerAgent,
+        session,
+        request,
+        withArguments: true,
+      );
       final first = await agent.runCore([
         _userText('mismatch'),
       ], session: session);
@@ -271,7 +265,6 @@ void main() {
         final manual = _approvalRequest('r2', 'ManualTool');
         final innerAgent = _ScriptedAgent()
           ..responses.addAll([
-            _responseText('setup'),
             _responseContents([
               TextContent('before'),
               auto,
@@ -282,12 +275,7 @@ void main() {
         final agent = ToolApprovalAgent(innerAgent);
         final session = _TestSession();
 
-        await agent.runCore([
-          ChatMessage(
-            role: ChatRole.user,
-            contents: [auto.createAlwaysApproveToolResponse()],
-          ),
-        ], session: session);
+        await _establishAlwaysApproveRule(agent, innerAgent, session, auto);
         final response = await agent.runCore([
           _userText('go'),
         ], session: session);
@@ -300,8 +288,11 @@ void main() {
     test('always-approve unwraps and preserves content order', () async {
       final request = _approvalRequest('r1', 'Tool');
       final state = ToolApprovalState();
+      // Only a request the agent surfaced can be bound, and only a bound
+      // always-approve response records a standing rule.
+      ToolApprovalAgent.resetSurfacedApprovalRequests(state, [request]);
 
-      final messages = ToolApprovalAgent.unwrapAlwaysApproveResponses(
+      final messages = ToolApprovalAgent.bindApprovalResponses(
         [
           ChatMessage(
             role: ChatRole.user,
@@ -314,6 +305,7 @@ void main() {
         ],
         state,
         JsonSerializerOptions(),
+        collectBoundResponses: false,
       );
 
       final contents = messages.single.contents;
@@ -325,22 +317,45 @@ void main() {
         isNot(contains(isA<AlwaysApproveToolApprovalResponseContent>())),
       );
       expect(state.rules, hasLength(1));
+      // The surfaced request is consumed, so the same id cannot be replayed.
+      expect(state.surfacedApprovalRequests, isEmpty);
     });
 
-    test('rules persist and duplicate rules are not added', () async {
+    test('an unsurfaced always-approve response records no rule', () async {
       final request = _approvalRequest('r1', 'Tool');
-      final agent = ToolApprovalAgent(
-        _ScriptedAgent()..responses.add(_responseText('ok')),
-      );
-      final session = _TestSession();
+      final state = ToolApprovalState();
 
-      for (var i = 0; i < 2; i++) {
-        await agent.runCore([
+      final messages = ToolApprovalAgent.bindApprovalResponses(
+        [
           ChatMessage(
             role: ChatRole.user,
             contents: [request.createAlwaysApproveToolResponse()],
           ),
-        ], session: session);
+        ],
+        state,
+        JsonSerializerOptions(),
+        collectBoundResponses: false,
+      );
+
+      // The wrapper is downgraded to the plain response it carries and
+      // forwarded, but no standing rule is created.
+      expect(
+        messages.single.contents.single,
+        isA<ToolApprovalResponseContent>(),
+      );
+      expect(state.rules, isEmpty);
+    });
+
+    test('rules persist and duplicate rules are not added', () async {
+      final request = _approvalRequest('r1', 'Tool');
+      final innerAgent = _ScriptedAgent();
+      final agent = ToolApprovalAgent(innerAgent);
+      final session = _TestSession();
+
+      // The same request has to be surfaced again before a second
+      // always-approve response for it can be bound.
+      for (var i = 0; i < 2; i++) {
+        await _establishAlwaysApproveRule(agent, innerAgent, session, request);
       }
 
       final state = session.stateBag.getValue<ToolApprovalState>(
@@ -383,12 +398,16 @@ void main() {
       ], session: session);
       await agent.runCore([_userText('later')], session: session);
 
-      final injected = innerAgent.capturedRuns[1].first.contents
+      // Outside a queue cycle a bound response stays in the caller's message,
+      // so the second approval arrives alongside the injected first one
+      // rather than inside it.
+      final injected = innerAgent.capturedRuns[1]
+          .expand((m) => m.contents)
           .whereType<ToolApprovalResponseContent>()
           .toList();
       expect(injected, hasLength(2));
       expect(
-        innerAgent.capturedRuns[2].first.contents,
+        innerAgent.capturedRuns[2].expand((m) => m.contents),
         isNot(contains(isA<ToolApprovalResponseContent>())),
       );
     });
@@ -423,7 +442,8 @@ void main() {
         ], session: session);
         expect(innerAgent.runCount, 2);
         expect(
-          innerAgent.capturedRuns.last.first.contents
+          innerAgent.capturedRuns.last
+              .expand((m) => m.contents)
               .whereType<ToolApprovalResponseContent>(),
           hasLength(2),
         );
@@ -457,12 +477,7 @@ void main() {
       final agent = ToolApprovalAgent(innerAgent);
       final session = _TestSession();
 
-      await agent.runCore([
-        ChatMessage(
-          role: ChatRole.user,
-          contents: [request.createAlwaysApproveToolResponse()],
-        ),
-      ], session: session);
+      await _establishAlwaysApproveRule(agent, innerAgent, session, request);
       final updates = await agent.runCoreStreaming([
         _userText('go'),
       ], session: session).toList();
@@ -518,12 +533,7 @@ void main() {
         final agent = ToolApprovalAgent(innerAgent);
         final session = _TestSession();
 
-        await agent.runCore([
-          ChatMessage(
-            role: ChatRole.user,
-            contents: [auto.createAlwaysApproveToolResponse()],
-          ),
-        ], session: session);
+        await _establishAlwaysApproveRule(agent, innerAgent, session, auto);
         final updates = await agent.runCoreStreaming([
           _userText('go'),
         ], session: session).toList();
@@ -610,6 +620,34 @@ void main() {
       );
     });
   });
+}
+
+/// Surfaces [request] through a normal run so a later always-approve response
+/// for it can be bound, then sends that response to record the standing rule.
+///
+/// Consumes two inner-agent runs, prepended to whatever the test scripted.
+Future<void> _establishAlwaysApproveRule(
+  ToolApprovalAgent agent,
+  _ScriptedAgent innerAgent,
+  _TestSession session,
+  ToolApprovalRequestContent request, {
+  bool withArguments = false,
+}) async {
+  innerAgent.responses.insertAll(0, [
+    _responseContents([request]),
+    _responseText('rule recorded'),
+  ]);
+  await agent.runCore([_userText('surface')], session: session);
+  await agent.runCore([
+    ChatMessage(
+      role: ChatRole.user,
+      contents: [
+        withArguments
+            ? request.createAlwaysApproveToolWithArgumentsResponse()
+            : request.createAlwaysApproveToolResponse(),
+      ],
+    ),
+  ], session: session);
 }
 
 class _ScriptedAgent extends AIAgent {

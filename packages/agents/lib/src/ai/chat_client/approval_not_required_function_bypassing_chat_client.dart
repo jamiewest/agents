@@ -7,6 +7,7 @@ import 'package:extensions/system.dart';
 
 import '../../abstractions/agent_session.dart';
 import '../../abstractions/ai_agent.dart';
+import 'approval_requirement.dart';
 
 /// A delegating chat client that automatically removes
 /// [ToolApprovalRequestContent] for tools that do not actually require
@@ -72,7 +73,8 @@ class ApprovalNotRequiredFunctionBypassingChatClient
       );
     }
 
-    final autoApprovableNames = _getAutoApprovableToolNames(options);
+    final autoApprovableNames =
+        ApprovalRequirement.getApprovalNotRequiredToolNames(this, options);
 
     final withApprovals = _injectPendingAutoApprovals(messages, session);
 
@@ -107,7 +109,8 @@ class ApprovalNotRequiredFunctionBypassingChatClient
       return;
     }
 
-    final autoApprovableNames = _getAutoApprovableToolNames(options);
+    final autoApprovableNames =
+        ApprovalRequirement.getApprovalNotRequiredToolNames(this, options);
 
     final withApprovals = _injectPendingAutoApprovals(messages, session);
     final autoApproved = <ToolApprovalRequestContent>[];
@@ -194,55 +197,6 @@ class ApprovalNotRequiredFunctionBypassingChatClient
     ];
   }
 
-  /// Builds a set of tool names that do not require approval and can be
-  /// auto-approved, by checking all available tools from [ChatOptions.tools]
-  /// and [FunctionInvokingChatClient.additionalTools].
-  Set<String> _getAutoApprovableToolNames(ChatOptions? options) {
-    final functionInvoking = getService<FunctionInvokingChatClient>();
-
-    final allTools = <AITool>[
-      ...?options?.tools,
-      ...?functionInvoking?.additionalTools,
-    ];
-
-    return {
-      for (final tool in allTools.whereType<AIFunction>())
-        if (!_requiresApproval(tool)) tool.name,
-    };
-  }
-
-  /// Returns `true` when [function] is (or wraps) an
-  /// [ApprovalRequiredAIFunction].
-  static bool _requiresApproval(AIFunction function) {
-    AIFunction current = function;
-    while (true) {
-      if (current is ApprovalRequiredAIFunction) {
-        return true;
-      }
-      if (current is DelegatingAIFunction) {
-        current = current.innerFunction;
-        continue;
-      }
-      return false;
-    }
-  }
-
-  /// Determines whether a [ToolApprovalRequestContent] can be auto-approved
-  /// because the underlying tool is not an [ApprovalRequiredAIFunction].
-  ///
-  /// Unknown tools are not in the set and are treated as approval-required
-  /// (safe default). Non-function tool calls cannot be auto-approved.
-  static bool _isAutoApprovable(
-    ToolApprovalRequestContent approval,
-    Set<String> autoApprovableNames,
-  ) {
-    final dynamic toolCall = approval.toolCall;
-    if (toolCall is! FunctionCallContent) {
-      return false;
-    }
-    return autoApprovableNames.contains(toolCall.name);
-  }
-
   /// Scans response messages for auto-approvable
   /// [ToolApprovalRequestContent] items, removes them from the messages, and
   /// stores them in the session for the next request.
@@ -258,7 +212,10 @@ class ApprovalNotRequiredFunctionBypassingChatClient
       final remaining = <AIContent>[];
       for (final content in message.contents) {
         if (content is ToolApprovalRequestContent &&
-            _isAutoApprovable(content, autoApprovableNames)) {
+            ApprovalRequirement.isApprovalNotRequired(
+              content.toolCall,
+              autoApprovableNames,
+            )) {
           autoApproved.add(content);
         } else {
           remaining.add(content);
@@ -302,7 +259,10 @@ class ApprovalNotRequiredFunctionBypassingChatClient
     for (final content in update.contents) {
       if (content is ToolApprovalRequestContent) {
         hasApprovalContent = true;
-        if (_isAutoApprovable(content, autoApprovableNames)) {
+        if (ApprovalRequirement.isApprovalNotRequired(
+          content.toolCall,
+          autoApprovableNames,
+        )) {
           autoApproved.add(content);
           removedAny = true;
         } else {

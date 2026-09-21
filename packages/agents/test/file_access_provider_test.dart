@@ -32,12 +32,13 @@ void main() {
     test('returns tools', () async {
       final tools = await createTools();
 
-      expect(tools, hasLength(7));
+      expect(tools, hasLength(8));
       expect(
         tools.whereType<AIFunction>().map((t) => t.name),
         unorderedEquals([
           'file_access_write',
           'file_access_read',
+          'file_access_read_lines',
           'file_access_delete',
           'file_access_replace',
           'file_access_replace_lines',
@@ -512,6 +513,7 @@ void main() {
 
       final readOnly = [
         'file_access_read',
+        'file_access_read_lines',
         'file_access_ls',
         'file_access_grep',
       ];
@@ -534,10 +536,130 @@ void main() {
         tools.whereType<AIFunction>().map((t) => t.name),
         unorderedEquals([
           'file_access_read',
+          'file_access_read_lines',
           'file_access_ls',
           'file_access_grep',
         ]),
       );
+    });
+
+    test('read_lines numbers a range and keeps terminators', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\ntwo\nthree\nfour');
+      final tools = await createTools(store);
+      final readLines = getTool(tools, 'file_access_read_lines');
+
+      final result = await readLines.invoke(
+        AIFunctionArguments({
+          'fileName': 'notes.md',
+          'startLine': 2,
+          'endLine': 3,
+        }),
+      );
+
+      expect(result, '2\ttwo\n3\tthree\n');
+    });
+
+    test('read_lines clamps an endLine past the last line', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\ntwo');
+      final tools = await createTools(store);
+      final readLines = getTool(tools, 'file_access_read_lines');
+
+      final result = await readLines.invoke(
+        AIFunctionArguments({
+          'fileName': 'notes.md',
+          'startLine': 1,
+          'endLine': 99,
+        }),
+      );
+
+      expect(result, '1\tone\n2\ttwo');
+    });
+
+    test('read_lines rejects a startLine past the last line', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\n');
+      final tools = await createTools(store);
+      final readLines = getTool(tools, 'file_access_read_lines');
+
+      await expectLater(
+        readLines.invoke(
+          AIFunctionArguments({'fileName': 'notes.md', 'startLine': 5}),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('read_lines line numbers match the ones grep reports', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'a\r\nmatch me\r\nc\r\n');
+      final tools = await createTools(store);
+
+      final grep = getTool(tools, 'file_access_grep');
+      final results =
+          await grep.invoke(AIFunctionArguments({'regexPattern': 'match'}))
+              as List;
+      final lineNumber =
+          (results.single as dynamic).matchingLines.single.lineNumber as int;
+
+      final readLines = getTool(tools, 'file_access_read_lines');
+      final slice = await readLines.invoke(
+        AIFunctionArguments({
+          'fileName': 'notes.md',
+          'startLine': lineNumber,
+          'endLine': lineNumber,
+        }),
+      );
+
+      expect(slice, '2\tmatch me\r\n');
+    });
+
+    test('replace_lines rejects an edit whose expected_line differs', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\ntwo\n');
+      final tools = await createTools(store);
+      final replaceLines = getTool(tools, 'file_access_replace_lines');
+
+      await expectLater(
+        replaceLines.invoke(
+          AIFunctionArguments({
+            'fileName': 'notes.md',
+            'edits': [
+              {
+                'line_number': 2,
+                'new_line': 'replaced\n',
+                'expected_line': 'not what is there',
+              },
+            ],
+          }),
+        ),
+        throwsArgumentError,
+      );
+      expect(await store.readFileAsync('notes.md'), 'one\ntwo\n');
+    });
+
+    test('replace_lines applies an edit whose expected_line matches', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('notes.md', 'one\ntwo\n');
+      final tools = await createTools(store);
+      final replaceLines = getTool(tools, 'file_access_replace_lines');
+
+      await replaceLines.invoke(
+        AIFunctionArguments({
+          'fileName': 'notes.md',
+          'edits': [
+            {
+              'line_number': 2,
+              'new_line': 'replaced\n',
+              // The terminator is ignored in the comparison.
+              'expected_line': 'two',
+            },
+          ],
+        }),
+      );
+
+      expect(await store.readFileAsync('notes.md'), 'one\nreplaced\n');
     });
 
     test('grep searches recursively and re-roots to the store root', () async {

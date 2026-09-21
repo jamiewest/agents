@@ -50,4 +50,11 @@ class OpenAIResponseRequestInfo {
   /// [ChatToolMode] equivalent (`none`, `auto`, `required`, or a specific
   /// function). Values that have no equivalent are surfaced as `null`.
   ChatToolMode? toolChoice;
+
+  /// Whether the request carried a `tool_choice` value at all.
+  ///
+  /// [toolChoice] is `null` both when the request omitted `tool_choice` and
+  /// when it supplied a value with no [ChatToolMode] equivalent, so the
+  /// default mapping consults this flag to reject the latter.
+  bool hasToolChoice = false;
 }

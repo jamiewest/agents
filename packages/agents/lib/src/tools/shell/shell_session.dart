@@ -321,6 +321,13 @@ class ShellSession {
       sb.writeln(_cdCommand(confineWorkdir));
     }
 
+    if (family == ShellFamily.powerShell) {
+      // $LASTEXITCODE persists across commands in a session and cmdlets do
+      // not update it. Clear it so any value read after the command belongs
+      // to this command.
+      sb.writeln(r'$global:LASTEXITCODE = $null');
+    }
+
     sb.writeln(command);
 
     if (family == ShellFamily.powerShell) {

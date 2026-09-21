@@ -17,7 +17,73 @@ extension OpenAIResponseRequestInfoBuilder on CreateResponse {
     ..instructions = instructions
     ..model = model
     ..tools = (tools?.isNotEmpty ?? false) ? List<Object?>.of(tools!) : null
-    ..toolChoice = _toChatToolMode(toolChoice);
+    ..toolChoice = _toChatToolMode(toolChoice)
+    ..hasToolChoice = toolChoice != null;
+}
+
+/// Splits raw request tool declarations into client function tools and the
+/// declarations that are not function tools.
+(List<AITool>?, List<Object?>?) convertClientFunctionTools(
+  List<Object?> tools,
+) {
+  List<AITool>? clientTools;
+  List<Object?>? remainingTools;
+
+  for (final tool in tools) {
+    final functionTool = _toFunctionTool(tool);
+    if (functionTool != null) {
+      (clientTools ??= <AITool>[]).add(functionTool);
+    } else {
+      (remainingTools ??= <Object?>[]).add(tool);
+    }
+  }
+
+  return (clientTools, remainingTools);
+}
+
+ClientAIFunctionDeclaration? _toFunctionTool(Object? tool) {
+  if (tool is! Map) {
+    return null;
+  }
+  if (tool['type'] != 'function') {
+    return null;
+  }
+  final name = tool['name'];
+  if (name is! String || name.isEmpty) {
+    return null;
+  }
+
+  final parameters = tool['parameters'];
+  final description = tool['description'];
+  final strict = tool['strict'];
+
+  return ClientAIFunctionDeclaration(
+    name: name,
+    description: description is String ? description : null,
+    parametersSchema: parameters is Map
+        ? parameters.cast<String, dynamic>()
+        : const <String, dynamic>{},
+    strict: strict is bool ? strict : null,
+  );
+}
+
+/// A function declaration built from a client-supplied `tools` entry.
+///
+/// It declares the function to the model but carries no executable body: the
+/// downstream chat client and provider decide how a call to it is handled.
+class ClientAIFunctionDeclaration extends AIFunctionDeclaration {
+  /// Creates a declaration for a client-supplied function tool.
+  ClientAIFunctionDeclaration({
+    required super.name,
+    super.description,
+    super.parametersSchema,
+    bool? strict,
+  }) {
+    if (strict != null) {
+      additionalProperties = AdditionalPropertiesDictionary()
+        ..['strict'] = strict;
+    }
+  }
 }
 
 /// Maps an OpenAI Responses `tool_choice` value onto its [ChatToolMode]

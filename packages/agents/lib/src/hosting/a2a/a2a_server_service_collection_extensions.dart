@@ -52,7 +52,7 @@ extension A2AServerServiceCollectionExtensions on ServiceCollection {
       final store =
           sp.getKeyedService<AgentSessionStore>(key) ??
           InMemoryAgentSessionStore();
-      final runMode = options?.agentRunMode ?? AgentRunMode.disallowBackground;
+      final runMode = options?.agentRunMode ?? AgentRunMode.returnMessage;
       return A2AAgentHandler(AIHostAgent(resolved, store), runMode);
     });
 

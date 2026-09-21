@@ -1,12 +1,9 @@
-import 'dart:math';
-
 import 'package:extensions/system.dart';
 import 'package:file/file.dart';
 import 'package:file/local.dart';
 import 'package:path/path.dart' as p;
 
 import 'agent_file_store.dart';
-import 'file_search_match.dart';
 import 'file_search_result.dart';
 import 'file_store_entry.dart';
 import 'store_paths.dart';
@@ -172,7 +169,7 @@ class FileSystemAgentFileStore extends AgentFileStore {
       }
 
       final fileContent = await file.readAsString();
-      final result = _searchFile(fileName, fileContent, regex);
+      final result = AgentFileStore.scanContent(fileName, fileContent, regex);
       if (result != null) {
         results.add(result);
       }
@@ -217,49 +214,5 @@ class FileSystemAgentFileStore extends AgentFileStore {
     }
 
     return resolveSafePath(relativeDirectory);
-  }
-
-  static FileSearchResult? _searchFile(
-    String fileName,
-    String fileContent,
-    RegExp regex,
-  ) {
-    final lines = fileContent.split('\n');
-    final matchingLines = <FileSearchMatch>[];
-    String? firstSnippet;
-    var lineStartOffset = 0;
-
-    for (var i = 0; i < lines.length; i++) {
-      final match = regex.firstMatch(lines[i]);
-      if (match != null) {
-        matchingLines.add(
-          FileSearchMatch()
-            ..lineNumber = i + 1
-            ..line = lines[i].replaceFirst(RegExp(r'\r$'), ''),
-        );
-
-        if (firstSnippet == null) {
-          final matchedValue = match.group(0) ?? '';
-          final charIndex = lineStartOffset + match.start;
-          final snippetStart = max(0, charIndex - 50);
-          final snippetEnd = min(
-            fileContent.length,
-            charIndex + matchedValue.length + 50,
-          );
-          firstSnippet = fileContent.substring(snippetStart, snippetEnd);
-        }
-      }
-
-      lineStartOffset += lines[i].length + 1;
-    }
-
-    if (matchingLines.isEmpty) {
-      return null;
-    }
-
-    return FileSearchResult()
-      ..fileName = fileName
-      ..snippet = firstSnippet!
-      ..matchingLines = matchingLines;
   }
 }

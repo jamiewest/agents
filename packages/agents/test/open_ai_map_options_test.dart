@@ -56,6 +56,85 @@ void main() {
     });
   });
 
+  group('OpenAIResponsesMapOptions.dangerouslyAllowClientFunctionTools', () {
+    test('forwards client function declarations as run-option tools', () {
+      final mapOptions = OpenAIResponsesMapOptions()
+        ..dangerouslyAllowClientFunctionTools = true;
+      final request = OpenAIResponseRequestInfo()
+        ..tools = [
+          {
+            'type': 'function',
+            'name': 'lookup',
+            'description': 'Look something up',
+            'parameters': {'type': 'object'},
+            'strict': true,
+          },
+        ];
+
+      final runOptions = mapOptions.runOptionsFactory(request);
+
+      final tools = ((runOptions as dynamic).chatOptions as ChatOptions).tools!;
+      expect(tools.single.name, 'lookup');
+      expect(tools.single.description, 'Look something up');
+      expect(tools.single.additionalProperties?['strict'], isTrue);
+    });
+
+    test('still rejects a non-function tool declaration', () {
+      final mapOptions = OpenAIResponsesMapOptions()
+        ..dangerouslyAllowClientFunctionTools = true;
+      final request = OpenAIResponseRequestInfo()
+        ..tools = [
+          {'type': 'web_search'},
+        ];
+
+      expect(
+        () => mapOptions.runOptionsFactory(request),
+        throwsUnsupportedError,
+      );
+    });
+
+    test('still rejects tool_choice', () {
+      final mapOptions = OpenAIResponsesMapOptions()
+        ..dangerouslyAllowClientFunctionTools = true;
+      final request = OpenAIResponseRequestInfo()
+        ..tools = [
+          {'type': 'function', 'name': 'lookup'},
+        ]
+        ..hasToolChoice = true;
+
+      expect(
+        () => mapOptions.runOptionsFactory(request),
+        throwsUnsupportedError,
+      );
+    });
+
+    test('a custom factory owns the whole mapping', () {
+      final mapOptions = OpenAIResponsesMapOptions()
+        ..dangerouslyAllowClientFunctionTools = true
+        ..runOptionsFactory = (request) => null;
+
+      expect(
+        mapOptions.runOptionsFactory(
+          OpenAIResponseRequestInfo()
+            ..tools = [
+              {'type': 'web_search'},
+            ],
+        ),
+        isNull,
+      );
+    });
+
+    test('rejects a tool_choice value with no ChatToolMode equivalent', () {
+      // hasToolChoice keeps an unmappable value from reading as "absent".
+      final request = OpenAIResponseRequestInfo()..hasToolChoice = true;
+
+      expect(
+        () => OpenAIResponsesMapOptions.rejectRequestSettings(request),
+        throwsUnsupportedError,
+      );
+    });
+  });
+
   group('CreateResponse.toRequestInfo', () {
     test('maps sampling, instructions, tools, and tool_choice', () {
       final request = CreateResponse.fromJson({

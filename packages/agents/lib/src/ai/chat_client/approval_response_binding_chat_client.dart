@@ -7,6 +7,7 @@ import 'package:extensions/system.dart';
 
 import '../../abstractions/agent_session.dart';
 import '../../abstractions/ai_agent.dart';
+import 'approval_requirement.dart';
 
 /// A delegating chat client that strengthens the human-in-the-loop
 /// tool-approval control by binding each inbound [ToolApprovalResponseContent]
@@ -32,6 +33,16 @@ import '../../abstractions/ai_agent.dart';
 ///   pending entry is consumed, so an approval is honored only once.
 /// - When no recorded pending request exists, the response is dropped, so only
 ///   approvals tied to a genuine, framework-issued request take effect.
+///
+/// The authority for an approval is always the state the framework itself
+/// recorded when it surfaced the request. An approval request that merely
+/// appears in the caller-supplied message history is never, by itself, proof
+/// that the framework asked a human to approve it; without this rule a caller
+/// could supply a fabricated request together with its own approval and
+/// authorize an arbitrary tool call. A host that cannot record approval
+/// requests server-side therefore cannot resume an approval, and should
+/// disable approval-response binding altogether rather than rely on the
+/// history it replays.
 ///
 /// This decorator operates within the context of a running [AIAgent] with an
 /// active session. When invoked without an ambient run context or session (for
@@ -76,7 +87,7 @@ class ApprovalResponseBindingChatClient extends DelegatingChatClient {
       );
     }
 
-    final bound = _bindInboundApprovalResponses(messages, session);
+    final bound = _bindInboundApprovalResponses(messages, options, session);
 
     final response = await super.getResponse(
       messages: bound,
@@ -105,7 +116,7 @@ class ApprovalResponseBindingChatClient extends DelegatingChatClient {
       return;
     }
 
-    final bound = _bindInboundApprovalResponses(messages, session);
+    final bound = _bindInboundApprovalResponses(messages, options, session);
     final emitted = <ToolApprovalRequestContent>[];
 
     try {
@@ -167,33 +178,51 @@ class ApprovalResponseBindingChatClient extends DelegatingChatClient {
   /// Rewrites the inbound messages so each [ToolApprovalResponseContent] is
   /// bound to a known [ToolApprovalRequestContent], with its tool call rebound
   /// to the request's call when it differs. A response with no known request is
-  /// removed so a forged approval cannot drive execution. Approval requests are
-  /// left untouched: a request present in the message history is itself the
-  /// pairing authority.
+  /// removed so a forged approval cannot drive execution.
+  ///
+  /// Approval requests are never removed. They are legitimate model context,
+  /// but they are not the authority that an approval was requested, so they
+  /// are forwarded unchanged whether or not a response was bound to them.
+  /// Dropping a response therefore leaves its request unanswered, and the run
+  /// fails downstream in the function invocation middleware. That is
+  /// deliberate: a payload whose approval was rejected surfaces as an error
+  /// instead of silently continuing as though the call had never been
+  /// requested.
   Iterable<ChatMessage> _bindInboundApprovalResponses(
     Iterable<ChatMessage> messages,
+    ChatOptions? options,
     AgentSession session,
   ) {
     final messageList = messages is List<ChatMessage>
         ? messages
         : messages.toList();
 
-    // Known requests come from two places: requests recorded when the
-    // framework surfaced them on a previous turn (covering callers that echo
-    // only the response), and requests already present in the current message
-    // history (covering replayed history and internally generated approvals).
+    // Known requests come from the state the framework recorded when it
+    // surfaced them on a previous turn. This is the only authority: the caller
+    // controls the inbound messages, so a request appearing there proves
+    // nothing about whether a human was ever asked to approve it.
     final knownRequests = _loadPendingApprovalRequestLookup(session);
 
     // Pending state only needs to bridge a single turn; consume it now.
+    // Tool-call results must be supplied as a complete set, so an approval
+    // batch is always answered in one turn and nothing is left to carry over.
     if (knownRequests.isNotEmpty) {
       session.stateBag.tryRemoveValue(stateBagKey);
     }
 
+    // Tool calls that already carry a result in the inbound messages. The
+    // approval gate guards execution, and a call whose result is already
+    // present will not be executed again, so its approval is settled history
+    // rather than a pending authorization. Validating it would serve no
+    // purpose and would reject every host that replays a completed
+    // conversation.
+    Set<String>? settledCallIds;
+
     var hasResponse = false;
     for (final message in messageList) {
       for (final content in message.contents) {
-        if (content is ToolApprovalRequestContent) {
-          knownRequests[content.requestId] = content;
+        if (content is FunctionResultContent) {
+          (settledCallIds ??= <String>{}).add(content.callId);
         } else if (content is ToolApprovalResponseContent) {
           hasResponse = true;
         }
@@ -206,13 +235,26 @@ class ApprovalResponseBindingChatClient extends DelegatingChatClient {
       return messageList;
     }
 
+    // Tools this turn that carry no approval requirement.
+    // `FunctionInvokingChatClient` surfaces an approval request for every call
+    // in a response as soon as one tool requires approval, so a response can
+    // arrive for a tool that no human was ever meant to be asked about. Those
+    // are not what this gate protects.
+    final approvalNotRequiredToolNames =
+        ApprovalRequirement.getApprovalNotRequiredToolNames(this, options);
+
     // Copy-on-write: only allocate a new message list once a message is
     // actually modified.
     List<ChatMessage>? result;
 
     for (var i = 0; i < messageList.length; i++) {
       final message = messageList[i];
-      final rewritten = _bindApprovalResponses(message, knownRequests);
+      final rewritten = _bindApprovalResponses(
+        message,
+        knownRequests,
+        settledCallIds,
+        approvalNotRequiredToolNames,
+      );
 
       if (rewritten == null) {
         result?.add(message);
@@ -241,10 +283,14 @@ class ApprovalResponseBindingChatClient extends DelegatingChatClient {
   /// Returns `null` when the message needs no change, or the rewritten content
   /// list (which may be empty, indicating the message should be dropped) when
   /// a change is required. Non-response content, including approval requests,
-  /// is preserved.
+  /// is preserved. Responses whose tool call appears in [settledCallIds] are
+  /// left untouched, because a call that already has a result cannot be
+  /// executed by this response.
   List<AIContent>? _bindApprovalResponses(
     ChatMessage message,
     Map<String, ToolApprovalRequestContent> knownRequests,
+    Set<String>? settledCallIds,
+    Set<String> approvalNotRequiredToolNames,
   ) {
     final contents = message.contents;
     List<AIContent>? buffer;
@@ -257,14 +303,50 @@ class ApprovalResponseBindingChatClient extends DelegatingChatClient {
         continue;
       }
 
+      final dynamic responseCall = content.toolCall;
+      final responseCallId = responseCall is FunctionCallContent
+          ? responseCall.callId as String?
+          : null;
+      if (responseCallId != null &&
+          settledCallIds != null &&
+          settledCallIds.contains(responseCallId)) {
+        // Settled: a result for this call is already present, so this response
+        // is a record of a decision that has already been carried out, not an
+        // authorization for work still to come. It cannot cause execution, so
+        // there is nothing here for the gate to protect.
+        buffer?.add(content);
+        continue;
+      }
+
       final matched = knownRequests.remove(content.requestId);
       if (matched == null) {
-        // No known request corresponds to this response; drop it so a forged
-        // approval cannot execute.
+        if (ApprovalRequirement.isApprovalNotRequired(
+          content.toolCall,
+          approvalNotRequiredToolNames,
+        )) {
+          // The response is for a known tool that requires no approval, so it
+          // does not represent human consent and there is no consent for a
+          // forged response to fabricate: the framework invokes such a tool
+          // without asking anyone. It only appears as an approval at all
+          // because `FunctionInvokingChatClient` converts every call in a
+          // response once any one of them needs approval, and
+          // `ApprovalNotRequiredFunctionBypassingChatClient` auto-approves
+          // exactly these. Dropping it would block ordinary tool calling
+          // whenever that bypassing cannot use the session.
+          buffer?.add(content);
+          continue;
+        }
+
+        // No known request corresponds to this response and the tool does
+        // require approval; drop it so a forged approval cannot execute.
         _warn(
           'Ignored a ToolApprovalResponseContent with request id '
           "'${content.requestId}' that does not correspond to a "
-          'model-originated approval request surfaced by the framework.',
+          'model-originated approval request surfaced by the framework. '
+          'Approval requests present only in the caller-supplied chat '
+          'history are deliberately not trusted for pairing. If this agent '
+          'legitimately resumes approvals, register an AgentSessionStore so '
+          'the approval request is recorded server-side when it is surfaced.',
         );
         buffer ??= contents.sublist(0, j);
         continue;
@@ -374,25 +456,62 @@ class ApprovalResponseBindingChatClient extends DelegatingChatClient {
 
   /// Merges newly surfaced approval requests into the recorded pending set,
   /// de-duplicating by request id.
+  ///
+  /// A request id is not guaranteed to be unique:
+  /// [FunctionInvokingChatClient] composes it as `"ficc_{callId}"`, so a
+  /// provider that reuses a call id produces a collision. Re-surfacing the
+  /// same call under a known id is harmless and ignored, but if a *different*
+  /// call appears under an id that is already pending there is no way to tell
+  /// which call a human's answer refers to. That case fails closed: the id is
+  /// poisoned and no approval is honored for it, so consent can never be
+  /// redirected onto a call the human did not see.
   void _mergePendingApprovalRequests(
     List<ToolApprovalRequestContent> emitted,
     AgentSession session,
   ) {
     final pending = _loadPendingApprovalRequests(session);
-    final known = {for (final request in pending) request.requestId};
+    final known = {for (final request in pending) request.requestId: request};
 
+    Set<String>? ambiguousRequestIds;
     var changed = false;
+
     for (final request in emitted) {
-      if (known.add(request.requestId)) {
+      if (ambiguousRequestIds?.contains(request.requestId) ?? false) {
+        continue;
+      }
+
+      final existing = known[request.requestId];
+      if (existing == null) {
         // Upstream stores a defensive clone here so a later mutation of the
         // caller-visible instance cannot change the recorded tool call. That
         // is not reproducible: `extensions` has no concrete tool call type
         // that carries a function name and arguments (`FunctionCallContent`
         // does not subtype `ToolCallContent`), so the recorded call cannot be
         // rebuilt. The request is recorded as-is.
+        known[request.requestId] = request;
         pending.add(request);
         changed = true;
+        continue;
       }
+
+      if (_toolCallsEquivalent(request.toolCall, existing.toolCall)) {
+        // The same request surfaced again; the recorded entry already covers
+        // it.
+        continue;
+      }
+
+      // Collision between two different calls under one request id: neither
+      // can be bound safely.
+      _warn(
+        'Two different tool calls were surfaced for approval under request '
+        "id '${request.requestId}'. The request id is ambiguous, so no "
+        'approval will be honored for it and the affected tool calls must be '
+        'requested again.',
+      );
+      (ambiguousRequestIds ??= <String>{}).add(request.requestId);
+      known.remove(request.requestId);
+      pending.removeWhere((p) => p.requestId == request.requestId);
+      changed = true;
     }
 
     if (changed) {

@@ -132,18 +132,32 @@ void main() {
       expect(results, hasLength(1));
       expect(results[0].matchingLines, hasLength(2));
       expect(results[0].matchingLines[0].lineNumber, 2);
-      expect(results[0].matchingLines[0].line, 'Line two with match');
+      // Lines are reported verbatim, terminator included, so the value can be
+      // reused as a replace_lines new_line without re-reading the file. The
+      // last line is unterminated in the content, so it has no terminator.
+      expect(results[0].matchingLines[0].line, 'Line two with match\n');
       expect(results[0].matchingLines[1].lineNumber, 4);
       expect(results[0].matchingLines[1].line, 'Line four with match');
     });
 
-    test('search files strips trailing carriage return from line', () async {
+    test('search files reports a CRLF line with its terminator', () async {
       final store = InMemoryAgentFileStore();
       await store.writeFileAsync('folder/notes.md', 'first\r\nmatch here\r\n');
 
       final results = await store.searchFilesAsync('folder', 'match');
 
-      expect(results[0].matchingLines[0].line, 'match here');
+      expect(results[0].matchingLines[0].line, 'match here\r\n');
+    });
+
+    test('search matches an end-anchored pattern on a CRLF line', () async {
+      final store = InMemoryAgentFileStore();
+      await store.writeFileAsync('folder/notes.md', 'first\r\nmatch\r\n');
+
+      // The pattern is matched against the line without its terminator.
+      final results = await store.searchFilesAsync('folder', r'match$');
+
+      expect(results, hasLength(1));
+      expect(results[0].matchingLines.single.lineNumber, 2);
     });
 
     test('search files is case-insensitive', () async {

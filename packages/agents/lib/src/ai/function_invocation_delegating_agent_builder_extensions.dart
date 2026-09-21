@@ -13,7 +13,13 @@ extension FunctionInvocationDelegatingAgentBuilderExtensions on AIAgentBuilder {
   ///
   /// The callback must call the provided continuation delegate to proceed with
   /// the function invocation, unless it intends to completely replace the
-  /// function's behavior. The inner agent or the pipeline wrapping it must
+  /// function's behavior.
+  ///
+  /// The callbacks also apply to functions added to or replaced in the current
+  /// [ChatOptions.tools] collection during execution, and a per-request
+  /// chat-client factory can replace the client without removing them.
+  ///
+  /// The inner agent or the pipeline wrapping it must
   /// include a [FunctionInvokingChatClient]. If one does not exist, the
   /// [AIAgent] added to the pipeline by this method will throw an exception
   /// when invoked. Returns the [AIAgentBuilder] instance, enabling method
